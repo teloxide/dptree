@@ -1,12 +1,14 @@
-use crate::handler::{Handler, BoxHandler};
+use crate::handler::{Handler, BoxHandler, HandlerFuture};
 use futures::future::BoxFuture;
+use std::sync::Arc;
 
+/// Node is a node.
 pub struct Node<Data, Res> {
-    children: Vec<BoxHandler<Data, Res>>
+    children: Arc<Vec<BoxHandler<Data, Res>>>
 }
 
 impl<Data, Res> Node<Data, Res> {
-    pub fn new(children: Vec<BoxHandler<Data, Res>>) -> Self {
+    pub fn new(children: Arc<Vec<BoxHandler<Data, Res>>>) -> Self {
         Node { children }
     }
 }
@@ -14,11 +16,13 @@ impl<Data, Res> Node<Data, Res> {
 impl<Data, Res> Handler<Data, Res> for Node<Data, Res>
 where
     Data: Send + Sync + 'static,
+    Res: 'static,
 {
-    fn handle(&self, data: Data) -> BoxFuture<Result<Res, Data>> {
+    fn handle(&self, data: Data) -> HandlerFuture<Res, Data> {
+        let children = self.children.clone();
         Box::pin(async move {
             let mut data = data;
-            for handler in self.children.iter() {
+            for handler in children.iter() {
                 match handler.handle(data).await {
                     Ok(res) => return Ok(res),
                     Err(d) => {
@@ -49,7 +53,7 @@ mod tests {
                 }
             })
         ];
-        let node = Node::new(handlers);
+        let node = Node::new(Arc::new(handlers));
         node.handle(0).await.unwrap();
 
         std::mem::drop(node);

@@ -1,4 +1,4 @@
-use crate::handler::Handler;
+use crate::handler::{Handler, HandlerFuture};
 use futures::future::{BoxFuture};
 
 /// Struct that filtering event by some condition
@@ -35,13 +35,12 @@ where
     F: Fn(&Data) -> bool + Send + Sync,
     H: Handler<Data, Res> + Send + Sync,
     Data: Send + Sync + 'static,
+    Res: Send + 'static,
 {
-    fn handle(&self, data: Data) -> BoxFuture<Result<Res, Data>> {
-        Box::pin(async move {
-            match (self.condition)(&data) {
-                true => self.handler.handle(data).await,
-                false => Err(data),
-            }
-        })
+    fn handle(&self, data: Data) -> HandlerFuture<Res, Data> {
+        match (self.condition)(&data) {
+            true => Box::pin(self.handler.handle(data)),
+            false => Box::pin(futures::future::err(data)),
+        }
     }
 }
