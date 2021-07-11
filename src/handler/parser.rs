@@ -16,6 +16,12 @@ pub struct Parser<H, From, To, Rest> {
     _phantom: PhantomData<(From, To, Rest)>
 }
 
+impl<H, From, To, Rest> Parser<H, From, To, Rest> {
+    pub fn new(handler: H) -> Self {
+        Parser { handler, _phantom: PhantomData }
+    }
+}
+
 impl<H, Res, From, To, Rest> Handler<From, Res> for Parser<H, From, To, Rest>
 where
     H: Handler<To, Res> + Send + Sync,

@@ -44,6 +44,7 @@ pub use parser::Parser;
 
 use futures::future::BoxFuture;
 use futures::Future;
+use crate::parser::Handlerable;
 
 // Note that future must have 'static lifetime.
 pub type HandlerFuture<Res, Data> = BoxFuture<'static, Result<Res, Data>>;
@@ -68,5 +69,20 @@ where
 {
     fn handle(&self, data: Data) -> HandlerFuture<Res, Data> {
         Box::pin(self(data))
+    }
+}
+
+pub trait HandlerExt<Data, Res>: Handler<Data, Res> + Sized {
+    fn filter_by<Cond>(self, condition: Cond) -> Filter<Cond, Self>
+    where
+        Cond: Fn(&Data) -> bool + Send + Sync,
+    {
+        Filter::new(condition, self)
+    }
+    fn parse_before<InputType, Rest>(self) -> Parser<Self, InputType, Data, Rest>
+    where
+        InputType: Handlerable<Data, Rest>
+    {
+        Parser::new(self)
     }
 }
