@@ -4,16 +4,25 @@
 
 /// The trait is used to parse some data into some other data with
 /// possibility of its reverse recombination.
-pub trait Parseable<To, Rest>: Sized {
-    fn parse(self) -> Result<(To, Rest), Self>;
+pub trait Parseable<To>: Sized {
+    type Rest;
+    fn parse(self) -> Result<(To, Self::Rest), Self>;
 }
 
 /// The trait is used to recombine [`Parseable`] output back to the input.
-pub trait RecombineFrom<To, Rest>: Sized {
-    fn recombine(data: (To, Rest)) -> Self;
+pub trait RecombineFrom<To>: Sized {
+    type Rest;
+    fn recombine(data: (To, Self::Rest)) -> Self;
 }
 
 /// The trait is used to unite both `Parseable` and `RecombineFrom` trait into one trait.
-pub trait Handlerable<To, Rest>: Parseable<To, Rest> + RecombineFrom<To, Rest> {}
+pub trait Handlerable<To>:
+    Parseable<To, Rest = <Self as Handlerable<To>>::Rest> +
+    RecombineFrom<To, Rest = <Self as Handlerable<To>>::Rest>
+{
+    type Rest;
+}
 
-impl<T, To, Rest> Handlerable<To, Rest> for T where T: Parseable<To, Rest> + RecombineFrom<To, Rest> {}
+impl<T, To, Rest> Handlerable<To> for T where T: Parseable<To, Rest = Rest> + RecombineFrom<To, Rest = Rest> {
+    type Rest = Rest;
+}

@@ -79,9 +79,9 @@ pub trait HandlerExt<Data, Res>: Handler<Data, Res> + Sized {
     {
         Filter::new(condition, self)
     }
-    fn parse_before<InputType, Rest>(self) -> Parser<Self, InputType, Data, Rest>
+    fn parse_before<InputType>(self) -> Parser<Self, InputType, Data>
     where
-        InputType: Handlerable<Data, Rest>
+        InputType: Handlerable<Data>
     {
         Parser::new(self)
     }
