@@ -1,8 +1,8 @@
 //! The module contains traits and structs that are used for storing some values in
 //! abstract stores.
 
+use std::any::{Any, TypeId};
 use std::collections::HashMap;
-use std::any::{TypeId, Any};
 
 /// The trait is used to specify data type as storing some value `Value`. Means that
 /// `Value` can be obtained by-value.
@@ -12,13 +12,13 @@ pub trait Store<Value> {
 
 /// Panickable realisation for the `Store` trait.
 pub struct TypeMapPanickableStore {
-    map: HashMap<TypeId, Box<dyn Any>>
+    map: HashMap<TypeId, Box<dyn Any>>,
 }
 
 impl TypeMapPanickableStore {
     pub fn new() -> Self {
         Self {
-            map: HashMap::new()
+            map: HashMap::new(),
         }
     }
 
@@ -29,8 +29,16 @@ impl TypeMapPanickableStore {
 
 impl<V: Clone + 'static> Store<V> for TypeMapPanickableStore {
     fn get(&self) -> V {
-        self.map.get(&TypeId::of::<V>()).unwrap_or_else(|| {
-            panic!("{} was requested, but not provided.", std::any::type_name::<V>())
-        }).downcast_ref::<V>().expect("we already checks that line before").clone()
+        self.map
+            .get(&TypeId::of::<V>())
+            .unwrap_or_else(|| {
+                panic!(
+                    "{} was requested, but not provided.",
+                    std::any::type_name::<V>()
+                )
+            })
+            .downcast_ref::<V>()
+            .expect("we already checks that line before")
+            .clone()
     }
 }

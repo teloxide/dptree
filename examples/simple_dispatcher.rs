@@ -1,9 +1,9 @@
-use dispatch_tree::handler::{Node, Filter, Parser, Leaf, EventOwned};
-use std::sync::Arc;
-use dispatch_tree::Handler;
+use dispatch_tree::handler::{EventOwned, Filter, Leaf, Node, Parser};
 use dispatch_tree::parser::{Parseable, RecombineFrom};
-use std::sync::atomic::{AtomicI32, Ordering};
+use dispatch_tree::Handler;
 use std::io::Write;
+use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::Arc;
 
 #[derive(Debug)]
 struct SetValueEvent(i32);
@@ -32,7 +32,7 @@ impl Parseable<SetValueEvent> for Event {
     fn parse(self) -> Result<(SetValueEvent, Self::Rest), Self> {
         match self {
             Event::SetValue(e) => Ok((e, ())),
-            _ => Err(self)
+            _ => Err(self),
         }
     }
 }
@@ -48,7 +48,7 @@ impl RecombineFrom<SetValueEvent> for Event {
 fn init_ping_handler() -> impl Handler<Event, Res = String> {
     Filter::new(
         |event: &Event| matches!(event, Event::Ping),
-        Leaf::from(|_: EventOwned<Event>| async { "Pong".to_string() })
+        Leaf::from(|_: EventOwned<Event>| async { "Pong".to_string() }),
     )
 }
 
@@ -72,7 +72,7 @@ fn init_print_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = 
                 let value = store.load(Ordering::SeqCst);
                 format!("{}", value)
             }
-        })
+        }),
     )
 }
 
@@ -80,13 +80,11 @@ fn init_print_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = 
 async fn main() {
     let store = Arc::new(AtomicI32::new(0));
 
-    let dispatcher = Node::<Event, String>::new(Arc::new(
-        vec![
-            Box::new(init_ping_handler()),
-            Box::new(init_set_value_handler(store.clone())),
-            Box::new(init_print_value_handler(store.clone())),
-        ]
-    ));
+    let dispatcher = Node::<Event, String>::new(Arc::new(vec![
+        Box::new(init_ping_handler()),
+        Box::new(init_set_value_handler(store.clone())),
+        Box::new(init_print_value_handler(store.clone())),
+    ]));
 
     loop {
         print!(">> ");
@@ -100,7 +98,7 @@ async fn main() {
 
         let out = match event {
             Some(event) => dispatcher.handle(event).await.unwrap(),
-            _ =>  "Unknown command".to_string()
+            _ => "Unknown command".to_string(),
         };
         println!("{}", out);
     }

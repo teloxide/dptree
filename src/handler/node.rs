@@ -1,9 +1,9 @@
-use crate::handler::{Handler, BoxHandler, HandlerFuture};
+use crate::handler::{BoxHandler, Handler, HandlerFuture};
 use std::sync::Arc;
 
 /// Node is a node.
 pub struct Node<Data, Res> {
-    children: Arc<Vec<BoxHandler<Data, Res>>>
+    children: Arc<Vec<BoxHandler<Data, Res>>>,
 }
 
 impl<Data, Res> Node<Data, Res> {
@@ -44,15 +44,13 @@ mod tests {
     async fn test_node_handler() {
         let (tx, mut rx) = tokio::sync::mpsc::channel(1);
         let tx = Arc::new(tx);
-        let handlers: Vec<BoxHandler<i32, ()>> = vec![
-            Box::new(move |x: i32| {
-                let tx = tx.clone();
-                async move {
-                    tx.send(x == 0).await.unwrap();
-                    Ok(())
-                }
-            })
-        ];
+        let handlers: Vec<BoxHandler<i32, ()>> = vec![Box::new(move |x: i32| {
+            let tx = tx.clone();
+            async move {
+                tx.send(x == 0).await.unwrap();
+                Ok(())
+            }
+        })];
         let node = Node::new(Arc::new(handlers));
         node.handle(0).await.unwrap();
 

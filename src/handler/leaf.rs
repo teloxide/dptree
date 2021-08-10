@@ -1,7 +1,7 @@
-use std::marker::PhantomData;
 use crate::handler::{Handler, HandlerFuture};
-use futures::{Future, FutureExt};
 use crate::store::Store;
+use futures::{Future, FutureExt};
+use std::marker::PhantomData;
 
 /// The struct for simulate leaves in the tree. Implements `Handler` trait.
 ///
@@ -11,7 +11,7 @@ use crate::store::Store;
 /// method, where `Data` must implement `Store<Argument>`.
 pub struct Leaf<H, Args, Type, Fut> {
     handler: H,
-    _phantom: PhantomData<(Args, Type, Fut)>
+    _phantom: PhantomData<(Args, Type, Fut)>,
 }
 
 pub struct EventOwned<E>(pub E);

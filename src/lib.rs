@@ -1,7 +1,5 @@
-pub mod parser;
 pub mod handler;
+pub mod parser;
 pub mod store;
 
-pub use {
-    handler::Handler,
-};
+pub use handler::Handler;

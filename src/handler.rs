@@ -33,18 +33,18 @@
 //! handlers.
 
 mod filter;
-mod node;
 mod leaf;
+mod node;
 mod parser;
 
 pub use filter::Filter;
-pub use node::Node;
 pub use leaf::{EventOwned, Leaf};
+pub use node::Node;
 pub use parser::Parser;
 
+use crate::parser::Handlerable;
 use futures::future::BoxFuture;
 use futures::Future;
-use crate::parser::Handlerable;
 
 // Note that future must have 'static lifetime.
 pub type HandlerFuture<Res, Data> = BoxFuture<'static, Result<Res, Data>>;
@@ -83,7 +83,7 @@ pub trait HandlerExt<Data>: Handler<Data> + Sized {
     }
     fn parse_before<InputType>(self) -> Parser<Self, InputType, Data>
     where
-        InputType: Handlerable<Data>
+        InputType: Handlerable<Data>,
     {
         Parser::new(self)
     }

@@ -17,12 +17,15 @@ pub trait RecombineFrom<To>: Sized {
 
 /// The trait is used to unite both `Parseable` and `RecombineFrom` trait into one trait.
 pub trait Handlerable<To>:
-    Parseable<To, Rest = <Self as Handlerable<To>>::Rest> +
-    RecombineFrom<To, Rest = <Self as Handlerable<To>>::Rest>
+    Parseable<To, Rest = <Self as Handlerable<To>>::Rest>
+    + RecombineFrom<To, Rest = <Self as Handlerable<To>>::Rest>
 {
     type Rest;
 }
 
-impl<T, To, Rest> Handlerable<To> for T where T: Parseable<To, Rest = Rest> + RecombineFrom<To, Rest = Rest> {
+impl<T, To, Rest> Handlerable<To> for T
+where
+    T: Parseable<To, Rest = Rest> + RecombineFrom<To, Rest = Rest>,
+{
     type Rest = Rest;
 }

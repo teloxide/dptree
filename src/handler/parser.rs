@@ -1,7 +1,7 @@
-use std::marker::PhantomData;
 use crate::handler::{Handler, HandlerFuture};
 use crate::parser::Handlerable;
 use futures::TryFutureExt;
+use std::marker::PhantomData;
 
 /// Parser is used to parse incoming `Data` into other `ParsedData`. Next handlers in the tree
 /// will receive the `ParsedData` as the `Data` argument.
@@ -12,7 +12,7 @@ use futures::TryFutureExt;
 /// handle the incoming data.
 pub struct Parser<H, From, To> {
     handler: H,
-    _phantom: PhantomData<(From, To)>
+    _phantom: PhantomData<(From, To)>,
 }
 
 impl<H, From, To> Parser<H, From, To>
@@ -21,7 +21,10 @@ where
     From: Handlerable<To>,
 {
     pub fn new(handler: H) -> Self {
-        Parser { handler, _phantom: PhantomData }
+        Parser {
+            handler,
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -36,10 +39,12 @@ where
     type Res = Res;
     fn handle(&self, data: From) -> HandlerFuture<Res, From> {
         match data.parse() {
-            Ok((data, rest)) => {
-                Box::pin(self.handler.handle(data).map_err(|to| From::recombine((to, rest))))
-            },
-            Err(data) => Box::pin(futures::future::err(data))
+            Ok((data, rest)) => Box::pin(
+                self.handler
+                    .handle(data)
+                    .map_err(|to| From::recombine((to, rest))),
+            ),
+            Err(data) => Box::pin(futures::future::err(data)),
         }
     }
 }
