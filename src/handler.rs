@@ -39,7 +39,7 @@ mod parser;
 
 pub use filter::Filter;
 pub use node::Node;
-pub use leaf::Leaf;
+pub use leaf::{EventOwned, Leaf};
 pub use parser::Parser;
 
 use futures::future::BoxFuture;
@@ -56,23 +56,25 @@ pub type HandlerFuture<Res, Data> = BoxFuture<'static, Result<Res, Data>>;
 /// handler can returns error, `Res` can be specified as `Result<OkValue, Error>`. `Err` must be
 /// returned iff `Data` cannot be processed by this handler. In that case it will be tried to
 /// handles by other handlers in a tree. For more information see top-level documentation.
-pub trait Handler<Data, Res> {
-    fn handle(&self, data: Data) -> HandlerFuture<Res, Data>;
+pub trait Handler<Data> {
+    type Res;
+    fn handle(&self, data: Data) -> HandlerFuture<Self::Res, Data>;
 }
 
-pub type BoxHandler<Data, Res> = Box<dyn Handler<Data, Res> + Send + Sync>;
+pub type BoxHandler<Data, Res> = Box<dyn Handler<Data, Res = Res> + Send + Sync>;
 
-impl<Func, Data, Res, Fut> Handler<Data, Res> for Func
+impl<Func, Data, Res, Fut> Handler<Data> for Func
 where
     Func: Fn(Data) -> Fut,
     Fut: Future<Output = Result<Res, Data>> + Send + 'static,
 {
+    type Res = Res;
     fn handle(&self, data: Data) -> HandlerFuture<Res, Data> {
         Box::pin(self(data))
     }
 }
 
-pub trait HandlerExt<Data, Res>: Handler<Data, Res> + Sized {
+pub trait HandlerExt<Data>: Handler<Data> + Sized {
     fn filter_by<Cond>(self, condition: Cond) -> Filter<Cond, Self>
     where
         Cond: Fn(&Data) -> bool + Send + Sync,

@@ -1,5 +1,4 @@
 use crate::handler::{Handler, HandlerFuture};
-use futures::future::{BoxFuture};
 
 /// Struct that filtering event by some condition
 pub struct Filter<F, H> {
@@ -30,13 +29,14 @@ impl<F, H> Filter<F, H> {
     }
 }
 
-impl<F, H, Data, Res> Handler<Data, Res> for Filter<F, H>
+impl<F, H, Data, Res> Handler<Data> for Filter<F, H>
 where
     F: Fn(&Data) -> bool + Send + Sync,
-    H: Handler<Data, Res> + Send + Sync,
+    H: Handler<Data, Res = Res> + Send + Sync,
     Data: Send + Sync + 'static,
     Res: Send + 'static,
 {
+    type Res = Res;
     fn handle(&self, data: Data) -> HandlerFuture<Res, Data> {
         match (self.condition)(&data) {
             true => Box::pin(self.handler.handle(data)),

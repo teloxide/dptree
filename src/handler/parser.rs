@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 use crate::handler::{Handler, HandlerFuture};
-use futures::future::BoxFuture;
 use crate::parser::Handlerable;
 use futures::TryFutureExt;
 
@@ -16,20 +15,25 @@ pub struct Parser<H, From, To> {
     _phantom: PhantomData<(From, To)>
 }
 
-impl<H, From, To> Parser<H, From, To> {
+impl<H, From, To> Parser<H, From, To>
+where
+    H: Handler<To>,
+    From: Handlerable<To>,
+{
     pub fn new(handler: H) -> Self {
         Parser { handler, _phantom: PhantomData }
     }
 }
 
-impl<H, Res, From, To> Handler<From, Res> for Parser<H, From, To>
+impl<H, Res, From, To> Handler<From> for Parser<H, From, To>
 where
-    H: Handler<To, Res> + Send + Sync,
+    H: Handler<To, Res = Res> + Send + Sync,
     Res: Send + 'static,
     From: Handlerable<To> + Send + Sync + 'static,
     <From as Handlerable<To>>::Rest: Send,
     To: Send + Sync + 'static,
 {
+    type Res = Res;
     fn handle(&self, data: From) -> HandlerFuture<Res, From> {
         match data.parse() {
             Ok((data, rest)) => {

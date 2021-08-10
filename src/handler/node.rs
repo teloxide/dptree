@@ -1,5 +1,4 @@
 use crate::handler::{Handler, BoxHandler, HandlerFuture};
-use futures::future::BoxFuture;
 use std::sync::Arc;
 
 /// Node is a node.
@@ -13,11 +12,12 @@ impl<Data, Res> Node<Data, Res> {
     }
 }
 
-impl<Data, Res> Handler<Data, Res> for Node<Data, Res>
+impl<Data, Res> Handler<Data> for Node<Data, Res>
 where
     Data: Send + Sync + 'static,
     Res: 'static,
 {
+    type Res = Res;
     fn handle(&self, data: Data) -> HandlerFuture<Res, Data> {
         let children = self.children.clone();
         Box::pin(async move {
