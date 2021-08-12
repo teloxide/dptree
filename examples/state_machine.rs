@@ -52,35 +52,35 @@ mod transitions {
 
     pub fn begin() -> impl Handler<(Event, CommandState), Res = CommandState> {
         Filter::new(
-            |(event, _): &(Event, CommandState)| matches!(event, Event::Begin),
+            |(event, _): &_| matches!(event, Event::Begin),
             Leaf::from(|| async { CommandState::Active }),
         )
     }
 
     pub fn pause() -> impl Handler<(Event, CommandState), Res = CommandState> {
         Filter::new(
-            |(event, _): &(Event, CommandState)| matches!(event, Event::Pause),
+            |(event, _): &_| matches!(event, Event::Pause),
             Leaf::from(|| async { CommandState::Paused }),
         )
     }
 
     pub fn end() -> impl Handler<(Event, CommandState), Res = CommandState> {
         Filter::new(
-            |(event, _): &(Event, CommandState)| matches!(event, Event::End),
+            |(event, _): &_| matches!(event, Event::End),
             Leaf::from(|| async { CommandState::Inactive }),
         )
     }
 
     pub fn resume() -> impl Handler<(Event, CommandState), Res = CommandState> {
         Filter::new(
-            |(event, _): &(Event, CommandState)| matches!(event, Event::Resume),
+            |(event, _): &_| matches!(event, Event::Resume),
             Leaf::from(|| async { CommandState::Active }),
         )
     }
 
     pub fn exit() -> impl Handler<(Event, CommandState), Res = CommandState> {
         Filter::new(
-            |(event, _): &(Event, CommandState)| matches!(event, Event::Exit),
+            |(event, _): &_| matches!(event, Event::Exit),
             Leaf::from(|| async { CommandState::Exit }),
         )
     }
@@ -88,7 +88,7 @@ mod transitions {
 
 fn init_active_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
     Filter::new(
-        |(_, state): &(Event, CommandState)| matches!(state, CommandState::Active),
+        |(_, state): &_| matches!(state, CommandState::Active),
         Node::new(Arc::new(vec![
             Box::new(transitions::pause()),
             Box::new(transitions::end()),
@@ -98,7 +98,7 @@ fn init_active_handler() -> impl Handler<(Event, CommandState), Res = CommandSta
 
 fn init_paused_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
     Filter::new(
-        |(_, state): &(Event, CommandState)| matches!(state, CommandState::Paused),
+        |(_, state): &_| matches!(state, CommandState::Paused),
         Node::new(Arc::new(vec![
             Box::new(transitions::resume()),
             Box::new(transitions::end()),
@@ -108,7 +108,7 @@ fn init_paused_handler() -> impl Handler<(Event, CommandState), Res = CommandSta
 
 fn init_inactive_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
     Filter::new(
-        |(_, state): &(Event, CommandState)| matches!(state, CommandState::Inactive),
+        |(_, state): &_| matches!(state, CommandState::Inactive),
         Node::new(Arc::new(vec![
             Box::new(transitions::begin()),
             Box::new(transitions::exit()),
@@ -118,7 +118,7 @@ fn init_inactive_handler() -> impl Handler<(Event, CommandState), Res = CommandS
 
 fn init_exit_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
     Filter::new(
-        |(_, state): &(Event, CommandState)| matches!(state, CommandState::Exit),
+        |(_, state): &_| matches!(state, CommandState::Exit),
         Node::new(Arc::new(vec![])),
     )
 }
