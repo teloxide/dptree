@@ -1,6 +1,6 @@
 extern crate dispatch_tree as dptree;
 
-use dispatch_tree::handler::{EventOwned, Node};
+use dispatch_tree::handler::EventOwned;
 use dispatch_tree::parser::{Parseable, RecombineFrom};
 use dispatch_tree::Handler;
 use std::io::Write;
@@ -83,11 +83,11 @@ fn init_print_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = 
 async fn main() {
     let store = Arc::new(AtomicI32::new(0));
 
-    let dispatcher = Node::<Event, String>::new(Arc::new(vec![
-        Box::new(init_ping_handler()),
-        Box::new(init_set_value_handler(store.clone())),
-        Box::new(init_print_value_handler(store.clone())),
-    ]));
+    let dispatcher = dptree::node::<Event, String>()
+        .and(init_ping_handler())
+        .and(init_set_value_handler(store.clone()))
+        .and(init_print_value_handler(store.clone()))
+        .build();
 
     loop {
         print!(">> ");

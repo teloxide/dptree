@@ -2,11 +2,9 @@
 
 extern crate dispatch_tree as dptree;
 
-use dispatch_tree::handler::Node;
 use dispatch_tree::Handler;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
-use std::sync::Arc;
 
 #[derive(Debug)]
 pub enum CommandState {
@@ -81,51 +79,51 @@ mod transitions {
 #[rustfmt::skip]
 fn init_active_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
     dptree::filter(|(_, state)| matches!(state, CommandState::Active))
-        .and_then(Node::new(
-            Arc::new(vec![
-                Box::new(transitions::pause()),
-                Box::new(transitions::end()),
-            ]),
-        ))
+        .and_then(
+            dptree::node()
+                .and(transitions::pause())
+                .and(transitions::end())
+                .build()
+        )
 }
 
 #[rustfmt::skip]
 fn init_paused_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
     dptree::filter(|(_, state)| matches!(state, CommandState::Paused))
-        .and_then(Node::new(
-            Arc::new(vec![
-                Box::new(transitions::resume()),
-                Box::new(transitions::end()),
-            ]),
-        ))
+        .and_then(
+            dptree::node()
+                .and(transitions::resume())
+                .and(transitions::end())
+                .build()
+        )
 }
 
 #[rustfmt::skip]
 fn init_inactive_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
     dptree::filter(|(_, state)| matches!(state, CommandState::Inactive))
-        .and_then(Node::new(
-            Arc::new(vec![
-                Box::new(transitions::begin()),
-                Box::new(transitions::exit()),
-            ]),
-        ))
+        .and_then(
+            dptree::node()
+                .and(transitions::begin())
+                .and(transitions::exit())
+                .build()
+        )
 }
 
 fn init_exit_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
     dptree::filter(|(_, state)| matches!(state, CommandState::Exit))
-        .and_then(Node::new(Arc::new(vec![])))
+        .and_then(dptree::node().build())
 }
 
 #[tokio::main]
 async fn main() {
     let mut state = CommandState::Inactive;
 
-    let dispatcher = Node::<(Event, CommandState), CommandState>::new(Arc::new(vec![
-        Box::new(init_active_handler()),
-        Box::new(init_paused_handler()),
-        Box::new(init_inactive_handler()),
-        Box::new(init_exit_handler()),
-    ]));
+    let dispatcher = dptree::node::<(Event, CommandState), CommandState>()
+        .and(init_active_handler())
+        .and(init_paused_handler())
+        .and(init_inactive_handler())
+        .and(init_exit_handler())
+        .build();
 
     loop {
         println!("|| Current state is {}", state);

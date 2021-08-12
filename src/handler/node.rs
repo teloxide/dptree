@@ -35,6 +35,32 @@ where
     }
 }
 
+pub struct NodeBuilder<Data, Res> {
+    children: Vec<BoxHandler<Data, Res>>,
+}
+
+impl<Data, Res> NodeBuilder<Data, Res> {
+    pub fn new() -> Self {
+        NodeBuilder { children: vec![] }
+    }
+
+    pub fn and<H>(mut self, handler: H) -> Self
+    where
+        H: Handler<Data, Res = Res> + Send + Sync + 'static,
+    {
+        self.children.push(Box::new(handler));
+        self
+    }
+
+    pub fn build(self) -> Node<Data, Res> {
+        Node::new(Arc::new(self.children))
+    }
+}
+
+pub fn node<Data, Res>() -> NodeBuilder<Data, Res> {
+    NodeBuilder::new()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -34,11 +34,10 @@
 
 pub mod filter;
 mod leaf;
-mod node;
+pub mod node;
 pub mod parser;
 
 pub use leaf::{EventOwned, Leaf};
-pub use node::Node;
 
 use crate::handler::filter::Filter;
 use crate::handler::parser::Parser;
