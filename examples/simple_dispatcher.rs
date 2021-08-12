@@ -1,4 +1,6 @@
-use dispatch_tree::handler::{EventOwned, Filter, Leaf, Node, Parser};
+extern crate dispatch_tree as dptree;
+
+use dispatch_tree::handler::{EventOwned, Leaf, Node, Parser};
 use dispatch_tree::parser::{Parseable, RecombineFrom};
 use dispatch_tree::Handler;
 use std::io::Write;
@@ -46,34 +48,33 @@ impl RecombineFrom<SetValueEvent> for Event {
 }
 
 fn init_ping_handler() -> impl Handler<Event, Res = String> {
-    Filter::new(
-        |event: &Event| matches!(event, Event::Ping),
-        Leaf::from(|_: EventOwned<Event>| async { "Pong".to_string() }),
-    )
+    dptree::filter(|event| matches!(event, Event::Ping))
+        .and_then_leaf(|| async { "Pong".to_string() })
 }
 
 fn init_set_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = String> {
-    Parser::new(Leaf::from(move |event: EventOwned<SetValueEvent>| {
-        let store = store.clone();
-        async move {
-            let value = (event.0).0;
-            store.store(value, Ordering::SeqCst);
-            format!("{} stored", value)
-        }
-    }))
+    Parser::new(Leaf::from(
+        move |EventOwned(event): EventOwned<SetValueEvent>| {
+            let store = store.clone();
+            async move {
+                let value = event.0;
+                store.store(value, Ordering::SeqCst);
+                format!("{} stored", value)
+            }
+        },
+    ))
 }
 
+#[rustfmt::skip]
 fn init_print_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = String> {
-    Filter::new(
-        |event: &Event| matches!(event, Event::PrintValue),
-        Leaf::from(move |_: EventOwned<Event>| {
+    dptree::filter(|event| matches!(event, Event::PrintValue))
+        .and_then_leaf(move || {
             let store = store.clone();
             async move {
                 let value = store.load(Ordering::SeqCst);
                 format!("{}", value)
             }
-        }),
-    )
+        })
 }
 
 #[tokio::main]

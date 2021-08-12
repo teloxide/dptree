@@ -1,4 +1,5 @@
-use crate::handler::{Handler, HandlerFuture};
+use crate::handler::{Handler, HandlerFuture, Leaf};
+use std::marker::PhantomData;
 
 /// Struct that filtering event by some condition
 pub struct Filter<F, H> {
@@ -43,4 +44,48 @@ where
             false => Box::pin(futures::future::err(data)),
         }
     }
+}
+
+pub struct FilterBuilder<F, Data> {
+    condition: F,
+    _phantom: PhantomData<Data>,
+}
+
+impl<F, Data> FilterBuilder<F, Data>
+where
+    F: Fn(&Data) -> bool + Send + Sync,
+{
+    pub fn new(condition: F) -> Self {
+        FilterBuilder {
+            condition,
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn and_then<H>(self, handler: H) -> Filter<F, H>
+    where
+        H: Handler<Data>,
+    {
+        Filter {
+            condition: self.condition,
+            handler,
+        }
+    }
+
+    pub fn and_then_leaf<Func, A, T, Fut>(self, func: Func) -> Filter<F, Leaf<Func, A, T, Fut>>
+    where
+        Leaf<Func, A, T, Fut>: From<Func>,
+    {
+        Filter {
+            condition: self.condition,
+            handler: Leaf::from(func),
+        }
+    }
+}
+
+pub fn filter<F, Data>(condition: F) -> FilterBuilder<F, Data>
+where
+    F: Fn(&Data) -> bool + Send + Sync,
+{
+    FilterBuilder::new(condition)
 }

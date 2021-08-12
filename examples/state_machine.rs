@@ -1,6 +1,8 @@
 //! You can see image of the state machine at /img/state_machine.gif
 
-use dispatch_tree::handler::{Filter, Leaf, Node};
+extern crate dispatch_tree as dptree;
+
+use dispatch_tree::handler::Node;
 use dispatch_tree::Handler;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
@@ -51,76 +53,67 @@ mod transitions {
     use super::*;
 
     pub fn begin() -> impl Handler<(Event, CommandState), Res = CommandState> {
-        Filter::new(
-            |(event, _): &_| matches!(event, Event::Begin),
-            Leaf::from(|| async { CommandState::Active }),
-        )
+        dptree::filter(|(event, _)| matches!(event, Event::Begin))
+            .and_then_leaf(|| async { CommandState::Active })
     }
 
     pub fn pause() -> impl Handler<(Event, CommandState), Res = CommandState> {
-        Filter::new(
-            |(event, _): &_| matches!(event, Event::Pause),
-            Leaf::from(|| async { CommandState::Paused }),
-        )
+        dptree::filter(|(event, _)| matches!(event, Event::Pause))
+            .and_then_leaf(|| async { CommandState::Paused })
     }
 
     pub fn end() -> impl Handler<(Event, CommandState), Res = CommandState> {
-        Filter::new(
-            |(event, _): &_| matches!(event, Event::End),
-            Leaf::from(|| async { CommandState::Inactive }),
-        )
+        dptree::filter(|(event, _)| matches!(event, Event::End))
+            .and_then_leaf(|| async { CommandState::Inactive })
     }
 
     pub fn resume() -> impl Handler<(Event, CommandState), Res = CommandState> {
-        Filter::new(
-            |(event, _): &_| matches!(event, Event::Resume),
-            Leaf::from(|| async { CommandState::Active }),
-        )
+        dptree::filter(|(event, _)| matches!(event, Event::Resume))
+            .and_then_leaf(|| async { CommandState::Active })
     }
 
     pub fn exit() -> impl Handler<(Event, CommandState), Res = CommandState> {
-        Filter::new(
-            |(event, _): &_| matches!(event, Event::Exit),
-            Leaf::from(|| async { CommandState::Exit }),
-        )
+        dptree::filter(|(event, _)| matches!(event, Event::Exit))
+            .and_then_leaf(|| async { CommandState::Exit })
     }
 }
 
+#[rustfmt::skip]
 fn init_active_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
-    Filter::new(
-        |(_, state): &_| matches!(state, CommandState::Active),
-        Node::new(Arc::new(vec![
-            Box::new(transitions::pause()),
-            Box::new(transitions::end()),
-        ])),
-    )
+    dptree::filter(|(_, state)| matches!(state, CommandState::Active))
+        .and_then(Node::new(
+            Arc::new(vec![
+                Box::new(transitions::pause()),
+                Box::new(transitions::end()),
+            ]),
+        ))
 }
 
+#[rustfmt::skip]
 fn init_paused_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
-    Filter::new(
-        |(_, state): &_| matches!(state, CommandState::Paused),
-        Node::new(Arc::new(vec![
-            Box::new(transitions::resume()),
-            Box::new(transitions::end()),
-        ])),
-    )
+    dptree::filter(|(_, state)| matches!(state, CommandState::Paused))
+        .and_then(Node::new(
+            Arc::new(vec![
+                Box::new(transitions::resume()),
+                Box::new(transitions::end()),
+            ]),
+        ))
 }
 
+#[rustfmt::skip]
 fn init_inactive_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
-    Filter::new(
-        |(_, state): &_| matches!(state, CommandState::Inactive),
-        Node::new(Arc::new(vec![
-            Box::new(transitions::begin()),
-            Box::new(transitions::exit()),
-        ])),
-    )
+    dptree::filter(|(_, state)| matches!(state, CommandState::Inactive))
+        .and_then(Node::new(
+            Arc::new(vec![
+                Box::new(transitions::begin()),
+                Box::new(transitions::exit()),
+            ]),
+        ))
 }
 
 fn init_exit_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
-    Filter::new(
-        |(_, state): &_| matches!(state, CommandState::Exit),
-        Node::new(Arc::new(vec![])),
-    )
+    dptree::filter(|(_, state)| matches!(state, CommandState::Exit))
+        .and_then(Node::new(Arc::new(vec![])))
 }
 
 #[tokio::main]

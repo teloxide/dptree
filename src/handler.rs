@@ -32,16 +32,16 @@
 //! as you can see, due to `Leaf(2)` handles all the incoming data that not handles by other
 //! handlers.
 
-mod filter;
+pub mod filter;
 mod leaf;
 mod node;
 mod parser;
 
-pub use filter::Filter;
 pub use leaf::{EventOwned, Leaf};
 pub use node::Node;
 pub use parser::Parser;
 
+use crate::handler::filter::Filter;
 use crate::parser::Handlerable;
 use futures::future::BoxFuture;
 use futures::Future;
