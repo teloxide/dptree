@@ -1,6 +1,6 @@
 extern crate dispatch_tree as dptree;
 
-use dispatch_tree::handler::{EventOwned, Leaf, Node, Parser};
+use dispatch_tree::handler::{EventOwned, Node};
 use dispatch_tree::parser::{Parseable, RecombineFrom};
 use dispatch_tree::Handler;
 use std::io::Write;
@@ -52,17 +52,19 @@ fn init_ping_handler() -> impl Handler<Event, Res = String> {
         .and_then_leaf(|| async { "Pong".to_string() })
 }
 
+#[rustfmt::skip]
 fn init_set_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = String> {
-    Parser::new(Leaf::from(
-        move |EventOwned(event): EventOwned<SetValueEvent>| {
-            let store = store.clone();
-            async move {
-                let value = event.0;
-                store.store(value, Ordering::SeqCst);
-                format!("{} stored", value)
-            }
-        },
-    ))
+    dptree::parser::<Event, SetValueEvent>()
+        .and_then_leaf(
+            move |EventOwned(event): EventOwned<SetValueEvent>| {
+                let store = store.clone();
+                async move {
+                    let value = event.0;
+                    store.store(value, Ordering::SeqCst);
+                    format!("{} stored", value)
+                }
+            },
+        )
 }
 
 #[rustfmt::skip]

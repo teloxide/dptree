@@ -1,4 +1,4 @@
-use crate::handler::{Handler, HandlerFuture};
+use crate::handler::{Handler, HandlerFuture, Leaf};
 use crate::parser::Handlerable;
 use futures::TryFutureExt;
 use std::marker::PhantomData;
@@ -47,4 +47,43 @@ where
             Err(data) => Box::pin(futures::future::err(data)),
         }
     }
+}
+
+pub struct ParserBuilder<From, To> {
+    _phantom: PhantomData<(From, To)>,
+}
+
+impl<FromT, To> ParserBuilder<FromT, To>
+where
+    FromT: Handlerable<To>,
+{
+    pub fn new() -> Self {
+        ParserBuilder {
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn and_then<H>(self, handler: H) -> Parser<H, FromT, To>
+    where
+        H: Handler<To>,
+    {
+        Parser::new(handler)
+    }
+
+    pub fn and_then_leaf<Func, A, T, Fut>(
+        self,
+        func: Func,
+    ) -> Parser<Leaf<Func, A, T, Fut>, FromT, To>
+    where
+        Leaf<Func, A, T, Fut>: From<Func> + Handler<To>,
+    {
+        self.and_then(Leaf::from(func))
+    }
+}
+
+pub fn parser<From, To>() -> ParserBuilder<From, To>
+where
+    From: Handlerable<To>,
+{
+    ParserBuilder::new()
 }

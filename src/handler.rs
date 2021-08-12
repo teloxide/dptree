@@ -35,13 +35,13 @@
 pub mod filter;
 mod leaf;
 mod node;
-mod parser;
+pub mod parser;
 
 pub use leaf::{EventOwned, Leaf};
 pub use node::Node;
-pub use parser::Parser;
 
 use crate::handler::filter::Filter;
+use crate::handler::parser::Parser;
 use crate::parser::Handlerable;
 use futures::future::BoxFuture;
 use futures::Future;
