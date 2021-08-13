@@ -77,7 +77,7 @@ mod transitions {
 }
 
 #[rustfmt::skip]
-fn init_active_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
+fn active_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
     dptree::filter(|(_, state)| matches!(state, CommandState::Active))
         .and_then(
             dptree::node()
@@ -88,7 +88,7 @@ fn init_active_handler() -> impl Handler<(Event, CommandState), Res = CommandSta
 }
 
 #[rustfmt::skip]
-fn init_paused_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
+fn paused_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
     dptree::filter(|(_, state)| matches!(state, CommandState::Paused))
         .and_then(
             dptree::node()
@@ -99,7 +99,7 @@ fn init_paused_handler() -> impl Handler<(Event, CommandState), Res = CommandSta
 }
 
 #[rustfmt::skip]
-fn init_inactive_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
+fn inactive_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
     dptree::filter(|(_, state)| matches!(state, CommandState::Inactive))
         .and_then(
             dptree::node()
@@ -109,7 +109,7 @@ fn init_inactive_handler() -> impl Handler<(Event, CommandState), Res = CommandS
         )
 }
 
-fn init_exit_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
+fn exit_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
     dptree::filter(|(_, state)| matches!(state, CommandState::Exit))
         .and_then(dptree::node().build())
 }
@@ -119,10 +119,10 @@ async fn main() {
     let mut state = CommandState::Inactive;
 
     let dispatcher = dptree::node::<(Event, CommandState), CommandState>()
-        .and(init_active_handler())
-        .and(init_paused_handler())
-        .and(init_inactive_handler())
-        .and(init_exit_handler())
+        .and(active_handler())
+        .and(paused_handler())
+        .and(inactive_handler())
+        .and(exit_handler())
         .build();
 
     loop {

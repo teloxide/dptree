@@ -47,12 +47,12 @@ impl RecombineFrom<SetValueEvent> for Event {
     }
 }
 
-fn init_ping_handler() -> impl Handler<Event, Res = String> {
+fn ping_handler() -> impl Handler<Event, Res = String> {
     dptree::filter(dptree::matches!(Event::Ping)).leaf(|| async { "Pong".to_string() })
 }
 
 #[rustfmt::skip]
-fn init_set_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = String> {
+fn set_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = String> {
     dptree::parser::<Event, SetValueEvent>()
         .leaf(
             move |EventOwned(event): EventOwned<SetValueEvent>| {
@@ -67,7 +67,7 @@ fn init_set_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = St
 }
 
 #[rustfmt::skip]
-fn init_print_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = String> {
+fn print_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = String> {
     dptree::filter(dptree::matches!(Event::PrintValue))
         .leaf(move || {
             let store = store.clone();
@@ -83,9 +83,9 @@ async fn main() {
     let store = Arc::new(AtomicI32::new(0));
 
     let dispatcher = dptree::node::<Event, String>()
-        .and(init_ping_handler())
-        .and(init_set_value_handler(store.clone()))
-        .and(init_print_value_handler(store.clone()))
+        .and(ping_handler())
+        .and(set_value_handler(store.clone()))
+        .and(print_value_handler(store.clone()))
         .build();
 
     loop {
