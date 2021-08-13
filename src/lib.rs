@@ -1,4 +1,5 @@
 pub mod handler;
+mod macros;
 pub mod parser;
 pub mod store;
 

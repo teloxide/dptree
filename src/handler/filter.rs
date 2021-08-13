@@ -72,7 +72,7 @@ where
         }
     }
 
-    pub fn and_then_leaf<Func, A, T, Fut>(self, func: Func) -> Filter<F, Leaf<Func, A, T, Fut>>
+    pub fn leaf<Func, A, T, Fut>(self, func: Func) -> Filter<F, Leaf<Func, A, T, Fut>>
     where
         Leaf<Func, A, T, Fut>: From<Func>,
     {

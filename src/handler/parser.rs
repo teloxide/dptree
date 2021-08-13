@@ -70,10 +70,7 @@ where
         Parser::new(handler)
     }
 
-    pub fn and_then_leaf<Func, A, T, Fut>(
-        self,
-        func: Func,
-    ) -> Parser<Leaf<Func, A, T, Fut>, FromT, To>
+    pub fn leaf<Func, A, T, Fut>(self, func: Func) -> Parser<Leaf<Func, A, T, Fut>, FromT, To>
     where
         Leaf<Func, A, T, Fut>: From<Func> + Handler<To>,
     {
