@@ -10,7 +10,7 @@
 //! tree. You can define your own handlers if you want.
 //!
 //! Suppose we have a tree:
-//! ```
+//! ```ignore
 //!          Node(1)
 //!         /       \
 //!     Node(2)     Leaf(3)
@@ -33,11 +33,11 @@
 //! handlers.
 
 pub mod filter;
-mod leaf;
+pub mod leaf;
 pub mod node;
 pub mod parser;
 
-pub use leaf::{EventOwned, Leaf};
+pub use leaf::Leaf;
 
 use crate::handler::filter::Filter;
 use crate::handler::parser::Parser;

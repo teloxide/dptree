@@ -1,6 +1,5 @@
 extern crate dispatch_tree as dptree;
 
-use dispatch_tree::handler::EventOwned;
 use dispatch_tree::parser::{Parseable, RecombineFrom};
 use dispatch_tree::Handler;
 use std::io::Write;
@@ -48,14 +47,14 @@ impl RecombineFrom<SetValueEvent> for Event {
 }
 
 fn ping_handler() -> impl Handler<Event, Res = String> {
-    dptree::filter(dptree::matches!(Event::Ping)).leaf(|| async { "Pong".to_string() })
+    dptree::filter(dptree::matches!(Event::Ping)).leaf_empty(|| async { "Pong".to_string() })
 }
 
 #[rustfmt::skip]
 fn set_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = String> {
     dptree::parser::<Event, SetValueEvent>()
-        .leaf(
-            move |EventOwned(event): EventOwned<SetValueEvent>| {
+        .leaf_event(
+            move |event: SetValueEvent| {
                 let store = store.clone();
                 async move {
                     let value = event.0;
@@ -69,7 +68,7 @@ fn set_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = String>
 #[rustfmt::skip]
 fn print_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = String> {
     dptree::filter(dptree::matches!(Event::PrintValue))
-        .leaf(move || {
+        .leaf_empty(move || {
             let store = store.clone();
             async move {
                 let value = store.load(Ordering::SeqCst);

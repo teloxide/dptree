@@ -1,13 +1,39 @@
 use crate::handler::{Handler, HandlerFuture, Leaf};
 use std::marker::PhantomData;
+use crate::handler::leaf::by_event::{LeafByEvent, LeafEventEnter};
+use std::future::Future;
+use crate::handler::leaf::by_empty::{LeafByEmpty, LeafEmptyEnter};
 
-/// Struct that filtering event by some condition
+/// Struct that filtering event by a condition.
+///
+/// If the event satisfy the condition then handler will be called. Otherwise event will be sent up.
+///
+/// Basic usage:
+/// ```
+/// # #[tokio::main]
+/// # async fn main() {
+/// use dispatch_tree::handler::filter::Filter;
+/// use dispatch_tree::Handler;
+///
+/// let filter = Filter::new(
+///     |&data: &u32| data == 10, // filter event by condition
+///     |data: u32| async move { Ok(()) }, // just return Ok(()) if event satisfy the condition
+/// );
+///
+/// let result_with_10 = filter.handle(10u32).await;
+/// assert_eq!(result_with_10, Ok(()));
+///
+/// let result_with_2 = filter.handle(2u32).await;
+/// assert_eq!(result_with_2, Err(2));
+/// # }
+/// ```
 pub struct Filter<F, H> {
     condition: F,
     handler: H,
 }
 
 impl<F, H> Filter<F, H> {
+    /// Condition must be function `Fn(&Data) -> bool`, handler must implements `Handler<Data>`
     pub fn new(condition: F, handler: H) -> Self {
         Filter { condition, handler }
     }
@@ -16,20 +42,42 @@ impl<F, H> Filter<F, H> {
         (self.condition, self.handler)
     }
 }
-
+/* TODO: this doesn't compile
 impl<F, H> Filter<F, H> {
-    pub fn and<'a, Data, Cond>(self, cond2: Cond) -> Filter<impl Fn(&'a Data) -> bool, H>
+    /// Adds new condition to an existing filter.
+    ///
+    /// Basic usage:
+    /// ```
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// use dispatch_tree::handler::filter::Filter;
+    /// use dispatch_tree::Handler;
+    ///
+    /// let filter = Filter::new(
+    ///     |&data: &u32| data % 2 == 0, // filter odds
+    ///     |data: u32| async move { Ok(()) },
+    /// );
+    ///
+    /// assert_eq!(filter.handle(10u32).await, Ok(()));
+    ///
+    /// // additionally filter numbers that are completely divisible by three
+    /// let new_filter = filter.and(|&data| data % 3 == 0);
+    ///
+    /// assert_eq!(new_filter.handle(10u32).await, Err(10));
+    /// assert_eq!(new_filter.handle(12u32).await, Ok(()));
+    /// # }
+    /// ```
+    pub fn and<Data, Cond>(self, cond2: Cond) -> Filter<impl for<'a> Fn(&Data) -> bool + Send + Sync, H>
     where
-        F: Fn(&'a Data) -> bool + 'a,
-        Cond: Fn(&'a Data) -> bool + 'a,
-        Data: 'a,
+        F: for<'a> Fn(&'a Data) -> bool + Send + Sync,
+        Cond: for<'a> Fn(&'a Data) -> bool + Send + Sync,
     {
         let (cond1, handler) = self.into_inner();
         let new_cond = move |data| cond1(data) && cond2(data);
         Filter::new(new_cond, handler)
     }
 }
-
+*/
 impl<F, H, Data, Res> Handler<Data> for Filter<F, H>
 where
     F: Fn(&Data) -> bool + Send + Sync,
@@ -46,6 +94,19 @@ where
     }
 }
 
+/// Builder for the `Filter` struct
+///
+/// Basic usage:
+/// ```
+/// use dispatch_tree::handler::filter::FilterBuilder;
+/// # use dispatch_tree::handler::EventOwned;
+///
+/// let filter1 = FilterBuilder::new(|&data: &u32| data == 0)
+///     .and_then(|data: u32| async move { Ok(()) });
+///
+/// let filter2 = FilterBuilder::new(|&data: &u32| data == 0)
+///     .leaf(|data: EventOwned<u32>| data.0 * 2);
+/// ```
 pub struct FilterBuilder<F, Data> {
     condition: F,
     _phantom: PhantomData<Data>,
@@ -55,6 +116,7 @@ impl<F, Data> FilterBuilder<F, Data>
 where
     F: Fn(&Data) -> bool + Send + Sync,
 {
+    /// Creates `FilterBuilder`. Requires a condition for construction.
     pub fn new(condition: F) -> Self {
         FilterBuilder {
             condition,
@@ -62,6 +124,7 @@ where
         }
     }
 
+    /// Builds `Filter` with the handler.
     pub fn and_then<H>(self, handler: H) -> Filter<F, H>
     where
         H: Handler<Data>,
@@ -72,17 +135,26 @@ where
         }
     }
 
-    pub fn leaf<Func, A, T, Fut>(self, func: Func) -> Filter<F, Leaf<Func, A, T, Fut>>
+    /// Shortcut for `builder.and_then(Leaf::enter_event(func))`.
+    pub fn leaf_event<Func, Event>(self, func: Func) -> Filter<F, LeafByEvent<Func>>
     where
-        Leaf<Func, A, T, Fut>: From<Func>,
+        LeafByEvent<Func>: Handler<Data>,
     {
-        Filter {
-            condition: self.condition,
-            handler: Leaf::from(func),
-        }
+        self.and_then(Leaf::enter_event(func))
+    }
+
+    /// Shortcut for `builder.and_then(Leaf::enter_event(func))`.
+    pub fn leaf_empty<Func, Fut>(self, func: Func) -> Filter<F, LeafByEmpty<Func>>
+    where
+        Func: Fn() -> Fut,
+        Fut: Future + Send + 'static,
+        Data: 'static,
+    {
+        self.and_then(Leaf::enter_empty(func))
     }
 }
 
+/// Shortcut for `FilterBuilder::new`.
 pub fn filter<F, Data>(condition: F) -> FilterBuilder<F, Data>
 where
     F: Fn(&Data) -> bool + Send + Sync,

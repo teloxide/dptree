@@ -2,6 +2,9 @@ use crate::handler::{Handler, HandlerFuture, Leaf};
 use crate::parser::Handlerable;
 use futures::TryFutureExt;
 use std::marker::PhantomData;
+use crate::handler::leaf::by_event::{LeafByEvent, LeafEventEnter};
+use crate::handler::leaf::by_empty::{LeafByEmpty, LeafEmptyEnter};
+use std::future::Future;
 
 /// Parser is used to parse incoming `Data` into other `ParsedData`. Next handlers in the tree
 /// will receive the `ParsedData` as the `Data` argument.
@@ -70,11 +73,22 @@ where
         Parser::new(handler)
     }
 
-    pub fn leaf<Func, A, T, Fut>(self, func: Func) -> Parser<Leaf<Func, A, T, Fut>, FromT, To>
+    /// Shortcut for `builder.and_then(Leaf::enter_event(func))`.
+    pub fn leaf_event<Func>(self, func: Func) -> Parser<LeafByEvent<Func>, FromT, To>
     where
-        Leaf<Func, A, T, Fut>: From<Func> + Handler<To>,
+        LeafByEvent<Func>: Handler<To>
     {
-        self.and_then(Leaf::from(func))
+        self.and_then(Leaf::enter_event(func))
+    }
+
+    /// Shortcut for `builder.and_then(Leaf::enter_event(func))`.
+    pub fn leaf_empty<Func, Fut>(self, func: Func) -> Parser<LeafByEmpty<Func>, FromT, To>
+    where
+        Func: Fn() -> Fut,
+        Fut: Future + Send + 'static,
+        To: 'static,
+    {
+        self.and_then(Leaf::enter_empty(func))
     }
 }
 
