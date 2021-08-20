@@ -41,6 +41,19 @@ where
         }
     }
 }
+impl<H, S, Res, Fut, A1> Handler<S> for LeafByStore<H, (A1,)>
+where
+    H: Fn(A1) -> Fut,
+    Fut: Future<Output = Res> + Send + 'static,
+    Res: 'static,
+    S: Store<A1>  + 'static,
+{
+    type Res = Res;
+
+    fn handle(&self, store: S) -> HandlerFuture<Res, S> {
+        Box::pin((self.handler)(store.get()).map(Ok))
+    }
+}
 
 impl<H, S, Res, Fut, A1, A2> Handler<S> for LeafByStore<H, (A1, A2)>
 where
