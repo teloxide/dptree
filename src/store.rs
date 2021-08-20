@@ -3,6 +3,7 @@
 
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
+use std::ops::Deref;
 
 /// The trait is used to specify data type as storing some value `Value`. Means that
 /// `Value` can be obtained by-value.
@@ -40,5 +41,15 @@ impl<V: Clone + 'static> Store<V> for TypeMapPanickableStore {
             .downcast_ref::<V>()
             .expect("we already checks that line before")
             .clone()
+    }
+}
+
+impl<V, S, ST> Store<V> for S
+where
+    S: Deref<Target = ST>,
+    ST: Store<V>,
+{
+    fn get(&self) -> V {
+        self.deref().get()
     }
 }
