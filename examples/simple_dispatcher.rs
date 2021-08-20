@@ -47,7 +47,7 @@ impl RecombineFrom<SetValueEvent> for Event {
 }
 
 fn ping_handler() -> impl Handler<Event, Res = String> {
-    dptree::filter(dptree::matches!(Event::Ping)).leaf_empty(|| async { "Pong".to_string() })
+    dptree::filter(dptree::matches!(Event::Ping)).leaf(|| async { "Pong".to_string() })
 }
 
 #[rustfmt::skip]
@@ -68,7 +68,7 @@ fn set_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = String>
 #[rustfmt::skip]
 fn print_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = String> {
     dptree::filter(dptree::matches!(Event::PrintValue))
-        .leaf_empty(move || {
+        .leaf(move || {
             let store = store.clone();
             async move {
                 let value = store.load(Ordering::SeqCst);

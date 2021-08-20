@@ -51,28 +51,23 @@ mod transitions {
     use super::*;
 
     pub fn begin() -> impl Handler<(Event, CommandState), Res = CommandState> {
-        dptree::filter(dptree::matches!((Event::Begin, _)))
-            .leaf_empty(|| async { CommandState::Active })
+        dptree::filter(dptree::matches!((Event::Begin, _))).leaf(|| async { CommandState::Active })
     }
 
     pub fn pause() -> impl Handler<(Event, CommandState), Res = CommandState> {
-        dptree::filter(dptree::matches!((Event::Pause, _)))
-            .leaf_empty(|| async { CommandState::Paused })
+        dptree::filter(dptree::matches!((Event::Pause, _))).leaf(|| async { CommandState::Paused })
     }
 
     pub fn end() -> impl Handler<(Event, CommandState), Res = CommandState> {
-        dptree::filter(dptree::matches!((Event::End, _)))
-            .leaf_empty(|| async { CommandState::Inactive })
+        dptree::filter(dptree::matches!((Event::End, _))).leaf(|| async { CommandState::Inactive })
     }
 
     pub fn resume() -> impl Handler<(Event, CommandState), Res = CommandState> {
-        dptree::filter(dptree::matches!((Event::Resume, _)))
-            .leaf_empty(|| async { CommandState::Active })
+        dptree::filter(dptree::matches!((Event::Resume, _))).leaf(|| async { CommandState::Active })
     }
 
     pub fn exit() -> impl Handler<(Event, CommandState), Res = CommandState> {
-        dptree::filter(dptree::matches!((Event::Exit, _)))
-            .leaf_empty(|| async { CommandState::Exit })
+        dptree::filter(dptree::matches!((Event::Exit, _))).leaf(|| async { CommandState::Exit })
     }
 }
 

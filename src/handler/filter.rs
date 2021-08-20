@@ -1,7 +1,5 @@
-use crate::handler::leaf::by_empty::{LeafByEmpty, LeafEmptyEnter};
 use crate::handler::leaf::by_event::{LeafByEvent, LeafEventEnter};
 use crate::handler::{Handler, HandlerFuture, Leaf};
-use std::future::Future;
 use std::marker::PhantomData;
 
 /// Struct that filtering event by a condition.
@@ -136,21 +134,11 @@ where
     }
 
     /// Shortcut for `builder.and_then(Leaf::enter_event(func))`.
-    pub fn leaf_event<Func, Event>(self, func: Func) -> Filter<F, LeafByEvent<Func>>
+    pub fn leaf<Func, Need>(self, func: Func) -> Filter<F, LeafByEvent<Func, Need>>
     where
-        LeafByEvent<Func>: Handler<Data>,
+        LeafByEvent<Func, Need>: Handler<Data>,
     {
         self.and_then(Leaf::enter_event(func))
-    }
-
-    /// Shortcut for `builder.and_then(Leaf::enter_event(func))`.
-    pub fn leaf_empty<Func, Fut>(self, func: Func) -> Filter<F, LeafByEmpty<Func>>
-    where
-        Func: Fn() -> Fut,
-        Fut: Future + Send + 'static,
-        Data: 'static,
-    {
-        self.and_then(Leaf::enter_empty(func))
     }
 }
 
