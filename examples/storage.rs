@@ -1,9 +1,9 @@
 extern crate dispatch_tree as dptree;
 
+use dptree::handler::leaf::by_store::LeafStoreEnter;
+use dptree::handler::Leaf;
 use dptree::store::TypeMapPanickableStore;
 use dptree::Handler;
-use dptree::handler::Leaf;
-use dptree::handler::leaf::by_store::LeafStoreEnter;
 use std::net::Ipv4Addr;
 use std::sync::Arc;
 
@@ -13,7 +13,7 @@ type Store = Arc<TypeMapPanickableStore>;
 async fn main() {
     fn assert_num_string_handler(
         expected_num: u32,
-        expected_string: &'static str
+        expected_string: &'static str,
     ) -> impl Handler<Store, Res = ()> {
         Leaf::enter_store(move |num: u32, string: String| async move {
             assert_eq!(num, expected_num);
@@ -29,7 +29,10 @@ async fn main() {
     let store = init_store();
     let str_num_handler = assert_num_string_handler(10u32, "Hello");
 
-    str_num_handler.handle(store.clone()).await.unwrap_or_else(|_| unreachable!());
+    str_num_handler
+        .handle(store.clone())
+        .await
+        .unwrap_or_else(|_| unreachable!());
 
     // This will cause a panic because we do not store `Ipv4Addr` in out store.
     // let ip_handler = assert_ip_handler();

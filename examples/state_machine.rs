@@ -110,8 +110,7 @@ fn inactive_handler() -> impl Handler<(Event, CommandState), Res = CommandState>
 }
 
 fn exit_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
-    dptree::filter(dptree::matches!((_, CommandState::Exit)))
-        .and_then(dptree::node().build())
+    dptree::filter(dptree::matches!((_, CommandState::Exit))).and_then(dptree::node().build())
 }
 
 #[tokio::main]

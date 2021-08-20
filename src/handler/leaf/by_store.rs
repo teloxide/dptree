@@ -1,10 +1,10 @@
-use std::marker::PhantomData;
 use crate::handler::leaf::Leaf;
-use std::future::Future;
-use crate::Handler;
 use crate::handler::HandlerFuture;
-use futures::FutureExt;
 use crate::store::Store;
+use crate::Handler;
+use futures::FutureExt;
+use std::future::Future;
+use std::marker::PhantomData;
 
 pub struct LeafByStore<H, Args> {
     handler: H,
@@ -46,7 +46,7 @@ where
     H: Fn(A1) -> Fut,
     Fut: Future<Output = Res> + Send + 'static,
     Res: 'static,
-    S: Store<A1>  + 'static,
+    S: Store<A1> + 'static,
 {
     type Res = Res;
 

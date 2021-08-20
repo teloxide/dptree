@@ -1,8 +1,8 @@
-use crate::handler::{Handler, HandlerFuture, Leaf};
-use std::marker::PhantomData;
-use crate::handler::leaf::by_event::{LeafByEvent, LeafEventEnter};
-use std::future::Future;
 use crate::handler::leaf::by_empty::{LeafByEmpty, LeafEmptyEnter};
+use crate::handler::leaf::by_event::{LeafByEvent, LeafEventEnter};
+use crate::handler::{Handler, HandlerFuture, Leaf};
+use std::future::Future;
+use std::marker::PhantomData;
 
 /// Struct that filtering event by a condition.
 ///

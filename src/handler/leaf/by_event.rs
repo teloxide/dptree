@@ -1,9 +1,8 @@
-use std::marker::PhantomData;
 use crate::handler::leaf::Leaf;
-use std::future::Future;
-use crate::Handler;
 use crate::handler::HandlerFuture;
+use crate::Handler;
 use futures::FutureExt;
+use std::future::Future;
 
 pub struct LeafByEvent<H> {
     handler: H,
@@ -18,9 +17,7 @@ where
     LeafByEvent<F>: Handler<Event>,
 {
     fn enter_event(func: F) -> LeafByEvent<F> {
-        LeafByEvent {
-            handler: func,
-        }
+        LeafByEvent { handler: func }
     }
 }
 

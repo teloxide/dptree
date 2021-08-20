@@ -1,9 +1,8 @@
-use std::marker::PhantomData;
 use crate::handler::leaf::Leaf;
-use std::future::Future;
-use crate::Handler;
 use crate::handler::HandlerFuture;
+use crate::Handler;
 use futures::FutureExt;
+use std::future::Future;
 
 pub struct LeafByEmpty<H> {
     handler: H,
@@ -20,9 +19,7 @@ where
     Fut::Output: 'static,
 {
     fn enter_empty(func: F) -> LeafByEmpty<F> {
-        LeafByEmpty {
-            handler: func,
-        }
+        LeafByEmpty { handler: func }
     }
 }
 
