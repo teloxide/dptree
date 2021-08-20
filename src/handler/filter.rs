@@ -97,13 +97,12 @@ where
 /// Basic usage:
 /// ```
 /// use dispatch_tree::handler::filter::FilterBuilder;
-/// # use dispatch_tree::handler::EventOwned;
 ///
 /// let filter1 = FilterBuilder::new(|&data: &u32| data == 0)
 ///     .and_then(|data: u32| async move { Ok(()) });
 ///
 /// let filter2 = FilterBuilder::new(|&data: &u32| data == 0)
-///     .leaf(|data: EventOwned<u32>| data.0 * 2);
+///     .leaf(|data: u32| async move { data * 2 });
 /// ```
 pub struct FilterBuilder<F, Data> {
     condition: F,
