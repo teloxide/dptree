@@ -7,6 +7,7 @@ use dptree::Handler;
 use std::net::Ipv4Addr;
 use std::sync::Arc;
 
+// `TypeMapPanickableStore` implements `TypeMap` store with panics on resolves types.
 type Store = Arc<TypeMapPanickableStore>;
 
 #[tokio::main]
@@ -15,18 +16,16 @@ async fn main() {
         expected_num: u32,
         expected_string: &'static str,
     ) -> impl Handler<Store, Res = ()> {
-        Leaf::enter_store(move |num: u32, string: String| async move {
-            assert_eq!(num, expected_num);
-            assert_eq!(&string, expected_string);
+        // The handler requires `u32` and `String` types from the input storage.
+        Leaf::enter_store(move |num: Arc<u32>, string: Arc<String>| async move {
+            assert_eq!(*num, expected_num);
+            assert_eq!(&*string, expected_string);
         })
     }
 
-    #[allow(unused)]
-    fn assert_ip_handler() -> impl Handler<Store, Res = ()> {
-        Leaf::enter_store(|ip: Ipv4Addr| async move { assert_eq!(ip, Ipv4Addr::new(0, 0, 0, 0)) })
-    }
-
+    // Init storage with string and num
     let store = init_store();
+
     let str_num_handler = assert_num_string_handler(10u32, "Hello");
 
     str_num_handler
@@ -35,8 +34,14 @@ async fn main() {
         .unwrap_or_else(|_| unreachable!());
 
     // This will cause a panic because we do not store `Ipv4Addr` in out store.
-    // let ip_handler = assert_ip_handler();
-    // ip_handler.handle(store.clone()).await.unwrap_or_else(|_| unreachable!());
+    let handle = tokio::spawn(async move {
+        let ip_handler = Leaf::enter_store(|ip: Arc<Ipv4Addr>| async move {
+            assert_eq!(*ip, Ipv4Addr::new(0, 0, 0, 0));
+        });
+        ip_handler.handle(store.clone()).await.unwrap_or_else(|_| unreachable!());
+    });
+    let result = handle.await;
+    assert!(result.is_err())
 }
 
 fn init_store() -> Store {
