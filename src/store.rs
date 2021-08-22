@@ -4,6 +4,7 @@
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::ops::Deref;
+use std::sync::Arc;
 
 /// The trait is used to specify data type as storing some value `Value`. Means that
 /// `Value` can be obtained by-value.
@@ -13,7 +14,7 @@ pub trait Store<Value> {
 
 /// Panickable realisation for the `Store` trait.
 pub struct TypeMapPanickableStore {
-    map: HashMap<TypeId, Box<dyn Any>>,
+    map: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
 }
 
 impl TypeMapPanickableStore {
@@ -23,13 +24,13 @@ impl TypeMapPanickableStore {
         }
     }
 
-    pub fn insert<T: Clone + 'static>(&mut self, item: T) {
-        self.map.insert(TypeId::of::<T>(), Box::new(item));
+    pub fn insert<T: Send + Sync + 'static>(&mut self, item: T) {
+        self.map.insert(TypeId::of::<T>(), Arc::new(item));
     }
 }
 
-impl<V: Clone + 'static> Store<V> for TypeMapPanickableStore {
-    fn get(&self) -> V {
+impl<V: Send + Sync + 'static> Store<Arc<V>> for TypeMapPanickableStore {
+    fn get(&self) -> Arc<V> {
         self.map
             .get(&TypeId::of::<V>())
             .unwrap_or_else(|| {
@@ -38,7 +39,8 @@ impl<V: Clone + 'static> Store<V> for TypeMapPanickableStore {
                     std::any::type_name::<V>()
                 )
             })
-            .downcast_ref::<V>()
+            .clone()
+            .downcast::<V>()
             .expect("we already checks that line before")
             .clone()
     }
