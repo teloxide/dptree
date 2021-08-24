@@ -28,17 +28,14 @@ async fn main() {
 
     let str_num_handler = assert_num_string_handler(10u32, "Hello");
 
-    str_num_handler
-        .handle(store.clone())
-        .await
-        .unwrap_or_else(|_| unreachable!());
+    str_num_handler.handle(store.clone()).await.unwrap();
 
     // This will cause a panic because we do not store `Ipv4Addr` in out store.
     let handle = tokio::spawn(async move {
         let ip_handler = Leaf::enter_store(|ip: Arc<Ipv4Addr>| async move {
             assert_eq!(*ip, Ipv4Addr::new(0, 0, 0, 0));
         });
-        ip_handler.handle(store.clone()).await.unwrap_or_else(|_| unreachable!());
+        ip_handler.handle(store.clone()).await.unwrap();
     });
     let result = handle.await;
     assert!(result.is_err())

@@ -1,3 +1,26 @@
+//! Filter handler and builder.
+//!
+//! Filter is a handler that filters input event by some condition and call next handler if the
+//! condition was satisfied. Returns error otherwise.
+//!
+//! Basic usage of filter:
+//! ```
+//! # #[tokio::main]
+//! # async fn main() {
+//! extern crate dispatch_tree as dptree;
+//! use dispatch_tree::Handler;
+//!
+//! let filter = dptree::filter(|&num: &u32| num == 10)
+//!     .leaf(|num| async move { num * 2 });
+//!
+//! let result_with_10 = filter.handle(10u32).await;
+//! assert_eq!(result_with_10, Ok(20));
+//!
+//! let result_with_2 = filter.handle(2u32).await;
+//! assert_eq!(result_with_2, Err(2));
+//! # }
+//! ```
+
 use crate::handler::leaf::by_event::{LeafByEvent, LeafEventEnter};
 use crate::handler::{Handler, HandlerFuture, Leaf};
 use std::marker::PhantomData;
@@ -40,42 +63,7 @@ impl<F, H> Filter<F, H> {
         (self.condition, self.handler)
     }
 }
-/* TODO: this doesn't compile
-impl<F, H> Filter<F, H> {
-    /// Adds new condition to an existing filter.
-    ///
-    /// Basic usage:
-    /// ```
-    /// # #[tokio::main]
-    /// # async fn main() {
-    /// use dispatch_tree::handler::filter::Filter;
-    /// use dispatch_tree::Handler;
-    ///
-    /// let filter = Filter::new(
-    ///     |&data: &u32| data % 2 == 0, // filter odds
-    ///     |data: u32| async move { Ok(()) },
-    /// );
-    ///
-    /// assert_eq!(filter.handle(10u32).await, Ok(()));
-    ///
-    /// // additionally filter numbers that are completely divisible by three
-    /// let new_filter = filter.and(|&data| data % 3 == 0);
-    ///
-    /// assert_eq!(new_filter.handle(10u32).await, Err(10));
-    /// assert_eq!(new_filter.handle(12u32).await, Ok(()));
-    /// # }
-    /// ```
-    pub fn and<Data, Cond>(self, cond2: Cond) -> Filter<impl for<'a> Fn(&Data) -> bool + Send + Sync, H>
-    where
-        F: for<'a> Fn(&'a Data) -> bool + Send + Sync,
-        Cond: for<'a> Fn(&'a Data) -> bool + Send + Sync,
-    {
-        let (cond1, handler) = self.into_inner();
-        let new_cond = move |data| cond1(data) && cond2(data);
-        Filter::new(new_cond, handler)
-    }
-}
-*/
+
 impl<F, H, Data, Res> Handler<Data> for Filter<F, H>
 where
     F: Fn(&Data) -> bool + Send + Sync,

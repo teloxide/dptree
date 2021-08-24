@@ -41,11 +41,13 @@ pub use leaf::Leaf;
 
 use crate::handler::filter::Filter;
 use crate::handler::parser::Parser;
-use crate::parser::Handlerable;
+use crate::parser::Parseable;
 use futures::future::BoxFuture;
 use futures::Future;
 
-// Note that future must have 'static lifetime.
+/// Future returned from `Handler` trait.
+///
+/// Note that future must have 'static lifetime.
 pub type HandlerFuture<Res, Data> = BoxFuture<'static, Result<Res, Data>>;
 
 /// The trait is used to define handler which can handle some `Data`.
@@ -73,6 +75,7 @@ where
     }
 }
 
+// TODO: is this need?
 pub trait HandlerExt<Data>: Handler<Data> + Sized {
     fn filter_by<Cond>(self, condition: Cond) -> Filter<Cond, Self>
     where
@@ -82,7 +85,7 @@ pub trait HandlerExt<Data>: Handler<Data> + Sized {
     }
     fn parse_before<InputType>(self) -> Parser<Self, InputType, Data>
     where
-        InputType: Handlerable<Data>,
+        InputType: Parseable<Data>,
     {
         Parser::new(self)
     }

@@ -1,3 +1,10 @@
+/// Returns function that uses `matches!` on the argument.
+///
+/// Basic usage:
+/// ```
+/// let check_zero = dispatch_tree::matches!(0);
+/// assert!(check_zero(0));
+/// ```
 #[macro_export]
 macro_rules! matches {
     ($pattern:pat) => {

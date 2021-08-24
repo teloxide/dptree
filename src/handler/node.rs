@@ -1,7 +1,38 @@
 use crate::handler::{BoxHandler, Handler, HandlerFuture};
 use std::sync::Arc;
 
-/// Node is a node.
+/// `Node` is a handler containing many subsequent handlers and provides a way to branching
+/// handling.
+///
+/// `Node` in dispatching tree means node that just try to put input event in the following
+/// handlers.
+///
+/// Basic usage:
+/// ```
+/// extern crate dispatch_tree as dptree;
+/// use dispatch_tree::Handler;
+///
+/// # #[tokio::main]
+/// # async fn main() {
+/// // Creating handler that multiply input number if it bigger than 5.
+/// let multiply = dptree::filter(|&num: &i32| num > 5)
+///     .leaf(|num: i32| async move { num * 2 });
+///
+/// // Creating handler that divide input number if it less than -5.
+/// let divide = dptree::filter(|&num: &i32| num < -5)
+///     .leaf(|num: i32| async move { num / 2 });
+///
+/// // Creating node.
+/// let node = dptree::node()
+///     .and(multiply)
+///     .and(divide)
+///     .build();
+///
+/// assert_eq!(node.handle(10).await, Ok(20));
+/// assert_eq!(node.handle(-6).await, Ok(-3));
+/// // There are no handler that accepts 0 so `Node` returns an error.
+/// assert_eq!(node.handle(0).await, Err(0));
+/// # }
 pub struct Node<Data, Res> {
     children: Arc<Vec<BoxHandler<Data, Res>>>,
 }
@@ -35,6 +66,15 @@ where
     }
 }
 
+/// Builder for the `Node` struct.
+///
+/// Basic usage:
+/// ```
+/// let node = dispatch_tree::node()
+///     .and(|event: u32| async move { Ok(()) })
+///     .and(|event: u32| async move { Err(event) })
+///     .build();
+/// ```
 pub struct NodeBuilder<Data, Res> {
     children: Vec<BoxHandler<Data, Res>>,
 }
@@ -44,6 +84,7 @@ impl<Data, Res> NodeBuilder<Data, Res> {
         NodeBuilder { children: vec![] }
     }
 
+    /// Adds a handler to the end of queue.
     pub fn and<H>(mut self, handler: H) -> Self
     where
         H: Handler<Data, Res = Res> + Send + Sync + 'static,
@@ -52,11 +93,13 @@ impl<Data, Res> NodeBuilder<Data, Res> {
         self
     }
 
+    /// Builds a `Node` with the handlers.
     pub fn build(self) -> Node<Data, Res> {
         Node::new(Arc::new(self.children))
     }
 }
 
+/// Shortcut for `NodeBuilder::new()`
 pub fn node<Data, Res>() -> NodeBuilder<Data, Res> {
     NodeBuilder::new()
 }

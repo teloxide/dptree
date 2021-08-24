@@ -3,6 +3,7 @@
 
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -26,6 +27,12 @@ impl TypeMapPanickableStore {
 
     pub fn insert<T: Send + Sync + 'static>(&mut self, item: T) {
         self.map.insert(TypeId::of::<T>(), Arc::new(item));
+    }
+}
+
+impl Debug for TypeMapPanickableStore {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        f.debug_struct("TypeMapPanickableStore").finish()
     }
 }
 
