@@ -10,7 +10,7 @@
 //! tree. You can define your own handlers if you want.
 //!
 //! Suppose we have a tree:
-//! ```ignore
+//! ```text
 //!          Node(1)
 //!         /       \
 //!     Node(2)     Leaf(3)
