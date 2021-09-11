@@ -16,11 +16,11 @@ use std::sync::Arc;
 /// # async fn main() {
 /// // Creating handler that multiply input number if it bigger than 5.
 /// let multiply = dptree::filter(|&num: &i32| num > 5)
-///     .leaf(|num: i32| async move { num * 2 });
+///     .end_point(|num: i32| async move { num * 2 });
 ///
 /// // Creating handler that divide input number if it less than -5.
 /// let divide = dptree::filter(|&num: &i32| num < -5)
-///     .leaf(|num: i32| async move { num / 2 });
+///     .end_point(|num: i32| async move { num / 2 });
 ///
 /// // Creating node.
 /// let node = dptree::node()
@@ -89,8 +89,16 @@ impl<Data, Res> NodeBuilder<Data, Res> {
     where
         H: Handler<Data, Res = Res> + Send + Sync + 'static,
     {
-        self.children.push(Box::new(handler));
+        self.push(handler);
         self
+    }
+
+    /// Adds a handler to the end of queue.
+    pub fn push<H>(&mut self, handler: H)
+    where
+        H: Handler<Data, Res = Res> + Send + Sync + 'static,
+    {
+        self.children.push(Box::new(handler));
     }
 
     /// Builds a `Node` with the handlers.

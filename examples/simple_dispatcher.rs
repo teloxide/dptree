@@ -43,13 +43,13 @@ impl Parseable<SetValueEvent> for Event {
 }
 
 fn ping_handler() -> impl Handler<Event, Res = String> {
-    dptree::filter(dptree::matches!(Event::Ping)).leaf(|| async { "Pong".to_string() })
+    dptree::filter(dptree::matches!(Event::Ping)).end_point(|| async { "Pong".to_string() })
 }
 
 #[rustfmt::skip]
 fn set_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = String> {
     dptree::parser::<Event, SetValueEvent>()
-        .leaf(
+        .end_point(
             move |event: SetValueEvent| {
                 let store = store.clone();
                 async move {
@@ -64,7 +64,7 @@ fn set_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = String>
 #[rustfmt::skip]
 fn print_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = String> {
     dptree::filter(dptree::matches!(Event::PrintValue))
-        .leaf(move || {
+        .end_point(move || {
             let store = store.clone();
             async move {
                 let value = store.load(Ordering::SeqCst);

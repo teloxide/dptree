@@ -2,7 +2,7 @@
 
 extern crate dispatch_tree as dptree;
 
-use dispatch_tree::Handler;
+use dispatch_tree::{Handler, HandlerBuilder};
 use std::fmt::{Display, Formatter};
 use std::io::Write;
 
@@ -51,23 +51,28 @@ mod transitions {
     use super::*;
 
     pub fn begin() -> impl Handler<(Event, CommandState), Res = CommandState> {
-        dptree::filter(dptree::matches!((Event::Begin, _))).leaf(|| async { CommandState::Active })
+        dptree::filter(dptree::matches!((Event::Begin, _)))
+            .end_point(|| async { CommandState::Active })
     }
 
     pub fn pause() -> impl Handler<(Event, CommandState), Res = CommandState> {
-        dptree::filter(dptree::matches!((Event::Pause, _))).leaf(|| async { CommandState::Paused })
+        dptree::filter(dptree::matches!((Event::Pause, _)))
+            .end_point(|| async { CommandState::Paused })
     }
 
     pub fn end() -> impl Handler<(Event, CommandState), Res = CommandState> {
-        dptree::filter(dptree::matches!((Event::End, _))).leaf(|| async { CommandState::Inactive })
+        dptree::filter(dptree::matches!((Event::End, _)))
+            .end_point(|| async { CommandState::Inactive })
     }
 
     pub fn resume() -> impl Handler<(Event, CommandState), Res = CommandState> {
-        dptree::filter(dptree::matches!((Event::Resume, _))).leaf(|| async { CommandState::Active })
+        dptree::filter(dptree::matches!((Event::Resume, _)))
+            .end_point(|| async { CommandState::Active })
     }
 
     pub fn exit() -> impl Handler<(Event, CommandState), Res = CommandState> {
-        dptree::filter(dptree::matches!((Event::Exit, _))).leaf(|| async { CommandState::Exit })
+        dptree::filter(dptree::matches!((Event::Exit, _)))
+            .end_point(|| async { CommandState::Exit })
     }
 }
 

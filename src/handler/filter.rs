@@ -11,7 +11,7 @@
 //! use dispatch_tree::Handler;
 //!
 //! let filter = dptree::filter(|&num: &u32| num == 10)
-//!     .leaf(|num| async move { num * 2 });
+//!     .end_point(|num| async move { num * 2 });
 //!
 //! let result_with_10 = filter.handle(10u32).await;
 //! assert_eq!(result_with_10, Ok(20));
@@ -21,8 +21,9 @@
 //! # }
 //! ```
 
-use crate::handler::leaf::by_event::{LeafByEvent, LeafEventEnter};
-use crate::handler::{Handler, HandlerFuture, Leaf};
+use crate::builder::HandlerBuilder;
+use crate::handler::end_point::by_event::{EndPointByEvent, EndPointByEventEnter};
+use crate::handler::{EndPoint, Handler, HandlerFuture};
 use std::marker::PhantomData;
 
 /// Struct that filtering event by a condition.
@@ -84,13 +85,14 @@ where
 ///
 /// Basic usage:
 /// ```
+/// use dispatch_tree::HandlerBuilder;
 /// use dispatch_tree::handler::filter::FilterBuilder;
 ///
 /// let filter1 = FilterBuilder::new(|&data: &u32| data == 0)
 ///     .and_then(|data: u32| async move { Ok(()) });
 ///
 /// let filter2 = FilterBuilder::new(|&data: &u32| data == 0)
-///     .leaf(|data: u32| async move { data * 2 });
+///     .end_point(|data: u32| async move { data * 2 });
 /// ```
 pub struct FilterBuilder<F, Data> {
     condition: F,
@@ -109,23 +111,34 @@ where
         }
     }
 
-    /// Builds `Filter` with the handler.
-    pub fn and_then<H>(self, handler: H) -> Filter<F, H>
+    /// Shortcut for `builder.and_then(EndPoint::by_event(func))`.
+    pub fn end_point<Func, Need>(self, func: Func) -> Filter<F, EndPointByEvent<Func, Need>>
     where
-        H: Handler<Data>,
+        Func: Send + Sync,
+        Need: Send + Sync,
+        Data: Send + Sync + 'static,
+        EndPointByEvent<Func, Need>: Handler<Data>,
+        <EndPointByEvent<Func, Need> as Handler<Data>>::Res: Send + Sync + 'static,
     {
+        self.and_then(EndPoint::by_event(func))
+    }
+}
+
+impl<F, Event, H, Res> HandlerBuilder<Event, H> for FilterBuilder<F, Event>
+where
+    F: Fn(&Event) -> bool + Send + Sync,
+    H: Handler<Event, Res = Res> + Send + Sync,
+    Event: Send + Sync + 'static,
+    Res: Send + 'static,
+{
+    type OutEvent = Event;
+    type ResultAndThen = Filter<F, H>;
+
+    fn and_then(self, handler: H) -> Self::ResultAndThen {
         Filter {
             condition: self.condition,
             handler,
         }
-    }
-
-    /// Shortcut for `builder.and_then(Leaf::enter_event(func))`.
-    pub fn leaf<Func, Need>(self, func: Func) -> Filter<F, LeafByEvent<Func, Need>>
-    where
-        LeafByEvent<Func, Need>: Handler<Data>,
-    {
-        self.and_then(Leaf::enter_event(func))
     }
 }
 

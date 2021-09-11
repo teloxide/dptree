@@ -1,6 +1,8 @@
-use crate::handler::leaf::by_event::{LeafByEvent, LeafEventEnter};
-use crate::handler::{Handler, HandlerFuture, Leaf};
+use crate::handler::end_point::by_event::{EndPointByEvent, EndPointByEventEnter};
+use crate::handler::end_point::by_store::{EndPointByStore, EndPointByStoreEnter};
+use crate::handler::{EndPoint, Handler, HandlerFuture};
 use crate::parser::Parseable;
+use crate::HandlerBuilder;
 use futures::TryFutureExt;
 use std::marker::PhantomData;
 
@@ -42,7 +44,7 @@ use std::marker::PhantomData;
 /// }
 ///
 /// let parser = dispatch_tree::parser::<Event, Multiply>()
-///     .leaf(|Multiply(x, y): Multiply| async move { x * y });
+///     .end_point(|Multiply(x, y): Multiply| async move { x * y });
 ///
 /// assert_eq!(parser.handle(Event::Multiply(Multiply(5, 4))).await, Ok(20));
 /// assert!(parser.handle(Event::Ping).await.is_err());
@@ -112,12 +114,38 @@ where
         Parser::new(handler)
     }
 
-    /// Shortcut for `builder.and_then(Leaf::enter_event(func))`.
-    pub fn leaf<Func, Need>(self, func: Func) -> Parser<LeafByEvent<Func, Need>, FromT, To>
+    /// Shortcut for `builder.and_then(EndPoint::by_event(func))`.
+    pub fn end_point<Func, Need>(self, func: Func) -> Parser<EndPointByEvent<Func, Need>, FromT, To>
     where
-        LeafByEvent<Func, Need>: Handler<To>,
+        EndPointByEvent<Func, Need>: Handler<To>,
     {
-        self.and_then(Leaf::enter_event(func))
+        self.and_then(EndPoint::by_event(func))
+    }
+
+    /// Shortcut for `builder.and_then(EndPoint::by_store(func))`.
+    pub fn end_point_by_store<Func, Args, Store>(
+        self,
+        func: Func,
+    ) -> Parser<EndPointByStore<Func, Args>, FromT, To>
+    where
+        EndPoint<Store>: EndPointByStoreEnter<Func, Args>,
+        EndPointByStore<Func, Args>: Handler<To>,
+    {
+        self.and_then(EndPoint::by_store(func))
+    }
+}
+
+impl<FromT, To, H, Res> HandlerBuilder<FromT, H> for ParserBuilder<FromT, To>
+where
+    FromT: Parseable<To>,
+    H: Handler<To, Res = Res>,
+    Parser<H, FromT, To>: Handler<FromT>,
+{
+    type OutEvent = To;
+    type ResultAndThen = Parser<H, FromT, To>;
+
+    fn and_then(self, handler: H) -> Self::ResultAndThen {
+        Parser::new(handler)
     }
 }
 

@@ -1,27 +1,28 @@
-use crate::handler::leaf::Leaf;
+use crate::handler::end_point::EndPoint;
 use crate::handler::HandlerFuture;
 use crate::store::Store;
 use crate::Handler;
 use futures::FutureExt;
 use std::future::Future;
 use std::marker::PhantomData;
+use std::sync::Arc;
 
-/// Leaf that accepts a function with many args that are stored in an incoming event.
+/// EndPoint that accepts a function with many args that are stored in an incoming event.
 ///
-/// This `Leaf` implements the DI (Dependency Injection) pattern. It accepts input event
+/// This `EndPoint` implements the DI (Dependency Injection) pattern. It accepts input event
 /// that must store all handler function args, extracts them and then call function with extracted
 /// parameters.
 ///
-/// `LeafByStore` implements extracting from generic storage, so you can use any implementation of
-/// DI storage. Only thing you need to do is implement `Store` trait for this storage.
+/// `EndPointByStore` implements extracting from generic storage, so you can use any implementation of
+/// DI storage. Only thing you need to do is implement `Storage` trait for this storage.
 ///
-/// Can be constructed only via `Leaf::enter_store`.
+/// Can be constructed only via `EndPoint::by_store`.
 ///
 /// Basic usage:
 /// ```
 /// # use std::sync::Arc;
 /// use dispatch_tree::Handler;
-/// use dispatch_tree::handler::{Leaf, leaf::by_store::LeafStoreEnter};
+/// use dispatch_tree::handler::{EndPoint, end_point::by_store::EndPointByStoreEnter};
 ///
 /// # #[tokio::main]
 /// # async fn main() {
@@ -29,8 +30,8 @@ use std::marker::PhantomData;
 /// // Creating store.
 /// let mut store = dispatch_tree::store::TypeMapPanickableStore::new();
 ///
-/// // Creating leaf.
-/// let extractor = Leaf::enter_store(
+/// // Creating endpoint.
+/// let extractor = EndPoint::by_store(
 ///     |num: Arc<u32>, string: Arc<String>| async move {
 ///         (num, string)
 ///     });
@@ -44,45 +45,45 @@ use std::marker::PhantomData;
 /// assert_eq!(&*string, "Hello");
 /// # }
 /// ```
-pub struct LeafByStore<H, Args> {
+pub struct EndPointByStore<H, Args> {
     handler: H,
     _phantom: PhantomData<Args>,
 }
 
-/// Provides a way to construct `LeafByStore`.
-pub trait LeafStoreEnter<F, Args> {
-    fn enter_store(func: F) -> LeafByStore<F, Args>;
+/// Provides a way to construct `EndPointByStore`.
+pub trait EndPointByStoreEnter<F, Args> {
+    fn by_store(func: F) -> EndPointByStore<F, Args>;
 }
 
-impl<F, Fut, A1> LeafStoreEnter<F, (A1,)> for Leaf<()>
+impl<F, Fut, A1> EndPointByStoreEnter<F, (A1,)> for EndPoint<()>
 where
-    F: Fn(A1) -> Fut,
+    F: Fn(Arc<A1>) -> Fut,
     Fut: Future + Send + 'static,
     Fut::Output: 'static,
 {
-    fn enter_store(func: F) -> LeafByStore<F, (A1,)> {
-        LeafByStore {
+    fn by_store(func: F) -> EndPointByStore<F, (A1,)> {
+        EndPointByStore {
             handler: func,
             _phantom: PhantomData,
         }
     }
 }
-impl<F, Fut, A1, A2> LeafStoreEnter<F, (A1, A2)> for Leaf<()>
+impl<F, Fut, A1, A2> EndPointByStoreEnter<F, (A1, A2)> for EndPoint<()>
 where
-    F: Fn(A1, A2) -> Fut,
+    F: Fn(Arc<A1>, Arc<A2>) -> Fut,
     Fut: Future + Send + 'static,
     Fut::Output: 'static,
 {
-    fn enter_store(func: F) -> LeafByStore<F, (A1, A2)> {
-        LeafByStore {
+    fn by_store(func: F) -> EndPointByStore<F, (A1, A2)> {
+        EndPointByStore {
             handler: func,
             _phantom: PhantomData,
         }
     }
 }
-impl<H, S, Res, Fut, A1> Handler<S> for LeafByStore<H, (A1,)>
+impl<H, S, Res, Fut, A1> Handler<S> for EndPointByStore<H, (A1,)>
 where
-    H: Fn(A1) -> Fut,
+    H: Fn(Arc<A1>) -> Fut,
     Fut: Future<Output = Res> + Send + 'static,
     Res: 'static,
     S: Store<A1> + 'static,
@@ -94,9 +95,9 @@ where
     }
 }
 
-impl<H, S, Res, Fut, A1, A2> Handler<S> for LeafByStore<H, (A1, A2)>
+impl<H, S, Res, Fut, A1, A2> Handler<S> for EndPointByStore<H, (A1, A2)>
 where
-    H: Fn(A1, A2) -> Fut,
+    H: Fn(Arc<A1>, Arc<A2>) -> Fut,
     Fut: Future<Output = Res> + Send + 'static,
     Res: 'static,
     S: Store<A1> + Store<A2> + 'static,
@@ -106,4 +107,11 @@ where
     fn handle(&self, store: S) -> HandlerFuture<Res, S> {
         Box::pin((self.handler)(store.get(), store.get()).map(Ok))
     }
+}
+
+pub fn end_point_by_store<F, Event, Args>(func: F) -> EndPointByStore<F, Args>
+where
+    EndPoint<Event>: EndPointByStoreEnter<F, Args>,
+{
+    EndPoint::by_store(func)
 }
