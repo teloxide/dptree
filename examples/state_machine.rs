@@ -80,9 +80,9 @@ mod transitions {
 fn active_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
     dptree::filter(dptree::matches!((_, CommandState::Active)))
         .and_then(
-            dptree::node()
-                .and(transitions::pause())
-                .and(transitions::end())
+            dptree::dispatch()
+                .to(transitions::pause())
+                .to(transitions::end())
                 .build()
         )
 }
@@ -91,9 +91,9 @@ fn active_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
 fn paused_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
     dptree::filter(dptree::matches!((_, CommandState::Paused)))
         .and_then(
-            dptree::node()
-                .and(transitions::resume())
-                .and(transitions::end())
+            dptree::dispatch()
+                .to(transitions::resume())
+                .to(transitions::end())
                 .build()
         )
 }
@@ -102,26 +102,26 @@ fn paused_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
 fn inactive_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
     dptree::filter(dptree::matches!((_, CommandState::Inactive)))
         .and_then(
-            dptree::node()
-                .and(transitions::begin())
-                .and(transitions::exit())
+            dptree::dispatch()
+                .to(transitions::begin())
+                .to(transitions::exit())
                 .build()
         )
 }
 
 fn exit_handler() -> impl Handler<(Event, CommandState), Res = CommandState> {
-    dptree::filter(dptree::matches!((_, CommandState::Exit))).and_then(dptree::node().build())
+    dptree::filter(dptree::matches!((_, CommandState::Exit))).and_then(dptree::dispatch().build())
 }
 
 #[tokio::main]
 async fn main() {
     let mut state = CommandState::Inactive;
 
-    let dispatcher = dptree::node::<(Event, CommandState), CommandState>()
-        .and(active_handler())
-        .and(paused_handler())
-        .and(inactive_handler())
-        .and(exit_handler())
+    let dispatcher = dptree::dispatch::<(Event, CommandState), CommandState>()
+        .to(active_handler())
+        .to(paused_handler())
+        .to(inactive_handler())
+        .to(exit_handler())
         .build();
 
     loop {

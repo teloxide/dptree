@@ -134,14 +134,14 @@ async fn main() {
     let store = Arc::new(AtomicI32::new(0));
 
     // When we write all of our constructors - there are a question: how can we combine them?
-    // For that purpose we use `Node` handler. It does a simple job: passed input event to all
+    // For that purpose we use `Dispatcher` handler. It does a simple job: passed input event to all
     // handlers that it have and wait until the event is processed. If no one endpoint process
-    // the event, `Node` will return an error.
-    let dispatcher = dptree::node::<Event, String>()
+    // the event, `Dispatcher` will return an error.
+    let dispatcher = dptree::dispatch::<Event, String>()
         // Add all our handlers.
-        .and(ping_handler())
-        .and(set_value_handler(store.clone()))
-        .and(print_value_handler(store.clone()))
+        .to(ping_handler())
+        .to(set_value_handler(store.clone()))
+        .to(print_value_handler(store.clone()))
         .build();
 
     // Simple REPL for the constructed dispatcher.
