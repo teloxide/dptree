@@ -18,8 +18,8 @@ use std::marker::PhantomData;
 /// ```
 /// # #[tokio::main]
 /// # async fn main() {
-/// use dispatch_tree::Handler;
-/// use dispatch_tree::parser::Parseable;
+/// use dptree::Handler;
+/// use dptree::parser::Parseable;
 ///
 /// #[derive(Debug, PartialEq)]
 /// enum Event {
@@ -43,7 +43,7 @@ use std::marker::PhantomData;
 ///     }
 /// }
 ///
-/// let parser = dispatch_tree::parser::<Event, Multiply>()
+/// let parser = dptree::parser::<Event, Multiply>()
 ///     .end_point(|Multiply(x, y): Multiply| async move { x * y });
 ///
 /// assert_eq!(parser.handle(Event::Multiply(Multiply(5, 4))).await, Ok(20));

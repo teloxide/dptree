@@ -2,7 +2,7 @@
 ///
 /// Basic usage:
 /// ```
-/// let check_zero = dispatch_tree::matches!(0);
+/// let check_zero = dptree::matches!(0);
 /// assert!(check_zero(0));
 /// ```
 #[macro_export]

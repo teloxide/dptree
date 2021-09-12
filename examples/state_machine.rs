@@ -1,8 +1,6 @@
 //! You can see image of the state machine at /img/state_machine.gif
 
-extern crate dispatch_tree as dptree;
-
-use dispatch_tree::{Handler, HandlerBuilder};
+use dptree::{Handler, HandlerBuilder};
 use std::fmt::{Display, Formatter};
 use std::io::Write;
 

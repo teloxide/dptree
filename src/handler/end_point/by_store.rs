@@ -21,14 +21,14 @@ use std::sync::Arc;
 /// Basic usage:
 /// ```
 /// # use std::sync::Arc;
-/// use dispatch_tree::Handler;
-/// use dispatch_tree::handler::{EndPoint, end_point::by_store::EndPointByStoreEnter};
+/// use dptree::Handler;
+/// use dptree::handler::{EndPoint, end_point::by_store::EndPointByStoreEnter};
 ///
 /// # #[tokio::main]
 /// # async fn main() {
 ///
 /// // Creating store.
-/// let mut store = dispatch_tree::store::TypeMapPanickableStore::new();
+/// let mut store = dptree::store::TypeMapPanickableStore::new();
 ///
 /// // Creating endpoint.
 /// let extractor = EndPoint::by_store(

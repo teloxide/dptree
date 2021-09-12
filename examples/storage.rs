@@ -1,5 +1,3 @@
-extern crate dispatch_tree as dptree;
-
 use dptree::handler::end_point::by_store::EndPointByStoreEnter;
 use dptree::handler::EndPoint;
 use dptree::store::TypeMapPanickableStore;

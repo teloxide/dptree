@@ -7,8 +7,7 @@
 //! ```
 //! # #[tokio::main]
 //! # async fn main() {
-//! extern crate dispatch_tree as dptree;
-//! use dispatch_tree::Handler;
+//! use dptree::Handler;
 //!
 //! let filter = dptree::filter(|&num: &u32| num == 10)
 //!     .end_point(|num| async move { num * 2 });
@@ -34,8 +33,8 @@ use std::marker::PhantomData;
 /// ```
 /// # #[tokio::main]
 /// # async fn main() {
-/// use dispatch_tree::handler::filter::Filter;
-/// use dispatch_tree::Handler;
+/// use dptree::handler::filter::Filter;
+/// use dptree::Handler;
 ///
 /// let filter = Filter::new(
 ///     |&data: &u32| data == 10, // filter event by condition
@@ -85,8 +84,8 @@ where
 ///
 /// Basic usage:
 /// ```
-/// use dispatch_tree::HandlerBuilder;
-/// use dispatch_tree::handler::filter::FilterBuilder;
+/// use dptree::HandlerBuilder;
+/// use dptree::handler::filter::FilterBuilder;
 ///
 /// let filter1 = FilterBuilder::new(|&data: &u32| data == 0)
 ///     .and_then(|data: u32| async move { Ok(()) });

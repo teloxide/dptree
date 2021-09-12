@@ -15,8 +15,8 @@ use std::marker::PhantomData;
 ///
 /// Basic usage:
 /// ```
-/// use dispatch_tree::Handler;
-/// use dispatch_tree::handler::{EndPoint, end_point::by_event::EndPointByEventEnter};
+/// use dptree::Handler;
+/// use dptree::handler::{EndPoint, end_point::by_event::EndPointByEventEnter};
 ///
 /// # #[tokio::main]
 /// # async fn main() {

@@ -9,8 +9,7 @@ use std::sync::Arc;
 ///
 /// Basic usage:
 /// ```
-/// extern crate dispatch_tree as dptree;
-/// use dispatch_tree::Handler;
+/// use dptree::Handler;
 ///
 /// # #[tokio::main]
 /// # async fn main() {
@@ -72,7 +71,7 @@ where
 /// ```
 /// # let handler1 = |event: u32| async move { Ok(()) };
 /// # let handler2 = |event: u32| async move { Err(event) };
-/// let dispatcher = dispatch_tree::dispatch()
+/// let dispatcher = dptree::dispatch()
 ///     .to(handler1)
 ///     .to(handler2)
 ///     .build();

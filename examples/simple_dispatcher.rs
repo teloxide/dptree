@@ -15,10 +15,8 @@
 // 123
 // ```
 
-extern crate dispatch_tree as dptree;
-
-use dispatch_tree::parser::Parseable;
-use dispatch_tree::Handler;
+use dptree::parser::Parseable;
+use dptree::Handler;
 use std::io::Write;
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::Arc;
