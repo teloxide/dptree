@@ -39,9 +39,6 @@ pub mod parser;
 
 pub use end_point::EndPoint;
 
-use crate::handler::filter::Filter;
-use crate::handler::parser::Parser;
-use crate::parser::Parseable;
 use futures::future::BoxFuture;
 use futures::Future;
 
@@ -72,21 +69,5 @@ where
     type Res = Res;
     fn handle(&self, data: Data) -> HandlerFuture<Res, Data> {
         Box::pin(self(data))
-    }
-}
-
-// TODO: is this need?
-pub trait HandlerExt<Data>: Handler<Data> + Sized {
-    fn filter_by<Cond>(self, condition: Cond) -> Filter<Cond, Self>
-    where
-        Cond: Fn(&Data) -> bool + Send + Sync,
-    {
-        Filter::new(condition, self)
-    }
-    fn parse_before<InputType>(self) -> Parser<Self, InputType, Data>
-    where
-        InputType: Parseable<Data>,
-    {
-        Parser::new(self)
     }
 }

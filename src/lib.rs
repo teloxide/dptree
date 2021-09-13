@@ -1,9 +1,8 @@
 pub mod builder;
+pub mod docs;
 pub mod handler;
 mod macros;
-pub mod parser;
 pub mod store;
-pub mod docs;
 
 pub use builder::HandlerBuilder;
 pub use handler::{

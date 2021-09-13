@@ -15,7 +15,6 @@
 // 123
 // ```
 
-use dptree::parser::Parseable;
 use dptree::Handler;
 use std::io::Write;
 use std::sync::atomic::{AtomicI32, Ordering};
@@ -25,46 +24,27 @@ use std::sync::Arc;
 #[derive(Debug)]
 enum Event {
     Ping,
-    SetValue(SetValueEvent),
+    SetValue(i32),
     PrintValue,
 }
 
-// We also need to create a newtype for `set_value` event. Further it will be explained why.
-#[derive(Debug)]
-struct SetValueEvent(i32);
-
-// User will input text from the console - so we declare method to parse user input to our type.
 impl Event {
+    // User will input text from the console - so we declare method to parse user input to our type.
     fn parse(input: &[&str]) -> Option<Self> {
         match input {
             ["ping"] => Some(Event::Ping),
-            ["set_value", value] => Some(Event::SetValue(SetValueEvent(value.parse().unwrap()))),
+            ["set_value", value] => Some(Event::SetValue(value.parse().ok()?)),
             ["print"] => Some(Event::PrintValue),
             _ => None,
         }
     }
-}
-
-// That is why we have declared newtype for `set_value` command. We want us to be able to access
-// the value to which the user wants to set the stored value in the program.
-// Implementing `Parseable` allow to us to parse from `Event` to `SetValueEvent`. This is the
-// same as when we parse input string "123" to number 123: just concretization of the
-// content of the event.
-impl Parseable<SetValueEvent> for Event {
-    type Rest = ();
-
-    // Parsing `Event` -> `SetValueEvent`.
-    fn parse(self) -> Result<(SetValueEvent, Self::Rest), Self> {
+    // This function will be need later. Here we check that event is `set_value` and if so,
+    // we return the value that the user wants to set the program's value to.
+    fn parse_to_set_value_event(&self) -> Option<i32> {
         match self {
-            Event::SetValue(e) => Ok((e, ())),
-            _ => Err(self),
+            Event::SetValue(value) => Some(*value),
+            _ => None,
         }
-    }
-
-    // Recombining `SetValueEvent` -> `Event`. To learn more about this function,
-    // see documentation of `Parseable` trait.
-    fn recombine(data: (SetValueEvent, Self::Rest)) -> Self {
-        Event::SetValue(data.0)
     }
 }
 
@@ -92,13 +72,12 @@ fn set_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = String>
     // In this case in the endpoint we _must_ know to which value user want set program value. So
     // in this case we cannot use `Filter` as above because it does not provide information of the
     // internal representation of the event. So we use another handler - `Parser`. `Parser` allow
-    // us to parse one event type to another. In our case we want to parse `Event` to `SetValueEvent`.
-    // If input is `Event::SetValueEvent`, it will be parsed to the `SetValueEvent` newtype and passed
-    // to the next handler.
-    dptree::parser::<Event, SetValueEvent>()
+    // us to parse one event type to another. In our case we want to handle only `set_value` events,
+    // so we use our `Event::parse_to_set_value_event` to do this.
+    dptree::parser(Event::parse_to_set_value_event)
         // Next, handle the `set_value` event.
         .end_point(
-            move |SetValueEvent(value): SetValueEvent| {
+            move |value: i32| {
                 // Clone store to use in `async` block.
                 let store = store.clone();
                 async move {

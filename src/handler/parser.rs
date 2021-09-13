@@ -1,7 +1,6 @@
 use crate::handler::end_point::by_event::{EndPointByEvent, EndPointByEventEnter};
 use crate::handler::end_point::by_store::{EndPointByStore, EndPointByStoreEnter};
 use crate::handler::{EndPoint, Handler, HandlerFuture};
-use crate::parser::Parseable;
 use crate::HandlerBuilder;
 use futures::TryFutureExt;
 use std::marker::PhantomData;
@@ -19,72 +18,56 @@ use std::marker::PhantomData;
 /// # #[tokio::main]
 /// # async fn main() {
 /// use dptree::Handler;
-/// use dptree::parser::Parseable;
 ///
 /// #[derive(Debug, PartialEq)]
 /// enum Event {
 ///     Ping,
-///     Multiply(Multiply),
+///     Multiply(u32, u32),
 /// }
-/// #[derive(Debug, PartialEq)]
-/// struct Multiply(u32, u32);
 ///
-/// impl Parseable<Multiply> for Event {
-///     type Rest = ();
-///
-///     fn parse(self) -> Result<(Multiply, Self::Rest), Self> {
-///         match self {
-///             Event::Multiply(mult) => Ok((mult, ())),
-///             this => Err(this)
-///         }
-///     }
-///     fn recombine(data: (Multiply, Self::Rest)) -> Self {
-///         Event::Multiply(data.0)
+/// fn parse_multiply_event(event: &Event) -> Option<(u32, u32)> {
+///     match event {
+///         Event::Multiply(x, y) => Some((*x, *y)),
+///         _ => None,
 ///     }
 /// }
 ///
-/// let parser = dptree::parser::<Event, Multiply>()
-///     .end_point(|Multiply(x, y): Multiply| async move { x * y });
+/// let parser = dptree::parser(parse_multiply_event)
+///     .end_point(|(x, y)| async move { x * y });
 ///
-/// assert_eq!(parser.handle(Event::Multiply(Multiply(5, 4))).await, Ok(20));
+/// assert_eq!(parser.handle(Event::Multiply(5, 4)).await, Ok(20));
 /// assert!(parser.handle(Event::Ping).await.is_err());
 /// # }
 /// ```
-pub struct Parser<H, From, To> {
+pub struct Parser<P, H, From> {
+    parser: P,
     handler: H,
-    _phantom: PhantomData<(From, To)>,
+    _phantom: PhantomData<From>,
 }
 
-impl<H, From, To> Parser<H, From, To>
-where
-    H: Handler<To>,
-    From: Parseable<To>,
-{
-    pub fn new(handler: H) -> Self {
+impl<P, H, From> Parser<P, H, From> {
+    pub fn new(parser: P, handler: H) -> Self {
         Parser {
+            parser,
             handler,
             _phantom: PhantomData,
         }
     }
 }
 
-impl<H, Res, From, To> Handler<From> for Parser<H, From, To>
+impl<P, H, Res, From, To> Handler<From> for Parser<P, H, From>
 where
-    H: Handler<To, Res = Res> + Send + Sync,
+    P: Parse<From, To = To>,
+    H: Handler<To, Res = Res>,
+    From: Send + 'static,
     Res: Send + 'static,
-    From: Parseable<To> + Send + Sync + 'static,
-    <From as Parseable<To>>::Rest: Send,
-    To: Send + Sync + 'static,
+    To: 'static,
 {
     type Res = Res;
     fn handle(&self, data: From) -> HandlerFuture<Res, From> {
-        match data.parse() {
-            Ok((data, rest)) => Box::pin(
-                self.handler
-                    .handle(data)
-                    .map_err(|to| From::recombine((to, rest))),
-            ),
-            Err(data) => Box::pin(futures::future::err(data)),
+        match self.parser.parse(&data) {
+            Some(to) => Box::pin(self.handler.handle(to).map_err(|_| data)),
+            None => Box::pin(futures::future::err(data)),
         }
     }
 }
@@ -92,30 +75,32 @@ where
 /// Builder for the `Parser` struct.
 ///
 /// For more info see `Parser` struct.
-pub struct ParserBuilder<From, To> {
+pub struct ParserBuilder<P, From, To> {
+    parser: P,
     _phantom: PhantomData<(From, To)>,
 }
 
-impl<FromT, To> ParserBuilder<FromT, To>
+impl<P, FromT, To> ParserBuilder<P, FromT, To>
 where
-    FromT: Parseable<To>,
+    P: Parse<FromT, To = To>,
 {
-    pub fn new() -> Self {
+    pub fn new(parser: P) -> Self {
         ParserBuilder {
+            parser,
             _phantom: PhantomData,
         }
     }
 
     /// Constructs `Parser` with following handler.
-    pub fn and_then<H>(self, handler: H) -> Parser<H, FromT, To>
+    pub fn and_then<H>(self, handler: H) -> Parser<P, H, FromT>
     where
         H: Handler<To>,
     {
-        Parser::new(handler)
+        Parser::new(self.parser, handler)
     }
 
     /// Shortcut for `builder.and_then(EndPoint::by_event(func))`.
-    pub fn end_point<Func, Need>(self, func: Func) -> Parser<EndPointByEvent<Func, Need>, FromT, To>
+    pub fn end_point<Func, Need>(self, func: Func) -> Parser<P, EndPointByEvent<Func, Need>, FromT>
     where
         EndPointByEvent<Func, Need>: Handler<To>,
     {
@@ -126,7 +111,7 @@ where
     pub fn end_point_by_store<Func, Args, Store>(
         self,
         func: Func,
-    ) -> Parser<EndPointByStore<Func, Args>, FromT, To>
+    ) -> Parser<P, EndPointByStore<Func, Args>, FromT>
     where
         EndPoint<Store>: EndPointByStoreEnter<Func, Args>,
         EndPointByStore<Func, Args>: Handler<To>,
@@ -135,24 +120,40 @@ where
     }
 }
 
-impl<FromT, To, H, Res> HandlerBuilder<FromT, H> for ParserBuilder<FromT, To>
+impl<P, FromT, To, H, Res> HandlerBuilder<FromT, H> for ParserBuilder<P, FromT, To>
 where
-    FromT: Parseable<To>,
+    P: Parse<FromT, To = To>,
     H: Handler<To, Res = Res>,
-    Parser<H, FromT, To>: Handler<FromT>,
+    Parser<P, H, FromT>: Handler<FromT>,
 {
     type OutEvent = To;
-    type ResultAndThen = Parser<H, FromT, To>;
+    type ResultAndThen = Parser<P, H, FromT>;
 
     fn and_then(self, handler: H) -> Self::ResultAndThen {
-        Parser::new(handler)
+        Parser::new(self.parser, handler)
     }
 }
 
 /// Shortcut for `ParserBuilder::new()`.
-pub fn parser<From, To>() -> ParserBuilder<From, To>
+pub fn parser<P, From, To>(parser: P) -> ParserBuilder<P, From, To>
 where
-    From: Parseable<To>,
+    P: Parse<From, To = To>,
 {
-    ParserBuilder::new()
+    ParserBuilder::new(parser)
+}
+
+pub trait Parse<From> {
+    type To;
+    fn parse(&self, from: &From) -> Option<Self::To>;
+}
+
+impl<F, From, To> Parse<From> for F
+where
+    F: Fn(&From) -> Option<To>,
+{
+    type To = To;
+
+    fn parse(&self, from: &From) -> Option<Self::To> {
+        self(from)
+    }
 }
