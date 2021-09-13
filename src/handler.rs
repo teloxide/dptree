@@ -3,7 +3,7 @@
 //! Handlers is a entity that can handle some `Data`. Handlers are represented as a tree, where
 //! `Dispatcher` handler tries to feed each next `Handler` the input `Data`. Next handlers in that case
 //! can be any type that implements `Handler` trait. It can be, for example, another `Dispatcher` that do
-//! same as another `Dispatcher`'s, or `EndPoint` that cannot break the handles and can only handle the
+//! same as another `Dispatcher`'s, or `Endpoint` that cannot break the handles and can only handle the
 //! incoming `Data`. Another available handlers is `Filter` handler that filter incoming `Data` by
 //! condition and breaks handles in that branch of tree if `Data` does not satisfy the condition,
 //! and `Parser` which tries to parse incoming `Data` to another `ParsedData` in that branch of a
@@ -13,11 +13,11 @@
 //! ```text
 //!          Dispatcher(1)
 //!         /              \
-//!     Dispatcher(2)     EndPoint(3)
+//!     Dispatcher(2)     Endpoint(3)
 //!    /           \
-//! Filter(1)    EndPoint(2)
+//! Filter(1)    Endpoint(2)
 //!   |
-//!  EndPoint(1)
+//!  Endpoint(1)
 //! ```
 //! Let's try to imagine what happens when `Data` incomes.
 //!
@@ -25,19 +25,19 @@
 //! input to others nodes in a list. So, it pass the `Data` to the next node in a list: `Dispatcher(2)`.
 //! It pass data to the next node: `Filter(1)`. Filter, as described above, filter the data by a
 //! condition, and if the data satisfy the condition, it passes the data forward to the next
-//! handler. Next handler is the `EndPoint(1)`. Because that is `EndPoint`, if data satisfy the condition
-//! in the `Filter(1)`, data passes to the `EndPoint(1)` and handling ends. If data does not satisfy
+//! handler. Next handler is the `Endpoint(1)`. Because that is `Endpoint`, if data satisfy the condition
+//! in the `Filter(1)`, data passes to the `Endpoint(1)` and handling ends. If data does not satisfy
 //! the condition, data returns to the `Dispatcher(2)`. `Dispatcher(2)` then pass data to the next handler:
-//! `EndPoint(2)`. Because it's a `EndPoint`, the handling end at this point. `EndPoint(3)` unreachable,
-//! as you can see, due to `EndPoint(2)` handles all the incoming data that not handles by other
+//! `Endpoint(2)`. Because it's a `Endpoint`, the handling end at this point. `Endpoint(3)` unreachable,
+//! as you can see, due to `Endpoint(2)` handles all the incoming data that not handles by other
 //! handlers.
 
 pub mod dispatcher;
-pub mod end_point;
+pub mod endpoint;
 pub mod filter;
 pub mod parser;
 
-pub use end_point::EndPoint;
+pub use endpoint::Endpoint;
 
 use futures::future::BoxFuture;
 use futures::Future;

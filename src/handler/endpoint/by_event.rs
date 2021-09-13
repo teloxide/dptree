@@ -1,59 +1,59 @@
-//! `EndPointByEvent` handler and traits.
+//! `EndpointByEvent` handler and traits.
 //!
 //!
 
-use crate::handler::end_point::EndPoint;
+use crate::handler::endpoint::Endpoint;
 use crate::handler::HandlerFuture;
 use crate::Handler;
 use futures::FutureExt;
 use std::future::Future;
 use std::marker::PhantomData;
 
-/// EndPoint that accepts a function with input event as first and one arg.
+/// Endpoint that accepts a function with input event as first and one arg.
 ///
-/// Can be constructed only via `EndPoint::enter_event`.
+/// Can be constructed only via `Endpoint::enter_event`.
 ///
 /// Basic usage:
 /// ```
 /// use dptree::Handler;
-/// use dptree::handler::{EndPoint, end_point::by_event::EndPointByEventEnter};
+/// use dptree::handler::{Endpoint, endpoint::by_event::EndpointByEventEnter};
 ///
 /// # #[tokio::main]
 /// # async fn main() {
 /// // Creating handler that multiply input number.
-/// let multiply = EndPoint::by_event(|num: u32| async move { num * 2 });
+/// let multiply = Endpoint::by_event(|num: u32| async move { num * 2 });
 /// let four = multiply.handle(2).await.unwrap();
 /// assert_eq!(four, 4);
 ///
 /// // Creating handler that just return some value.
-/// let get_value = EndPoint::<()>::by_event(|| async move { 10u32 });
+/// let get_value = Endpoint::<()>::by_event(|| async move { 10u32 });
 /// let ten = get_value.handle(()).await.unwrap();
 /// assert_eq!(ten, 10);
 /// # }
 /// ```
-pub struct EndPointByEvent<H, Need> {
+pub struct EndpointByEvent<H, Need> {
     handler: H,
     _phantom: PhantomData<Need>,
 }
 
-/// Provides a way to construct `EndPointByEvent`.
-pub trait EndPointByEventEnter<F, Event, Need> {
-    fn by_event(func: F) -> EndPointByEvent<F, Need>;
+/// Provides a way to construct `EndpointByEvent`.
+pub trait EndpointByEventEnter<F, Event, Need> {
+    fn by_event(func: F) -> EndpointByEvent<F, Need>;
 }
 
-impl<F, Event, Need> EndPointByEventEnter<F, Event, Need> for EndPoint<Event>
+impl<F, Event, Need> EndpointByEventEnter<F, Event, Need> for Endpoint<Event>
 where
-    EndPointByEvent<F, Need>: Handler<Event>,
+    EndpointByEvent<F, Need>: Handler<Event>,
 {
-    fn by_event(func: F) -> EndPointByEvent<F, Need> {
-        EndPointByEvent {
+    fn by_event(func: F) -> EndpointByEvent<F, Need> {
+        EndpointByEvent {
             handler: func,
             _phantom: PhantomData,
         }
     }
 }
 
-impl<H, E, Res, Fut> Handler<E> for EndPointByEvent<H, EventNeed>
+impl<H, E, Res, Fut> Handler<E> for EndpointByEvent<H, EventNeed>
 where
     H: Fn(E) -> Fut,
     Fut: Future<Output = Res> + Send + 'static,
@@ -67,7 +67,7 @@ where
     }
 }
 
-impl<H, E, Res, Fut> Handler<E> for EndPointByEvent<H, EventNotNeed>
+impl<H, E, Res, Fut> Handler<E> for EndpointByEvent<H, EventNotNeed>
 where
     H: Fn() -> Fut,
     Fut: Future<Output = Res> + Send + 'static,
@@ -84,9 +84,9 @@ where
 pub struct EventNeed;
 pub struct EventNotNeed;
 
-pub fn end_point<F, Event, Need>(func: F) -> EndPointByEvent<F, Need>
+pub fn endpoint<F, Event, Need>(func: F) -> EndpointByEvent<F, Need>
 where
-    EndPoint<Event>: EndPointByEventEnter<F, Event, Need>,
+    Endpoint<Event>: EndpointByEventEnter<F, Event, Need>,
 {
-    EndPoint::by_event(func)
+    Endpoint::by_event(func)
 }

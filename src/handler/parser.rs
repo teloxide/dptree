@@ -1,6 +1,6 @@
-use crate::handler::end_point::by_event::{EndPointByEvent, EndPointByEventEnter};
-use crate::handler::end_point::by_store::{EndPointByStore, EndPointByStoreEnter};
-use crate::handler::{EndPoint, Handler, HandlerFuture};
+use crate::handler::endpoint::by_event::{EndpointByEvent, EndpointByEventEnter};
+use crate::handler::endpoint::by_store::{EndpointByStore, EndpointByStoreEnter};
+use crate::handler::{Endpoint, Handler, HandlerFuture};
 use crate::HandlerBuilder;
 use futures::TryFutureExt;
 use std::marker::PhantomData;
@@ -33,7 +33,7 @@ use std::marker::PhantomData;
 /// }
 ///
 /// let parser = dptree::parser(parse_multiply_event)
-///     .end_point(|(x, y)| async move { x * y });
+///     .endpoint(|(x, y)| async move { x * y });
 ///
 /// assert_eq!(parser.handle(Event::Multiply(5, 4)).await, Ok(20));
 /// assert!(parser.handle(Event::Ping).await.is_err());
@@ -99,24 +99,24 @@ where
         Parser::new(self.parser, handler)
     }
 
-    /// Shortcut for `builder.and_then(EndPoint::by_event(func))`.
-    pub fn end_point<Func, Need>(self, func: Func) -> Parser<P, EndPointByEvent<Func, Need>, FromT>
+    /// Shortcut for `builder.and_then(Endpoint::by_event(func))`.
+    pub fn endpoint<Func, Need>(self, func: Func) -> Parser<P, EndpointByEvent<Func, Need>, FromT>
     where
-        EndPointByEvent<Func, Need>: Handler<To>,
+        EndpointByEvent<Func, Need>: Handler<To>,
     {
-        self.and_then(EndPoint::by_event(func))
+        self.and_then(Endpoint::by_event(func))
     }
 
-    /// Shortcut for `builder.and_then(EndPoint::by_store(func))`.
-    pub fn end_point_by_store<Func, Args, Store>(
+    /// Shortcut for `builder.and_then(Endpoint::by_store(func))`.
+    pub fn endpoint_by_store<Func, Args, Store>(
         self,
         func: Func,
-    ) -> Parser<P, EndPointByStore<Func, Args>, FromT>
+    ) -> Parser<P, EndpointByStore<Func, Args>, FromT>
     where
-        EndPoint<Store>: EndPointByStoreEnter<Func, Args>,
-        EndPointByStore<Func, Args>: Handler<To>,
+        Endpoint<Store>: EndpointByStoreEnter<Func, Args>,
+        EndpointByStore<Func, Args>: Handler<To>,
     {
-        self.and_then(EndPoint::by_store(func))
+        self.and_then(Endpoint::by_store(func))
     }
 }
 

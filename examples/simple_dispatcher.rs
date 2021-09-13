@@ -60,10 +60,10 @@ fn ping_handler() -> impl Handler<Event, Res = String> {
     // `std::matches!` macro.
     dptree::filter(dptree::matches!(Event::Ping))
         // After a filter, we give only events that satisfies the condition. In our case it is
-        // only `ping` events. We must handle that event - so we use `EndPoint` handler that allow
+        // only `ping` events. We must handle that event - so we use `Endpoint` handler that allow
         // to handle all incoming events. In the handler we just returns `"Pong"` string, because we
         // know that earlier `Filter` accepts only `ping` event.
-        .end_point(|| async { "Pong".to_string() })
+        .endpoint(|| async { "Pong".to_string() })
 }
 
 // This function will construct a handler that handle `set_value` event.
@@ -76,7 +76,7 @@ fn set_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = String>
     // so we use our `Event::parse_to_set_value_event` to do this.
     dptree::parser(Event::parse_to_set_value_event)
         // Next, handle the `set_value` event.
-        .end_point(
+        .endpoint(
             move |value: i32| {
                 // Clone store to use in `async` block.
                 let store = store.clone();
@@ -95,7 +95,7 @@ fn set_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = String>
 fn print_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = String> {
     // Filter only `Event::PrintValue` events.
     dptree::filter(dptree::matches!(Event::PrintValue))
-        .end_point(move || {
+        .endpoint(move || {
             let store = store.clone();
             async move {
                 let value = store.load(Ordering::SeqCst);

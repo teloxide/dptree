@@ -6,6 +6,6 @@ pub mod store;
 
 pub use builder::HandlerBuilder;
 pub use handler::{
-    dispatcher::dispatch, end_point::by_event::end_point, end_point::by_store::end_point_by_store,
+    dispatcher::dispatch, endpoint::by_event::endpoint, endpoint::by_store::endpoint_by_store,
     filter::filter, parser::parser, Handler,
 };

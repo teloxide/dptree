@@ -1,4 +1,4 @@
-use crate::handler::end_point::EndPoint;
+use crate::handler::endpoint::Endpoint;
 use crate::handler::HandlerFuture;
 use crate::store::Store;
 use crate::Handler;
@@ -7,22 +7,22 @@ use std::future::Future;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-/// EndPoint that accepts a function with many args that are stored in an incoming event.
+/// Endpoint that accepts a function with many args that are stored in an incoming event.
 ///
-/// This `EndPoint` implements the DI (Dependency Injection) pattern. It accepts input event
+/// This `Endpoint` implements the DI (Dependency Injection) pattern. It accepts input event
 /// that must store all handler function args, extracts them and then call function with extracted
 /// parameters.
 ///
-/// `EndPointByStore` implements extracting from generic storage, so you can use any implementation of
+/// `EndpointByStore` implements extracting from generic storage, so you can use any implementation of
 /// DI storage. Only thing you need to do is implement `Storage` trait for this storage.
 ///
-/// Can be constructed only via `EndPoint::by_store`.
+/// Can be constructed only via `Endpoint::by_store`.
 ///
 /// Basic usage:
 /// ```
 /// # use std::sync::Arc;
 /// use dptree::Handler;
-/// use dptree::handler::{EndPoint, end_point::by_store::EndPointByStoreEnter};
+/// use dptree::handler::{Endpoint, endpoint::by_store::EndpointByStoreEnter};
 ///
 /// # #[tokio::main]
 /// # async fn main() {
@@ -31,7 +31,7 @@ use std::sync::Arc;
 /// let mut store = dptree::store::TypeMapPanickableStore::new();
 ///
 /// // Creating endpoint.
-/// let extractor = EndPoint::by_store(
+/// let extractor = Endpoint::by_store(
 ///     |num: Arc<u32>, string: Arc<String>| async move {
 ///         (num, string)
 ///     });
@@ -45,43 +45,43 @@ use std::sync::Arc;
 /// assert_eq!(&*string, "Hello");
 /// # }
 /// ```
-pub struct EndPointByStore<H, Args> {
+pub struct EndpointByStore<H, Args> {
     handler: H,
     _phantom: PhantomData<Args>,
 }
 
-/// Provides a way to construct `EndPointByStore`.
-pub trait EndPointByStoreEnter<F, Args> {
-    fn by_store(func: F) -> EndPointByStore<F, Args>;
+/// Provides a way to construct `EndpointByStore`.
+pub trait EndpointByStoreEnter<F, Args> {
+    fn by_store(func: F) -> EndpointByStore<F, Args>;
 }
 
-impl<F, Fut, A1> EndPointByStoreEnter<F, (A1,)> for EndPoint<()>
+impl<F, Fut, A1> EndpointByStoreEnter<F, (A1,)> for Endpoint<()>
 where
     F: Fn(Arc<A1>) -> Fut,
     Fut: Future + Send + 'static,
     Fut::Output: 'static,
 {
-    fn by_store(func: F) -> EndPointByStore<F, (A1,)> {
-        EndPointByStore {
+    fn by_store(func: F) -> EndpointByStore<F, (A1,)> {
+        EndpointByStore {
             handler: func,
             _phantom: PhantomData,
         }
     }
 }
-impl<F, Fut, A1, A2> EndPointByStoreEnter<F, (A1, A2)> for EndPoint<()>
+impl<F, Fut, A1, A2> EndpointByStoreEnter<F, (A1, A2)> for Endpoint<()>
 where
     F: Fn(Arc<A1>, Arc<A2>) -> Fut,
     Fut: Future + Send + 'static,
     Fut::Output: 'static,
 {
-    fn by_store(func: F) -> EndPointByStore<F, (A1, A2)> {
-        EndPointByStore {
+    fn by_store(func: F) -> EndpointByStore<F, (A1, A2)> {
+        EndpointByStore {
             handler: func,
             _phantom: PhantomData,
         }
     }
 }
-impl<H, S, Res, Fut, A1> Handler<S> for EndPointByStore<H, (A1,)>
+impl<H, S, Res, Fut, A1> Handler<S> for EndpointByStore<H, (A1,)>
 where
     H: Fn(Arc<A1>) -> Fut,
     Fut: Future<Output = Res> + Send + 'static,
@@ -95,7 +95,7 @@ where
     }
 }
 
-impl<H, S, Res, Fut, A1, A2> Handler<S> for EndPointByStore<H, (A1, A2)>
+impl<H, S, Res, Fut, A1, A2> Handler<S> for EndpointByStore<H, (A1, A2)>
 where
     H: Fn(Arc<A1>, Arc<A2>) -> Fut,
     Fut: Future<Output = Res> + Send + 'static,
@@ -109,9 +109,9 @@ where
     }
 }
 
-pub fn end_point_by_store<F, Event, Args>(func: F) -> EndPointByStore<F, Args>
+pub fn endpoint_by_store<F, Event, Args>(func: F) -> EndpointByStore<F, Args>
 where
-    EndPoint<Event>: EndPointByStoreEnter<F, Args>,
+    Endpoint<Event>: EndpointByStoreEnter<F, Args>,
 {
-    EndPoint::by_store(func)
+    Endpoint::by_store(func)
 }

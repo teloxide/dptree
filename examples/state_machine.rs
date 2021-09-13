@@ -50,27 +50,26 @@ mod transitions {
 
     pub fn begin() -> impl Handler<(Event, CommandState), Res = CommandState> {
         dptree::filter(dptree::matches!((Event::Begin, _)))
-            .end_point(|| async { CommandState::Active })
+            .endpoint(|| async { CommandState::Active })
     }
 
     pub fn pause() -> impl Handler<(Event, CommandState), Res = CommandState> {
         dptree::filter(dptree::matches!((Event::Pause, _)))
-            .end_point(|| async { CommandState::Paused })
+            .endpoint(|| async { CommandState::Paused })
     }
 
     pub fn end() -> impl Handler<(Event, CommandState), Res = CommandState> {
         dptree::filter(dptree::matches!((Event::End, _)))
-            .end_point(|| async { CommandState::Inactive })
+            .endpoint(|| async { CommandState::Inactive })
     }
 
     pub fn resume() -> impl Handler<(Event, CommandState), Res = CommandState> {
         dptree::filter(dptree::matches!((Event::Resume, _)))
-            .end_point(|| async { CommandState::Active })
+            .endpoint(|| async { CommandState::Active })
     }
 
     pub fn exit() -> impl Handler<(Event, CommandState), Res = CommandState> {
-        dptree::filter(dptree::matches!((Event::Exit, _)))
-            .end_point(|| async { CommandState::Exit })
+        dptree::filter(dptree::matches!((Event::Exit, _))).endpoint(|| async { CommandState::Exit })
     }
 }
 

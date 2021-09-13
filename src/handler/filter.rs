@@ -10,7 +10,7 @@
 //! use dptree::Handler;
 //!
 //! let filter = dptree::filter(|&num: &u32| num == 10)
-//!     .end_point(|num| async move { num * 2 });
+//!     .endpoint(|num| async move { num * 2 });
 //!
 //! let result_with_10 = filter.handle(10u32).await;
 //! assert_eq!(result_with_10, Ok(20));
@@ -21,8 +21,8 @@
 //! ```
 
 use crate::builder::HandlerBuilder;
-use crate::handler::end_point::by_event::{EndPointByEvent, EndPointByEventEnter};
-use crate::handler::{EndPoint, Handler, HandlerFuture};
+use crate::handler::endpoint::by_event::{EndpointByEvent, EndpointByEventEnter};
+use crate::handler::{Endpoint, Handler, HandlerFuture};
 use std::marker::PhantomData;
 
 /// Struct that filtering event by a condition.
@@ -91,7 +91,7 @@ where
 ///     .and_then(|data: u32| async move { Ok(()) });
 ///
 /// let filter2 = FilterBuilder::new(|&data: &u32| data == 0)
-///     .end_point(|data: u32| async move { data * 2 });
+///     .endpoint(|data: u32| async move { data * 2 });
 /// ```
 pub struct FilterBuilder<F, Data> {
     condition: F,
@@ -110,16 +110,16 @@ where
         }
     }
 
-    /// Shortcut for `builder.and_then(EndPoint::by_event(func))`.
-    pub fn end_point<Func, Need>(self, func: Func) -> Filter<F, EndPointByEvent<Func, Need>>
+    /// Shortcut for `builder.and_then(Endpoint::by_event(func))`.
+    pub fn endpoint<Func, Need>(self, func: Func) -> Filter<F, EndpointByEvent<Func, Need>>
     where
         Func: Send + Sync,
         Need: Send + Sync,
         Data: Send + Sync + 'static,
-        EndPointByEvent<Func, Need>: Handler<Data>,
-        <EndPointByEvent<Func, Need> as Handler<Data>>::Res: Send + Sync + 'static,
+        EndpointByEvent<Func, Need>: Handler<Data>,
+        <EndpointByEvent<Func, Need> as Handler<Data>>::Res: Send + Sync + 'static,
     {
-        self.and_then(EndPoint::by_event(func))
+        self.and_then(Endpoint::by_event(func))
     }
 }
 

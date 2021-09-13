@@ -1,6 +1,6 @@
-use crate::handler::end_point::by_event::{EndPointByEvent, EndPointByEventEnter};
-use crate::handler::end_point::by_store::{EndPointByStore, EndPointByStoreEnter};
-use crate::handler::end_point::EndPoint;
+use crate::handler::endpoint::by_event::{EndpointByEvent, EndpointByEventEnter};
+use crate::handler::endpoint::by_store::{EndpointByStore, EndpointByStoreEnter};
+use crate::handler::endpoint::Endpoint;
 use crate::handler::filter::FilterBuilder;
 use crate::Handler;
 use std::marker::PhantomData;
@@ -35,20 +35,20 @@ where
 }
 
 impl EmptyBuilder {
-    /// Shortcut for `builder.and_then(EndPoint::by_event(func))`.
-    pub fn end_point<Func, Event, Need>(self, func: Func) -> EndPointByEvent<Func, Need>
+    /// Shortcut for `builder.and_then(Endpoint::by_event(func))`.
+    pub fn endpoint<Func, Event, Need>(self, func: Func) -> EndpointByEvent<Func, Need>
     where
-        EndPoint<Event>: EndPointByEventEnter<Func, Event, Need>,
+        Endpoint<Event>: EndpointByEventEnter<Func, Event, Need>,
     {
-        EndPoint::by_event(func)
+        Endpoint::by_event(func)
     }
 
-    /// Shortcut for `builder.and_then(EndPoint::enter_store(func))`.
-    pub fn end_point_by_store<Func, Args, Store>(self, func: Func) -> EndPointByStore<Func, Args>
+    /// Shortcut for `builder.and_then(Endpoint::enter_store(func))`.
+    pub fn endpoint_by_store<Func, Args, Store>(self, func: Func) -> EndpointByStore<Func, Args>
     where
-        EndPoint<Store>: EndPointByStoreEnter<Func, Args>,
+        Endpoint<Store>: EndpointByStoreEnter<Func, Args>,
     {
-        EndPoint::by_store(func)
+        Endpoint::by_store(func)
     }
 }
 

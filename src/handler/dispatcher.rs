@@ -15,11 +15,11 @@ use std::sync::Arc;
 /// # async fn main() {
 /// // Creating handler that multiply input number if it is bigger than 5.
 /// let multiply = dptree::filter(|&num: &i32| num > 5)
-///     .end_point(|num: i32| async move { num * 2 });
+///     .endpoint(|num: i32| async move { num * 2 });
 ///
 /// // Creating handler that divide input number if it less than -5.
 /// let divide = dptree::filter(|&num: &i32| num < -5)
-///     .end_point(|num: i32| async move { num / 2 });
+///     .endpoint(|num: i32| async move { num / 2 });
 ///
 /// // Creating dispatcher.
 /// let dispatcher = dptree::dispatch()
