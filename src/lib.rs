@@ -1,5 +1,5 @@
 pub mod builder;
-pub mod docs;
+pub mod guides;
 pub mod handler;
 mod macros;
 pub mod store;

@@ -2,6 +2,7 @@ use crate::handler::endpoint::by_event::{EndpointByEvent, EndpointByEventEnter};
 use crate::handler::endpoint::by_store::{EndpointByStore, EndpointByStoreEnter};
 use crate::handler::endpoint::Endpoint;
 use crate::handler::filter::FilterBuilder;
+use crate::handler::parser::{Parse, ParserBuilder};
 use crate::Handler;
 use std::marker::PhantomData;
 
@@ -17,6 +18,15 @@ pub trait HandlerBuilder<InEvent, H>: Sized {
         F: Fn(&Self::OutEvent) -> bool + Send + Sync,
     {
         TwoBuilders::new(self, FilterBuilder::new(filter))
+    }
+    fn and_parse<P>(
+        self,
+        parser: P,
+    ) -> TwoBuilders<Self, ParserBuilder<P, Self::OutEvent, P::To>, P::To>
+    where
+        P: Parse<Self::OutEvent>,
+    {
+        TwoBuilders::new(self, ParserBuilder::new(parser))
     }
 }
 
