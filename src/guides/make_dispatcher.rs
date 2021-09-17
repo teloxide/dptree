@@ -47,11 +47,11 @@
 //! use dptree::Handler;
 //! # struct Expression;
 //! // `Expression` is input event type here, i32 - return type
-//! fn handler_add() -> impl Handler<Expression, Res = i32> {
+//! fn handler_add() -> impl Handler<Expression, Output = i32> {
 //!     # dptree::endpoint(|_| async move { unimplemented!() })
 //! }
 //! // `Expression` is input event type here, i32 - return type
-//! fn handler_multiply() -> impl Handler<Expression, Res = i32> {
+//! fn handler_multiply() -> impl Handler<Expression, Output = i32> {
 //!     # dptree::endpoint(|_| async move { unimplemented!() })
 //! }
 //! ```
@@ -63,7 +63,7 @@
 //! use dptree::{Handler, HandlerBuilder};
 //! # struct Expression { operand1: i32, operand2: i32, operation: Operation }
 //! # enum Operation { Add, Multiply }
-//! fn handler_add() -> impl Handler<Expression, Res = i32> {
+//! fn handler_add() -> impl Handler<Expression, Output = i32> {
 //!     dptree::filter(|exp: &Expression| matches!(exp.operation, Operation::Add))
 //!         # .endpoint(|exp: Expression| async move {  unimplemented!() })
 //! }
@@ -79,7 +79,7 @@
 //! use dptree::{Handler, HandlerBuilder};
 //! # struct Expression { operand1: i32, operand2: i32, operation: Operation }
 //! # enum Operation { Add, Multiply }
-//! fn handler_add() -> impl Handler<Expression, Res = i32> {
+//! fn handler_add() -> impl Handler<Expression, Output = i32> {
 //!     dptree::filter(|exp: &Expression| matches!(exp.operation, Operation::Add))
 //!         .endpoint(|exp: Expression| async move { exp.operand1 + exp.operand2 })
 //! }
@@ -90,7 +90,7 @@
 //! use dptree::{Handler, HandlerBuilder};
 //! # struct Expression { operand1: i32, operand2: i32, operation: Operation }
 //! # enum Operation { Add, Multiply }
-//! fn handler_multiply() -> impl Handler<Expression, Res = i32> {
+//! fn handler_multiply() -> impl Handler<Expression, Output = i32> {
 //!     dptree::filter(|exp: &Expression| matches!(exp.operation, Operation::Multiply))
 //!         .endpoint(|exp: Expression| async move { exp.operand1 * exp.operand2 })
 //! }
@@ -106,8 +106,8 @@
 //! ```
 //! # use dptree::Handler;
 //! # struct Expression;
-//! # fn handler_add() -> impl Handler<Expression, Res = i32> { dptree::endpoint(|_| async move { unimplemented!() }) }
-//! # fn handler_multiply() -> impl Handler<Expression, Res = i32> { dptree::endpoint(|_| async move { unimplemented!() }) }
+//! # fn handler_add() -> impl Handler<Expression, Output = i32> { dptree::endpoint(|_| async move { unimplemented!() }) }
+//! # fn handler_multiply() -> impl Handler<Expression, Output = i32> { dptree::endpoint(|_| async move { unimplemented!() }) }
 //! let dispatcher = dptree::dispatch()
 //!     .to(handler_add())
 //!     .to(handler_multiply())
@@ -117,15 +117,15 @@
 //! After creating `Dispatcher` we adds 2 handlers to and then build our dispatcher. That's all! Now
 //! we can use dispatcher to compute different expressions:
 //! ```
-//! use dptree::{Handler};
+//! use dptree::Handler;
 //! # use dptree::HandlerBuilder;
 //! # #[derive(Debug, PartialEq)] struct Expression { operand1: i32, operand2: i32, operation: Operation }
 //! # #[derive(Debug, PartialEq)] enum Operation { Add, Multiply }
-//! # fn handler_add() -> impl Handler<Expression, Res = i32> {
+//! # fn handler_add() -> impl Handler<Expression, Output = i32> {
 //! #     dptree::filter(|exp: &Expression| matches!(exp.operation, Operation::Add))
 //! #         .endpoint(|exp: Expression| async move { exp.operand1 + exp.operand2 })
 //! # }
-//! # fn handler_multiply() -> impl Handler<Expression, Res = i32> {
+//! # fn handler_multiply() -> impl Handler<Expression, Output = i32> {
 //! #     dptree::filter(|exp: &Expression| matches!(exp.operation, Operation::Multiply))
 //! #         .endpoint(|exp: Expression| async move { exp.operand1 * exp.operand2 })
 //! # }

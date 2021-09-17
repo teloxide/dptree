@@ -67,11 +67,11 @@ impl<F, H> Filter<F, H> {
 impl<F, H, Data, Res> Handler<Data> for Filter<F, H>
 where
     F: Fn(&Data) -> bool + Send + Sync,
-    H: Handler<Data, Res = Res> + Send + Sync,
+    H: Handler<Data, Output = Res> + Send + Sync,
     Data: Send + Sync + 'static,
     Res: Send + 'static,
 {
-    type Res = Res;
+    type Output = Res;
     fn handle(&self, data: Data) -> HandlerFuture<Res, Data> {
         match (self.condition)(&data) {
             true => Box::pin(self.handler.handle(data)),
@@ -117,7 +117,7 @@ where
         Need: Send + Sync,
         Data: Send + Sync + 'static,
         EndpointByEvent<Func, Need>: Handler<Data>,
-        <EndpointByEvent<Func, Need> as Handler<Data>>::Res: Send + Sync + 'static,
+        <EndpointByEvent<Func, Need> as Handler<Data>>::Output: Send + Sync + 'static,
     {
         self.and_then(Endpoint::by_event(func))
     }
@@ -126,7 +126,7 @@ where
 impl<F, Event, H, Res> HandlerBuilder<Event, H> for FilterBuilder<F, Event>
 where
     F: Fn(&Event) -> bool + Send + Sync,
-    H: Handler<Event, Res = Res> + Send + Sync,
+    H: Handler<Event, Output = Res> + Send + Sync,
     Event: Send + Sync + 'static,
     Res: Send + 'static,
 {

@@ -60,7 +60,7 @@ where
     E: 'static,
     Res: 'static,
 {
-    type Res = Res;
+    type Output = Res;
 
     fn handle(&self, event: E) -> HandlerFuture<Res, E> {
         Box::pin((self.handler)(event).map(Ok))
@@ -74,7 +74,7 @@ where
     E: 'static,
     Res: 'static,
 {
-    type Res = Res;
+    type Output = Res;
 
     fn handle(&self, _: E) -> HandlerFuture<Res, E> {
         Box::pin((self.handler)().map(Ok))

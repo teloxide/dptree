@@ -58,12 +58,12 @@ impl<P, H, From> Parser<P, H, From> {
 impl<P, H, Res, From, To> Handler<From> for Parser<P, H, From>
 where
     P: Parse<From, To = To>,
-    H: Handler<To, Res = Res>,
+    H: Handler<To, Output = Res>,
     From: Send + 'static,
     Res: Send + 'static,
     To: 'static,
 {
-    type Res = Res;
+    type Output = Res;
     fn handle(&self, data: From) -> HandlerFuture<Res, From> {
         match self.parser.parse(&data) {
             Some(to) => Box::pin(self.handler.handle(to).map_err(|_| data)),
@@ -123,7 +123,7 @@ where
 impl<P, FromT, To, H, Res> HandlerBuilder<FromT, H> for ParserBuilder<P, FromT, To>
 where
     P: Parse<FromT, To = To>,
-    H: Handler<To, Res = Res>,
+    H: Handler<To, Output = Res>,
     Parser<P, H, FromT>: Handler<FromT>,
 {
     type OutEvent = To;

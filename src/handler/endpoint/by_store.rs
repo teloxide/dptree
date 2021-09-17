@@ -88,7 +88,7 @@ where
     Res: 'static,
     S: Store<A1> + 'static,
 {
-    type Res = Res;
+    type Output = Res;
 
     fn handle(&self, store: S) -> HandlerFuture<Res, S> {
         Box::pin((self.handler)(store.get()).map(Ok))
@@ -102,7 +102,7 @@ where
     Res: 'static,
     S: Store<A1> + Store<A2> + 'static,
 {
-    type Res = Res;
+    type Output = Res;
 
     fn handle(&self, store: S) -> HandlerFuture<Res, S> {
         Box::pin((self.handler)(store.get(), store.get()).map(Ok))

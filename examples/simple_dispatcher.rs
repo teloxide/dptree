@@ -51,7 +51,7 @@ impl Event {
 // Second, we declare handlers constructors.
 // This function will construct a handler that handle `ping` event.
 #[rustfmt::skip]
-fn ping_handler() -> impl Handler<Event, Res = String> {
+fn ping_handler() -> impl Handler<Event, Output= String> {
     // Let's take a closer look.
     // We create here 2 handlers which are chained. This is called the `Chain Responsibility Pattern`.
     // First handler is `dptree::filter` that constructs `Filter` handler. It allows
@@ -68,7 +68,7 @@ fn ping_handler() -> impl Handler<Event, Res = String> {
 
 // This function will construct a handler that handle `set_value` event.
 #[rustfmt::skip]
-fn set_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = String> {
+fn set_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Output= String> {
     // In this case in the endpoint we _must_ know to which value user want set program value. So
     // in this case we cannot use `Filter` as above because it does not provide information of the
     // internal representation of the event. So we use another handler - `Parser`. `Parser` allow
@@ -92,7 +92,7 @@ fn set_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = String>
 
 // This function will construct a handler that handle `print_value` event.
 #[rustfmt::skip]
-fn print_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Res = String> {
+fn print_value_handler(store: Arc<AtomicI32>) -> impl Handler<Event, Output= String> {
     // Filter only `Event::PrintValue` events.
     dptree::filter(dptree::matches!(Event::PrintValue))
         .endpoint(move || {

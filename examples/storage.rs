@@ -13,7 +13,7 @@ async fn main() {
     fn assert_num_string_handler(
         expected_num: u32,
         expected_string: &'static str,
-    ) -> impl Handler<Store, Res = ()> {
+    ) -> impl Handler<Store, Output = ()> {
         // The handler requires `u32` and `String` types from the input storage.
         Endpoint::by_store(move |num: Arc<u32>, string: Arc<String>| async move {
             assert_eq!(*num, expected_num);

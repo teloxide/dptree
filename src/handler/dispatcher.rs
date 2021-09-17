@@ -47,7 +47,7 @@ where
     Data: Send + Sync + 'static,
     Res: 'static,
 {
-    type Res = Res;
+    type Output = Res;
     fn handle(&self, data: Data) -> HandlerFuture<Res, Data> {
         let children = self.children.clone();
         Box::pin(async move {
@@ -88,7 +88,7 @@ impl<Data, Res> DispatcherBuilder<Data, Res> {
     /// Adds a handler to the end of queue.
     pub fn to<H>(mut self, handler: H) -> Self
     where
-        H: Handler<Data, Res = Res> + Send + Sync + 'static,
+        H: Handler<Data, Output = Res> + Send + Sync + 'static,
     {
         self.push(handler);
         self
@@ -97,7 +97,7 @@ impl<Data, Res> DispatcherBuilder<Data, Res> {
     /// Adds a handler to the end of queue.
     pub fn push<H>(&mut self, handler: H)
     where
-        H: Handler<Data, Res = Res> + Send + Sync + 'static,
+        H: Handler<Data, Output = Res> + Send + Sync + 'static,
     {
         self.children.push(Box::new(handler));
     }

@@ -45,7 +45,7 @@ use futures::Future;
 /// Future returned from `Handler` trait.
 ///
 /// Note that future must have 'static lifetime.
-pub type HandlerFuture<Res, Data> = BoxFuture<'static, Result<Res, Data>>;
+pub type HandlerFuture<Output, Data> = BoxFuture<'static, Result<Output, Data>>;
 
 /// The trait is used to define handler which can handle some `Data`.
 ///
@@ -55,18 +55,19 @@ pub type HandlerFuture<Res, Data> = BoxFuture<'static, Result<Res, Data>>;
 /// returned iff `Data` cannot be processed by this handler. In that case it will be tried to
 /// handles by other handlers in a tree. For more information see top-level documentation.
 pub trait Handler<Data> {
-    type Res;
-    fn handle(&self, data: Data) -> HandlerFuture<Self::Res, Data>;
+    type Output;
+
+    fn handle(&self, data: Data) -> HandlerFuture<Self::Output, Data>;
 }
 
-pub type BoxHandler<Data, Res> = Box<dyn Handler<Data, Res = Res> + Send + Sync>;
+pub type BoxHandler<Data, Output> = Box<dyn Handler<Data, Output = Output> + Send + Sync>;
 
 impl<Func, Data, Res, Fut> Handler<Data> for Func
 where
     Func: Fn(Data) -> Fut,
     Fut: Future<Output = Result<Res, Data>> + Send + 'static,
 {
-    type Res = Res;
+    type Output = Res;
     fn handle(&self, data: Data) -> HandlerFuture<Res, Data> {
         Box::pin(self(data))
     }
