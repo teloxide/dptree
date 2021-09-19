@@ -1,105 +1,117 @@
-use std::{convert::Infallible, future::Future, ops::ControlFlow, pin::Pin, sync::Arc};
+use std::{future::Future, ops::ControlFlow, pin::Pin, sync::Arc};
 
 pub struct Handler<'a, Input, Output, Cont>(
-    Box<dyn Fn(Input, Arc<Cont>) -> HandlerOutput<'a, Input, Output> + Send + Sync + 'a>,
+    Arc<dyn Fn(Input, Cont) -> HandlerOutput<'a, Input, Output> + Send + Sync + 'a>,
 );
 
-pub type HandlerOutput<'a, Input, Output> =
-    Pin<Box<dyn Future<Output = ControlFlow<Output, Input>> + Send + Sync + 'a>>;
+impl<'a, I, O, C> Clone for Handler<'a, I, O, C> {
+    fn clone(&self) -> Self {
+        Handler(self.0.clone())
+    }
+}
 
-pub type TerminalCont = Infallible;
+pub type HandlerOutput<'fut, Input, Output> =
+    Pin<Box<dyn Future<Output = ControlFlow<Output, Input>> + Send + Sync + 'fut>>;
 
-impl<'a, Input, Output, Cont> Handler<'a, Input, Output, Handler<'a, Input, Output, Cont>>
+impl<'a, Input, Output> Handler<'a, Input, Output, ()>
 where
     Input: Send + Sync + 'a,
-    Output: 'a,
-    Cont: 'a + Send + Sync,
+    Output: Send + Sync + 'a,
 {
-    pub fn pipe_to(self, child: Arc<Handler<'a, Input, Output, Cont>>) -> Self {
-        let child = Arc::new(child);
-
-        from_fn(move |event, k| {
-            let child = Arc::clone(&child);
-
-            (self.0)(
-                event,
-                Arc::new(from_fn(move |event, _k| {
-                    let k = Arc::clone(&k);
-                    (child.0)(event, k)
-                })),
-            )
+    pub fn pipe_to(self, child: Handler<'a, Input, Output, ()>) -> Handler<'a, Input, Output, ()> {
+        from_fn(move |event, _| {
+            let this = self.clone();
+            let child = child.clone();
+            Box::pin(async move {
+                match (this.0)(event, ()).await {
+                    ControlFlow::Continue(c) => match (child.0)(c, ()).await {
+                        ControlFlow::Continue(c) => ControlFlow::Continue(c),
+                        ControlFlow::Break(b) => ControlFlow::Break(b.into()),
+                    },
+                    ControlFlow::Break(b) => ControlFlow::Break(b),
+                }
+            })
         })
     }
 }
 
-impl<'a, Input, Output> Handler<'a, Input, Output, Handler<'a, Input, Output, TerminalCont>>
+impl<'a, Input, Output, Cont> Handler<'a, Input, Output, (Handler<'a, Input, Output, Cont>, Cont)>
 where
     Input: Send + Sync + 'a,
-    Output: 'a,
+    Output: Send + Sync + 'a,
+    Cont: 'a,
 {
-    pub fn endpoint<F, Fut>(
+    pub fn pipe_to(
         self,
-        endp: F,
-    ) -> Handler<'a, Input, Output, Handler<'a, Input, Output, TerminalCont>>
+        child: Handler<'a, Input, Output, Cont>,
+    ) -> Handler<'a, Input, Output, Cont> {
+        from_fn(move |event, cont| {
+            let this = self.clone();
+            let child = child.clone();
+            Box::pin((this.0)(event, (child, cont)))
+        })
+    }
+}
+
+impl<'a, Input, Output> Handler<'a, Input, Output, (Handler<'a, Input, Output, ()>, ())>
+where
+    Input: Send + Sync + 'a,
+    Output: Send + Sync + 'a,
+{
+    pub fn endpoint<F, Fut>(self, endp: F) -> Handler<'a, Input, Output, ()>
     where
         F: Fn(Input) -> Fut + Send + Sync + 'a,
         Fut: Future<Output = Output> + Send + Sync,
     {
-        self.pipe_to(Arc::new(endpoint(endp)))
+        self.pipe_to(endpoint(endp))
     }
+}
 
+impl<'a, Input, Output> Handler<'a, Input, Output, ()>
+where
+    Input: Send + Sync + 'a,
+    Output: Send + Sync + 'a,
+{
     pub async fn execute(&self, event: Input) -> ControlFlow<Output, Input>
     where
         Input: Send + Sync + 'a,
     {
-        (self.0)(event, Arc::new(dummy())).await
-    }
-}
-
-impl<'a, Input, Output, Cont> Handler<'a, Input, Output, Handler<'a, Input, Output, Cont>>
-where
-    Input: Send + Sync + 'a,
-    Output: 'a,
-{
-    pub async fn handle(&self, event: Input) -> ControlFlow<Output, Input>
-    where
-        Input: Send + Sync + 'a,
-    {
-        (self.0)(event, Arc::new(dummy())).await
+        (self.0)(event, ()).await
     }
 }
 
 pub fn from_fn<'a, F, Fut, Input, Output, Cont>(f: F) -> Handler<'a, Input, Output, Cont>
 where
-    F: Fn(Input, Arc<Cont>) -> Fut + Send + Sync + 'a,
+    F: Fn(Input, Cont) -> Fut + Send + Sync + 'a,
     Fut: Future<Output = ControlFlow<Output, Input>> + Send + Sync + 'a,
 {
-    Handler(Box::new(move |event, k| Box::pin(f(event, k))))
+    Handler(Arc::new(move |event, cont| Box::pin(f(event, cont))))
 }
 
-pub fn dummy<'a, Input, Output, Cont>() -> Handler<'a, Input, Output, Cont>
+pub fn dummy<'a, Input, Output>() -> Handler<'a, Input, Output, ()>
 where
     Input: Send + Sync + 'a,
 {
-    from_fn(|event, _k| async move { ControlFlow::Continue(event) })
+    from_fn(|event, _cont| async move { ControlFlow::Continue(event) })
 }
 
-pub fn filter<'a, Pred, Fut, Input, Output, Cont>(pred: Pred) -> Filter<'a, Input, Output, Cont>
+pub fn filter<'a, Pred, Fut, Input, Output>(
+    pred: Pred,
+) -> Handler<'a, Input, Output, (Handler<'a, Input, Output, ()>, ())>
 where
     Pred: Fn(&Input) -> Fut + Send + Sync + 'a,
     Fut: Future<Output = bool> + Send + Sync,
     Input: Send + Sync + 'a,
-    Output: 'a,
-    Cont: 'a,
+    Output: Send + Sync + 'a,
 {
     let pred = Arc::new(pred);
 
-    from_fn(move |event, k: Arc<Handler<'a, Input, Output, Handler<'a, Input, Output, Cont>>>| {
+    from_fn(move |event, (next, _): (Handler<'a, Input, Output, ()>, ())| {
         let pred = Arc::clone(&pred);
 
         async move {
             if pred(&event).await {
-                k.handle(event).await
+                next.execute(event).await
             } else {
                 ControlFlow::Continue(event)
             }
@@ -107,12 +119,7 @@ where
     })
 }
 
-pub type Filter<'a, Input, Output, Cont> =
-    Handler<'a, Input, Output, Handler<'a, Input, Output, Handler<'a, Input, Output, Cont>>>;
-
-pub fn endpoint<'a, F, Fut, Input, Output>(
-    f: F,
-) -> Handler<'a, Input, Output, Handler<'a, Input, Output, TerminalCont>>
+pub fn endpoint<'a, F, Fut, Input, Output>(f: F) -> Handler<'a, Input, Output, ()>
 where
     F: Fn(Input) -> Fut + Send + Sync + 'a,
     Fut: Future<Output = Output> + Send + Sync,
@@ -120,7 +127,7 @@ where
 {
     let f = Arc::new(f);
 
-    from_fn(move |event, _k| {
+    from_fn(move |event, _| {
         let f = Arc::clone(&f);
         async move { ControlFlow::Break(f(event).await) }
     })
@@ -139,7 +146,7 @@ mod tests {
 
         let input = 123;
 
-        let result = dummy::<Input, Output, _>().execute(input).await;
+        let result = dummy::<Input, Output>().execute(input).await;
 
         assert!(result == ControlFlow::Continue(input));
     }
@@ -149,8 +156,9 @@ mod tests {
         let input = 123;
         let output = "ABC";
 
-        let result = from_fn(|event, _k| async move {
-            assert!(event == input);
+        let result = from_fn(|event, cont| async move {
+            assert_eq!(event, input);
+            assert_eq!(cont, ());
             ControlFlow::Break(output)
         })
         .execute(input)
@@ -165,8 +173,9 @@ mod tests {
 
         let input = 123;
 
-        let result = from_fn(|event, _k| async move {
-            assert!(event == input);
+        let result = from_fn(|event, cont| async move {
+            assert_eq!(event, input);
+            assert_eq!(cont, ());
             ControlFlow::<Output, _>::Continue(event)
         })
         .execute(input)
@@ -180,9 +189,9 @@ mod tests {
         let input = 123;
         let output = "ABC";
 
-        let result = from_fn(|event, k| async move {
+        let result = from_fn(|event, (cont, next_cont): (Handler<_, _, _>, ())| async move {
             assert!(event == input);
-            k.handle(event).await
+            (cont.0)(event, next_cont).await
         })
         .endpoint(|event| async move {
             assert!(event == input);
@@ -193,54 +202,38 @@ mod tests {
 
         assert!(result == ControlFlow::Break(output));
     }
-    //
-    //    #[tokio::test]
-    //    async fn test_endpoint() {
-    //        let input = 123;
-    //        let output = 7;
-    //
-    //        let result = endpoint(|event| async move {
-    //            assert!(event == input);
-    //            output
-    //        })
-    //        .handle(input)
-    //        .await;
-    //
-    //        assert!(result == ControlFlow::Break(output));
-    //    }
-    //
-    //    #[tokio::test]
-    //    async fn test_empty_filter() {
-    //        let input = 123;
-    //
-    //        type Output = i32;
-    //
-    //        let result = filter::<_, _, _, Output>(|&event| async move {
-    //            assert!(event == input);
-    //            false
-    //        })
-    //        .handle(input)
-    //        .await;
-    //
-    //        assert!(result == ControlFlow::Continue(input));
-    //    }
-    //
-    //    #[tokio::test]
-    //    async fn test_filter() {
-    //        let input = 123;
-    //        let output = 7;
-    //
-    //        let result = filter(|&event| async move {
-    //            assert!(event == input);
-    //            true
-    //        })
-    //        .endpoint(|event| async move {
-    //            assert!(event == input);
-    //            output
-    //        })
-    //        .handle(input)
-    //        .await;
-    //
-    //        assert!(result == ControlFlow::Break(output));
-    //    }
+
+    #[tokio::test]
+    async fn test_endpoint() {
+        let input = 123;
+        let output = 7;
+
+        let result = endpoint(|event| async move {
+            assert!(event == input);
+            output
+        })
+        .execute(input)
+        .await;
+
+        assert!(result == ControlFlow::Break(output));
+    }
+
+    #[tokio::test]
+    async fn test_filter() {
+        let input = 123;
+        let output = 7;
+
+        let result = filter(|&event| async move {
+            assert!(event == input);
+            true
+        })
+        .endpoint(|event| async move {
+            assert!(event == input);
+            output
+        })
+        .execute(input)
+        .await;
+
+        assert!(result == ControlFlow::Break(output));
+    }
 }
