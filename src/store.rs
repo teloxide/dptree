@@ -1,17 +1,19 @@
-//! The module contains traits and structs that are used for storing some values in
-//! abstract stores.
+//! The module contains traits and structs that are used for storing some values
+//! in abstract stores.
 
-use std::any::{Any, TypeId};
-use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
-use std::ops::Deref;
-use std::sync::Arc;
+use std::{
+    any::{Any, TypeId},
+    collections::HashMap,
+    fmt::{Debug, Formatter},
+    ops::Deref,
+    sync::Arc,
+};
 
 pub trait Storage<Value>: Store<Value> + Insert<Value> + Remove<Value> {}
 impl<S, V> Storage<V> for S where S: Store<V> + Insert<V> + Remove<V> {}
 
-/// The trait is used to specify data type as storing some value `Value`. Means that
-/// `Value` can be obtained by-value.
+/// The trait is used to specify data type as storing some value `Value`. Means
+/// that `Value` can be obtained by-value.
 pub trait Store<Value> {
     fn get(&self) -> Arc<Value>;
 }
@@ -34,9 +36,7 @@ pub struct TypeMapPanickableStore {
 
 impl TypeMapPanickableStore {
     pub fn new() -> Self {
-        Self {
-            map: HashMap::new(),
-        }
+        Self { map: HashMap::new() }
     }
 
     pub fn insert<T: Send + Sync + 'static>(&mut self, item: T) {
@@ -61,10 +61,7 @@ impl<V: Send + Sync + 'static> Store<V> for TypeMapPanickableStore {
         self.map
             .get(&TypeId::of::<V>())
             .unwrap_or_else(|| {
-                panic!(
-                    "{} was requested, but not provided.",
-                    std::any::type_name::<V>()
-                )
+                panic!("{} was requested, but not provided.", std::any::type_name::<V>())
             })
             .clone()
             .downcast::<V>()

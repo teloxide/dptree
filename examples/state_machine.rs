@@ -1,8 +1,10 @@
 //! You can see image of the state machine at /img/state_machine.gif
 
 use dptree::{Handler, HandlerBuilder};
-use std::fmt::{Display, Formatter};
-use std::io::Write;
+use std::{
+    fmt::{Display, Formatter},
+    io::Write,
+};
 
 #[derive(Debug)]
 pub enum CommandState {

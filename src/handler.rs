@@ -1,74 +1,246 @@
-//! The module contains core part of the library: handlers.
-//!
-//! Handlers is a entity that can handle some `Data`. Handlers are represented as a tree, where
-//! `Dispatcher` handler tries to feed each next `Handler` the input `Data`. Next handlers in that case
-//! can be any type that implements `Handler` trait. It can be, for example, another `Dispatcher` that do
-//! same as another `Dispatcher`'s, or `Endpoint` that cannot break the handles and can only handle the
-//! incoming `Data`. Another available handlers is `Filter` handler that filter incoming `Data` by
-//! condition and breaks handles in that branch of tree if `Data` does not satisfy the condition,
-//! and `Parser` which tries to parse incoming `Data` to another `ParsedData` in that branch of a
-//! tree. You can define your own handlers if you want.
-//!
-//! Suppose we have a tree:
-//! ```text
-//!          Dispatcher(1)
-//!         /              \
-//!     Dispatcher(2)     Endpoint(3)
-//!    /           \
-//! Filter(1)    Endpoint(2)
-//!   |
-//!  Endpoint(1)
-//! ```
-//! Let's try to imagine what happens when `Data` incomes.
-//!
-//! First, it passed into the root of the tree `Dispatcher(1)`. Because that is `Dispatcher`, it only pass the
-//! input to others nodes in a list. So, it pass the `Data` to the next node in a list: `Dispatcher(2)`.
-//! It pass data to the next node: `Filter(1)`. Filter, as described above, filter the data by a
-//! condition, and if the data satisfy the condition, it passes the data forward to the next
-//! handler. Next handler is the `Endpoint(1)`. Because that is `Endpoint`, if data satisfy the condition
-//! in the `Filter(1)`, data passes to the `Endpoint(1)` and handling ends. If data does not satisfy
-//! the condition, data returns to the `Dispatcher(2)`. `Dispatcher(2)` then pass data to the next handler:
-//! `Endpoint(2)`. Because it's a `Endpoint`, the handling end at this point. `Endpoint(3)` unreachable,
-//! as you can see, due to `Endpoint(2)` handles all the incoming data that not handles by other
-//! handlers.
+use std::{convert::Infallible, future::Future, ops::ControlFlow, pin::Pin, sync::Arc};
 
-pub mod dispatcher;
-pub mod endpoint;
-pub mod filter;
-pub mod parser;
+pub struct Handler<'a, Input, Output, Cont>(
+    Box<dyn Fn(Input, Arc<Cont>) -> HandlerOutput<'a, Input, Output> + Send + Sync + 'a>,
+);
 
-pub use endpoint::Endpoint;
+pub type HandlerOutput<'a, Input, Output> =
+    Pin<Box<dyn Future<Output = ControlFlow<Output, Input>> + Send + Sync + 'a>>;
 
-use futures::future::BoxFuture;
-use futures::Future;
+pub type TerminalCont = Infallible;
 
-/// Future returned from `Handler` trait.
-///
-/// Note that future must have 'static lifetime.
-pub type HandlerFuture<Output, Data> = BoxFuture<'static, Result<Output, Data>>;
+impl<'a, Input, Output, Cont> Handler<'a, Input, Output, Handler<'a, Input, Output, Cont>>
+where
+    Input: Send + Sync + 'a,
+    Output: 'a,
+    Cont: 'a + Send + Sync,
+{
+    pub fn pipe_to(self, child: Arc<Handler<'a, Input, Output, Cont>>) -> Self {
+        let child = Arc::new(child);
 
-/// The trait is used to define handler which can handle some `Data`.
-///
-/// The handler must return `Res` in case of successful handling. Successful handling is
-/// considered a case when a user-defined handler receives the input `Data`. If the user-defined
-/// handler can returns error, `Res` can be specified as `Result<OkValue, Error>`. `Err` must be
-/// returned iff `Data` cannot be processed by this handler. In that case it will be tried to
-/// handles by other handlers in a tree. For more information see top-level documentation.
-pub trait Handler<Data> {
-    type Output;
+        from_fn(move |event, k| {
+            let child = Arc::clone(&child);
 
-    fn handle(&self, data: Data) -> HandlerFuture<Self::Output, Data>;
+            (self.0)(
+                event,
+                Arc::new(from_fn(move |event, _k| {
+                    let k = Arc::clone(&k);
+                    (child.0)(event, k)
+                })),
+            )
+        })
+    }
 }
 
-pub type BoxHandler<Data, Output> = Box<dyn Handler<Data, Output = Output> + Send + Sync>;
-
-impl<Func, Data, Res, Fut> Handler<Data> for Func
+impl<'a, Input, Output> Handler<'a, Input, Output, Handler<'a, Input, Output, TerminalCont>>
 where
-    Func: Fn(Data) -> Fut,
-    Fut: Future<Output = Result<Res, Data>> + Send + 'static,
+    Input: Send + Sync + 'a,
+    Output: 'a,
 {
-    type Output = Res;
-    fn handle(&self, data: Data) -> HandlerFuture<Res, Data> {
-        Box::pin(self(data))
+    pub fn endpoint<F, Fut>(
+        self,
+        endp: F,
+    ) -> Handler<'a, Input, Output, Handler<'a, Input, Output, TerminalCont>>
+    where
+        F: Fn(Input) -> Fut + Send + Sync + 'a,
+        Fut: Future<Output = Output> + Send + Sync,
+    {
+        self.pipe_to(Arc::new(endpoint(endp)))
     }
+
+    pub async fn execute(&self, event: Input) -> ControlFlow<Output, Input>
+    where
+        Input: Send + Sync + 'a,
+    {
+        (self.0)(event, Arc::new(dummy())).await
+    }
+}
+
+impl<'a, Input, Output, Cont> Handler<'a, Input, Output, Handler<'a, Input, Output, Cont>>
+where
+    Input: Send + Sync + 'a,
+    Output: 'a,
+{
+    pub async fn handle(&self, event: Input) -> ControlFlow<Output, Input>
+    where
+        Input: Send + Sync + 'a,
+    {
+        (self.0)(event, Arc::new(dummy())).await
+    }
+}
+
+pub fn from_fn<'a, F, Fut, Input, Output, Cont>(f: F) -> Handler<'a, Input, Output, Cont>
+where
+    F: Fn(Input, Arc<Cont>) -> Fut + Send + Sync + 'a,
+    Fut: Future<Output = ControlFlow<Output, Input>> + Send + Sync + 'a,
+{
+    Handler(Box::new(move |event, k| Box::pin(f(event, k))))
+}
+
+pub fn dummy<'a, Input, Output, Cont>() -> Handler<'a, Input, Output, Cont>
+where
+    Input: Send + Sync + 'a,
+{
+    from_fn(|event, _k| async move { ControlFlow::Continue(event) })
+}
+
+pub fn filter<'a, Pred, Fut, Input, Output, Cont>(pred: Pred) -> Filter<'a, Input, Output, Cont>
+where
+    Pred: Fn(&Input) -> Fut + Send + Sync + 'a,
+    Fut: Future<Output = bool> + Send + Sync,
+    Input: Send + Sync + 'a,
+    Output: 'a,
+    Cont: 'a,
+{
+    let pred = Arc::new(pred);
+
+    from_fn(move |event, k: Arc<Handler<'a, Input, Output, Handler<'a, Input, Output, Cont>>>| {
+        let pred = Arc::clone(&pred);
+
+        async move {
+            if pred(&event).await {
+                k.handle(event).await
+            } else {
+                ControlFlow::Continue(event)
+            }
+        }
+    })
+}
+
+pub type Filter<'a, Input, Output, Cont> =
+    Handler<'a, Input, Output, Handler<'a, Input, Output, Handler<'a, Input, Output, Cont>>>;
+
+pub fn endpoint<'a, F, Fut, Input, Output>(
+    f: F,
+) -> Handler<'a, Input, Output, Handler<'a, Input, Output, TerminalCont>>
+where
+    F: Fn(Input) -> Fut + Send + Sync + 'a,
+    Fut: Future<Output = Output> + Send + Sync,
+    Input: Send + Sync + 'a,
+{
+    let f = Arc::new(f);
+
+    from_fn(move |event, _k| {
+        let f = Arc::clone(&f);
+        async move { ControlFlow::Break(f(event).await) }
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::ops::ControlFlow;
+
+    #[tokio::test]
+    async fn test_dummy() {
+        type Input = i32;
+        type Output = String;
+
+        let input = 123;
+
+        let result = dummy::<Input, Output, _>().execute(input).await;
+
+        assert!(result == ControlFlow::Continue(input));
+    }
+
+    #[tokio::test]
+    async fn test_from_fn_break() {
+        let input = 123;
+        let output = "ABC";
+
+        let result = from_fn(|event, _k| async move {
+            assert!(event == input);
+            ControlFlow::Break(output)
+        })
+        .execute(input)
+        .await;
+
+        assert!(result == ControlFlow::Break(output));
+    }
+
+    #[tokio::test]
+    async fn test_from_fn_continue() {
+        type Output = &'static str;
+
+        let input = 123;
+
+        let result = from_fn(|event, _k| async move {
+            assert!(event == input);
+            ControlFlow::<Output, _>::Continue(event)
+        })
+        .execute(input)
+        .await;
+
+        assert!(result == ControlFlow::Continue(input));
+    }
+
+    #[tokio::test]
+    async fn test_from_fn_call_k() {
+        let input = 123;
+        let output = "ABC";
+
+        let result = from_fn(|event, k| async move {
+            assert!(event == input);
+            k.handle(event).await
+        })
+        .endpoint(|event| async move {
+            assert!(event == input);
+            output
+        })
+        .execute(input)
+        .await;
+
+        assert!(result == ControlFlow::Break(output));
+    }
+    //
+    //    #[tokio::test]
+    //    async fn test_endpoint() {
+    //        let input = 123;
+    //        let output = 7;
+    //
+    //        let result = endpoint(|event| async move {
+    //            assert!(event == input);
+    //            output
+    //        })
+    //        .handle(input)
+    //        .await;
+    //
+    //        assert!(result == ControlFlow::Break(output));
+    //    }
+    //
+    //    #[tokio::test]
+    //    async fn test_empty_filter() {
+    //        let input = 123;
+    //
+    //        type Output = i32;
+    //
+    //        let result = filter::<_, _, _, Output>(|&event| async move {
+    //            assert!(event == input);
+    //            false
+    //        })
+    //        .handle(input)
+    //        .await;
+    //
+    //        assert!(result == ControlFlow::Continue(input));
+    //    }
+    //
+    //    #[tokio::test]
+    //    async fn test_filter() {
+    //        let input = 123;
+    //        let output = 7;
+    //
+    //        let result = filter(|&event| async move {
+    //            assert!(event == input);
+    //            true
+    //        })
+    //        .endpoint(|event| async move {
+    //            assert!(event == input);
+    //            output
+    //        })
+    //        .handle(input)
+    //        .await;
+    //
+    //        assert!(result == ControlFlow::Break(output));
+    //    }
 }

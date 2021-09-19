@@ -1,11 +1,12 @@
-use dptree::handler::endpoint::by_store::EndpointByStoreEnter;
-use dptree::handler::Endpoint;
-use dptree::store::TypeMapPanickableStore;
-use dptree::Handler;
-use std::net::Ipv4Addr;
-use std::sync::Arc;
+use dptree::{
+    handler::{endpoint::by_store::EndpointByStoreEnter, Endpoint},
+    store::TypeMapPanickableStore,
+    Handler,
+};
+use std::{net::Ipv4Addr, sync::Arc};
 
-// `TypeMapPanickableStore` implements `TypeMap` store with panics on resolves types.
+// `TypeMapPanickableStore` implements `TypeMap` store with panics on resolves
+// types.
 type Store = Arc<TypeMapPanickableStore>;
 
 #[tokio::main]
