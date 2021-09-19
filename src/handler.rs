@@ -13,28 +13,6 @@ impl<'a, I, O, C> Clone for Handler<'a, I, O, C> {
 pub type HandlerOutput<'fut, Input, Output> =
     Pin<Box<dyn Future<Output = ControlFlow<Output, Input>> + Send + Sync + 'fut>>;
 
-impl<'a, Input, Output> Handler<'a, Input, Output, ()>
-where
-    Input: Send + Sync + 'a,
-    Output: Send + Sync + 'a,
-{
-    pub fn pipe_to(self, child: Handler<'a, Input, Output, ()>) -> Handler<'a, Input, Output, ()> {
-        from_fn(move |event, _| {
-            let this = self.clone();
-            let child = child.clone();
-            Box::pin(async move {
-                match (this.0)(event, ()).await {
-                    ControlFlow::Continue(c) => match (child.0)(c, ()).await {
-                        ControlFlow::Continue(c) => ControlFlow::Continue(c),
-                        ControlFlow::Break(b) => ControlFlow::Break(b.into()),
-                    },
-                    ControlFlow::Break(b) => ControlFlow::Break(b),
-                }
-            })
-        })
-    }
-}
-
 impl<'a, Input, Output, Cont> Handler<'a, Input, Output, (Handler<'a, Input, Output, Cont>, Cont)>
 where
     Input: Send + Sync + 'a,
