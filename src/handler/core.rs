@@ -1,6 +1,6 @@
 use std::{future::Future, ops::ControlFlow, pin::Pin, sync::Arc};
 
-pub struct Handler<'a, Input, Output, Cont=TerminalCont>(
+pub struct Handler<'a, Input, Output, Cont = TerminalCont>(
     Arc<dyn Fn(Input, Cont) -> HandlerOutput<'a, Input, Output> + Send + Sync + 'a>,
 );
 
@@ -14,6 +14,25 @@ pub type TerminalCont = ();
 
 pub type HandlerOutput<'fut, Input, Output> =
     Pin<Box<dyn Future<Output = ControlFlow<Output, Input>> + Send + Sync + 'fut>>;
+
+impl<'a, Input, Output> Handler<'a, Input, Output, ()>
+where
+    Input: Send + Sync + 'a,
+    Output: Send + Sync + 'a,
+{
+    pub fn pipe_to(self, child: Handler<'a, Input, Output, ()>) -> Handler<'a, Input, Output, ()> {
+        from_fn(move |event, _| {
+            let this = self.clone();
+            let child = child.clone();
+            async move {
+                match this.handle(event).await {
+                    ControlFlow::Continue(c) => child.handle(c).await,
+                    b => b,
+                }
+            }
+        })
+    }
+}
 
 impl<'a, Input, Output, Cont> Handler<'a, Input, Output, (Handler<'a, Input, Output, Cont>, Cont)>
 where
