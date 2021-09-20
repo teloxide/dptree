@@ -1,6 +1,6 @@
 use std::{future::Future, ops::ControlFlow, pin::Pin, sync::Arc};
 
-pub struct Handler<'a, Input, Output, Cont>(
+pub struct Handler<'a, Input, Output, Cont=TerminalCont>(
     Arc<dyn Fn(Input, Cont) -> HandlerOutput<'a, Input, Output> + Send + Sync + 'a>,
 );
 
@@ -9,6 +9,8 @@ impl<'a, I, O, C> Clone for Handler<'a, I, O, C> {
         Handler(self.0.clone())
     }
 }
+
+pub type TerminalCont = ();
 
 pub type HandlerOutput<'fut, Input, Output> =
     Pin<Box<dyn Future<Output = ControlFlow<Output, Input>> + Send + Sync + 'fut>>;
@@ -44,7 +46,7 @@ where
     }
 }
 
-impl<'a, Input, Output> Handler<'a, Input, Output, ()>
+impl<'a, Input, Output> Handler<'a, Input, Output, TerminalCont>
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
