@@ -15,39 +15,48 @@ pub type TerminalCont = ();
 pub type HandlerOutput<'fut, Input, Output> =
     Pin<Box<dyn Future<Output = ControlFlow<Output, Input>> + Send + Sync + 'fut>>;
 
-impl<'a, Input, Output> Handler<'a, Input, Output, ()>
+impl<'a, Input, Output>
+    Handler<'a, Input, Output, (Handler<'a, Input, Output, TerminalCont>, TerminalCont)>
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
 {
-    pub fn pipe_to(self, child: Handler<'a, Input, Output, ()>) -> Handler<'a, Input, Output, ()> {
+    pub fn pipe_to(
+        self,
+        child: Handler<'a, Input, Output, TerminalCont>,
+    ) -> Handler<'a, Input, Output, TerminalCont> {
         from_fn(move |event, _| {
             let this = self.clone();
             let child = child.clone();
-            async move {
-                match this.handle(event).await {
-                    ControlFlow::Continue(c) => child.handle(c).await,
-                    b => b,
-                }
-            }
+            async move { this.execute(event, (child, ())).await }
         })
     }
 }
 
-impl<'a, Input, Output, Cont> Handler<'a, Input, Output, (Handler<'a, Input, Output, Cont>, Cont)>
+impl<'a, Input, Output, Cont>
+    Handler<
+        'a,
+        Input,
+        Output,
+        (
+            Handler<'a, Input, Output, (Handler<'a, Input, Output, Cont>, Cont)>,
+            (Handler<'a, Input, Output, Cont>, Cont),
+        ),
+    >
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
-    Cont: 'a,
+    Cont: Send + Sync + 'a,
 {
     pub fn pipe_to(
-        self,
-        child: Handler<'a, Input, Output, Cont>,
-    ) -> Handler<'a, Input, Output, Cont> {
+        self,                                                                        // H<H<H<N>>>
+        child: Handler<'a, Input, Output, (Handler<'a, Input, Output, Cont>, Cont)>, // H<H<N>>
+    ) -> Handler<'a, Input, Output, (Handler<'a, Input, Output, Cont>, Cont)> // H<H<N>>
+    {
         from_fn(move |event, cont| {
             let this = self.clone();
             let child = child.clone();
-            Box::pin((this.0)(event, (child, cont)))
+            async move { this.execute(event, (child, cont)).await }
         })
     }
 }
@@ -84,6 +93,18 @@ where
     Fut: Future<Output = ControlFlow<Output, Input>> + Send + Sync + 'a,
 {
     Handler(Arc::new(move |event, cont| Box::pin(f(event, cont))))
+}
+
+pub fn handler<'a, Input, Output, Cont>(
+) -> Handler<'a, Input, Output, (Handler<'a, Input, Output, Cont>, Cont)>
+where
+    Input: Send + Sync + 'a,
+    Output: Send + Sync + 'a,
+    Cont: Send + Sync + 'a,
+{
+    from_fn(move |event, (h, cont): (Handler<'a, Input, Output, Cont>, Cont)| async move {
+        h.execute(event, cont).await
+    })
 }
 
 #[cfg(test)]

@@ -1,8 +1,8 @@
 mod core;
 mod endpoint;
 mod filter;
-mod node;
+mod dispatch;
 
-pub use self::core::{from_fn, Handler, HandlerOutput, TerminalCont};
+pub use self::core::{from_fn, Handler, HandlerOutput, TerminalCont, handler};
 pub use endpoint::endpoint;
 pub use filter::filter;

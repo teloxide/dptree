@@ -24,7 +24,7 @@ where
         F: Fn(&Input) -> Fut + Send + Sync + 'a,
         Fut: Future<Output = bool> + Send + Sync,
     {
-        self.pipe_to(filter::<_, _, Input, Output, Cont>(f))
+        self.pipe_to(filter(f))
     }
 }
 
