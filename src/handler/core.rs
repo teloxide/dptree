@@ -1,0 +1,104 @@
+use std::{future::Future, ops::ControlFlow, pin::Pin, sync::Arc};
+
+pub struct Handler<'a, Input, Output, Cont>(
+    Arc<dyn Fn(Input, Cont) -> HandlerOutput<'a, Input, Output> + Send + Sync + 'a>,
+);
+
+impl<'a, I, O, C> Clone for Handler<'a, I, O, C> {
+    fn clone(&self) -> Self {
+        Handler(self.0.clone())
+    }
+}
+
+pub type HandlerOutput<'fut, Input, Output> =
+    Pin<Box<dyn Future<Output = ControlFlow<Output, Input>> + Send + Sync + 'fut>>;
+
+impl<'a, Input, Output, Cont> Handler<'a, Input, Output, (Handler<'a, Input, Output, Cont>, Cont)>
+where
+    Input: Send + Sync + 'a,
+    Output: Send + Sync + 'a,
+    Cont: 'a,
+{
+    pub fn pipe_to(
+        self,
+        child: Handler<'a, Input, Output, Cont>,
+    ) -> Handler<'a, Input, Output, Cont> {
+        from_fn(move |event, cont| {
+            let this = self.clone();
+            let child = child.clone();
+            Box::pin((this.0)(event, (child, cont)))
+        })
+    }
+}
+
+impl<'a, Input, Output, Cont> Handler<'a, Input, Output, Cont>
+where
+    Input: Send + Sync + 'a,
+    Output: Send + Sync + 'a,
+{
+    pub async fn execute(&self, event: Input, cont: Cont) -> ControlFlow<Output, Input>
+    where
+        Input: Send + Sync + 'a,
+    {
+        (self.0)(event, cont).await
+    }
+}
+
+impl<'a, Input, Output> Handler<'a, Input, Output, ()>
+where
+    Input: Send + Sync + 'a,
+    Output: Send + Sync + 'a,
+{
+    pub async fn handle(&self, event: Input) -> ControlFlow<Output, Input>
+    where
+        Input: Send + Sync + 'a,
+    {
+        self.execute(event, ()).await
+    }
+}
+
+pub fn from_fn<'a, F, Fut, Input, Output, Cont>(f: F) -> Handler<'a, Input, Output, Cont>
+where
+    F: Fn(Input, Cont) -> Fut + Send + Sync + 'a,
+    Fut: Future<Output = ControlFlow<Output, Input>> + Send + Sync + 'a,
+{
+    Handler(Arc::new(move |event, cont| Box::pin(f(event, cont))))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_from_fn_break() {
+        let input = 123;
+        let output = "ABC";
+
+        let result = from_fn(|event, cont| async move {
+            assert_eq!(event, input);
+            assert_eq!(cont, ());
+            ControlFlow::Break(output)
+        })
+        .handle(input)
+        .await;
+
+        assert!(result == ControlFlow::Break(output));
+    }
+
+    #[tokio::test]
+    async fn test_from_fn_continue() {
+        type Output = &'static str;
+
+        let input = 123;
+
+        let result = from_fn(|event, cont| async move {
+            assert_eq!(event, input);
+            assert_eq!(cont, ());
+            ControlFlow::<Output, _>::Continue(event)
+        })
+        .handle(input)
+        .await;
+
+        assert!(result == ControlFlow::Continue(input));
+    }
+}
