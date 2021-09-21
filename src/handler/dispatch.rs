@@ -41,13 +41,15 @@ where
         let h =
             from_fn(move |event, (cont, next_cont): (Handler<'a, Input, Output, Cont>, Cont)| {
                 let child = child.clone();
+
                 async move {
                     match child.handle(event).await {
-                        ControlFlow::Continue(c) => cont.execute(c, next_cont).await,
-                        b => b,
+                        ControlFlow::Continue(event) => cont.execute(event, next_cont).await,
+                        result => result,
                     }
                 }
             });
+
         self.pipe_to(h)
     }
 }

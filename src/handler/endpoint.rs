@@ -1,12 +1,16 @@
-use crate::handler::core::{from_fn, Handler};
+use crate::{
+    handler::core::{from_fn, Handler},
+    TerminalCont,
+};
 use std::{future::Future, ops::ControlFlow, sync::Arc};
 
-impl<'a, Input, Output> Handler<'a, Input, Output, (Handler<'a, Input, Output, ()>, ())>
+impl<'a, Input, Output>
+    Handler<'a, Input, Output, (Handler<'a, Input, Output, TerminalCont>, TerminalCont)>
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
 {
-    pub fn endpoint<F, Fut>(self, endp: F) -> Handler<'a, Input, Output, ()>
+    pub fn endpoint<F, Fut>(self, endp: F) -> Handler<'a, Input, Output, TerminalCont>
     where
         F: Fn(Input) -> Fut + Send + Sync + 'a,
         Fut: Future<Output = Output> + Send + Sync,
@@ -15,7 +19,7 @@ where
     }
 }
 
-pub fn endpoint<'a, F, Fut, Input, Output>(f: F) -> Handler<'a, Input, Output, ()>
+pub fn endpoint<'a, F, Fut, Input, Output>(f: F) -> Handler<'a, Input, Output, TerminalCont>
 where
     F: Fn(Input) -> Fut + Send + Sync + 'a,
     Fut: Future<Output = Output> + Send + Sync,

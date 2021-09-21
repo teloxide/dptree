@@ -16,15 +16,15 @@ where
     Output: Send + Sync + 'a,
     Cont: Send + Sync + 'a,
 {
-    pub fn filter<F, Fut>(
+    pub fn filter<Pred, Fut>(
         self,
-        f: F,
+        pred: Pred,
     ) -> Handler<'a, Input, Output, (Handler<'a, Input, Output, Cont>, Cont)>
     where
-        F: Fn(&Input) -> Fut + Send + Sync + 'a,
+        Pred: Fn(&Input) -> Fut + Send + Sync + 'a,
         Fut: Future<Output = bool> + Send + Sync,
     {
-        self.pipe_to(filter(f))
+        self.pipe_to(filter(pred))
     }
 }
 

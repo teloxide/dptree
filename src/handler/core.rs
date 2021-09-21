@@ -4,13 +4,15 @@ pub struct Handler<'a, Input, Output, Cont = TerminalCont>(
     Arc<dyn Fn(Input, Cont) -> HandlerOutput<'a, Input, Output> + Send + Sync + 'a>,
 );
 
-impl<'a, I, O, C> Clone for Handler<'a, I, O, C> {
+impl<'a, Input, Output, Cont> Clone for Handler<'a, Input, Output, Cont> {
     fn clone(&self) -> Self {
         Handler(self.0.clone())
     }
 }
 
 pub type TerminalCont = ();
+
+pub static TERMINATE: TerminalCont = ();
 
 pub type HandlerOutput<'fut, Input, Output> =
     Pin<Box<dyn Future<Output = ControlFlow<Output, Input>> + Send + Sync + 'fut>>;
@@ -25,10 +27,11 @@ where
         self,
         child: Handler<'a, Input, Output, TerminalCont>,
     ) -> Handler<'a, Input, Output, TerminalCont> {
-        from_fn(move |event, _| {
+        from_fn(move |event, _cont| {
             let this = self.clone();
             let child = child.clone();
-            async move { this.execute(event, (child, ())).await }
+
+            async move { this.execute(event, (child, TERMINATE)).await }
         })
     }
 }
@@ -56,6 +59,7 @@ where
         from_fn(move |event, cont| {
             let this = self.clone();
             let child = child.clone();
+
             async move { this.execute(event, (child, cont)).await }
         })
     }
@@ -83,7 +87,7 @@ where
     where
         Input: Send + Sync + 'a,
     {
-        self.execute(event, ()).await
+        self.execute(event, TERMINATE).await
     }
 }
 
@@ -118,7 +122,7 @@ mod tests {
 
         let result = from_fn(|event, cont| async move {
             assert_eq!(event, input);
-            assert_eq!(cont, ());
+            assert_eq!(cont, TERMINATE);
             ControlFlow::Break(output)
         })
         .handle(input)
@@ -135,7 +139,7 @@ mod tests {
 
         let result = from_fn(|event, cont| async move {
             assert_eq!(event, input);
-            assert_eq!(cont, ());
+            assert_eq!(cont, TERMINATE);
             ControlFlow::<Output, _>::Continue(event)
         })
         .handle(input)
