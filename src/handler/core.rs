@@ -4,6 +4,8 @@ pub struct Handler<'a, Input, Output, Cont = TerminalCont>(
     Arc<dyn Fn(Input, Cont) -> HandlerOutput<'a, Input, Output> + Send + Sync + 'a>,
 );
 
+// `#[derive(Clone)]` obligates all type parameters to satisfy `Clone` as well,
+// but we do not need it here because of `Arc`.
 impl<'a, Input, Output, Cont> Clone for Handler<'a, Input, Output, Cont> {
     fn clone(&self) -> Self {
         Handler(self.0.clone())
