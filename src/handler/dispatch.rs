@@ -4,16 +4,12 @@ use crate::{
 };
 use std::ops::ControlFlow;
 
-impl<'a, Input, Output>
-    Handler<'a, Input, Output, (Handler<'a, Input, Output, TerminalCont>, TerminalCont)>
+impl<'a, Input, Output> Handler<'a, Input, Output, (Handler<'a, Input, Output>, TerminalCont)>
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
 {
-    pub fn end_dispatch(
-        self,
-        child: Handler<'a, Input, Output, TerminalCont>,
-    ) -> Handler<'a, Input, Output, TerminalCont> {
+    pub fn end_dispatch(self, child: Handler<'a, Input, Output>) -> Handler<'a, Input, Output> {
         self.pipe_to(child)
     }
 }
@@ -34,8 +30,8 @@ where
     Cont: Send + Sync + 'a,
 {
     pub fn dispatch(
-        self,                                            // H<H<H<N>>>
-        child: Handler<'a, Input, Output, TerminalCont>, // H<()>
+        self,                              // H<H<H<N>>>
+        child: Handler<'a, Input, Output>, // H<()>
     ) -> Handler<'a, Input, Output, (Handler<'a, Input, Output, Cont>, Cont)> // H<H<N>>
     {
         let h =

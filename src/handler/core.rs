@@ -19,16 +19,12 @@ pub static TERMINATE: TerminalCont = ();
 pub type HandlerOutput<'fut, Input, Output> =
     Pin<Box<dyn Future<Output = ControlFlow<Output, Input>> + Send + Sync + 'fut>>;
 
-impl<'a, Input, Output>
-    Handler<'a, Input, Output, (Handler<'a, Input, Output, TerminalCont>, TerminalCont)>
+impl<'a, Input, Output> Handler<'a, Input, Output, (Handler<'a, Input, Output>, TerminalCont)>
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
 {
-    pub fn pipe_to(
-        self,
-        child: Handler<'a, Input, Output, TerminalCont>,
-    ) -> Handler<'a, Input, Output, TerminalCont> {
+    pub fn pipe_to(self, child: Handler<'a, Input, Output>) -> Handler<'a, Input, Output> {
         from_fn(move |event, _cont| {
             let this = self.clone();
             let child = child.clone();
@@ -80,7 +76,7 @@ where
     }
 }
 
-impl<'a, Input, Output> Handler<'a, Input, Output, TerminalCont>
+impl<'a, Input, Output> Handler<'a, Input, Output>
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
