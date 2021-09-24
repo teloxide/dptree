@@ -22,41 +22,20 @@ pub trait PipeTo<'a, Input, Output, NextCont> {
     fn pipe_to(self, next: NextCont) -> Handler<'a, Input, Output, NextCont>;
 }
 
-impl<'a, Input, Output, NextCont> PipeTo<'a, Input, Output, NextCont> for TerminalCont
+impl<'a, Input, Output> PipeTo<'a, Input, Output, Handler<'a, Input, Output>>
+    for Handler<'a, Input, Output, Handler<'a, Input, Output>>
 where
-    NextCont: Handleable<'a, Input, Output> + Send + Sync + Clone + 'a,
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
 {
-    fn pipe_to(self, next: NextCont) -> Handler<'a, Input, Output, NextCont> {
-        from_fn(move |event, cont: NextCont| {
-            let next = next.clone();
-
-            async move {
-                match next.handle(event).await {
-                    ControlFlow::Continue(event) => cont.handle(event).await,
-                    done => done,
-                }
-            }
-        })
-    }
-}
-
-impl<'a, Input, Output, NextCont> PipeTo<'a, Input, Output, NextCont> for Handler<'a, Input, Output>
-where
-    Handler<'a, Input, Output, NextCont>: Handleable<'a, Input, Output>,
-    NextCont: PipeTo<'a, Input, Output, NextCont> + Clone + Send + Sync + 'a,
-    Input: Send + Sync + 'a,
-    Output: Send + Sync + 'a,
-{
-    fn pipe_to(self, next: NextCont) -> Handler<'a, Input, Output, NextCont> {
-        from_fn(move |event, cont: NextCont| {
+    fn pipe_to(self, next: Handler<'a, Input, Output>) -> Self {
+        from_fn(move |event, cont: Handler<'a, Input, Output>| {
             let this = self.clone();
             let next = next.clone();
 
             async move {
-                match this.handle(event).await {
-                    ControlFlow::Continue(event) => next.pipe_to(cont).handle(event).await,
+                match this.execute(event, next).await {
+                    ControlFlow::Continue(event) => cont.handle(event).await,
                     done => done,
                 }
             }
