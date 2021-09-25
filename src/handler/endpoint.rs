@@ -1,19 +1,18 @@
 use crate::{
     handler::core::{from_fn, Handler},
-    PipeTo,
+    Handleable,
 };
+
 use std::{future::Future, ops::ControlFlow, sync::Arc};
 
 impl<'a, Input, Output, Cont> Handler<'a, Input, Output, Cont>
 where
-    Self: PipeTo<'a, Input, Output, Endpoint<'a, Input, Output>>,
+    Self: Handleable<'a, Input, Output>,
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
+    Cont: Send + Sync + 'a,
 {
-    pub fn endpoint<F, Fut>(
-        self,
-        endp: F,
-    ) -> Handler<'a, Input, Output, Endpoint<'a, Input, Output>>
+    pub fn endpoint<F, Fut>(self, endp: F) -> Endpoint<'a, Input, Output>
     where
         F: Fn(Input) -> Fut + Send + Sync + 'a,
         Fut: Future<Output = Output> + Send + Sync,
@@ -44,18 +43,18 @@ mod tests {
 
     use crate::handler::core::Handleable;
 
-    // #[tokio::test]
-    // async fn test_endpoint() {
-    //     let input = 123;
-    //     let output = 7;
+    #[tokio::test]
+    async fn test_endpoint() {
+        let input = 123;
+        let output = 7;
 
-    //     let result = endpoint(|event| async move {
-    //         assert_eq!(event, input);
-    //         output
-    //     })
-    //     .handle(input)
-    //     .await;
+        let result = endpoint(|event| async move {
+            assert_eq!(event, input);
+            output
+        })
+        .handle(input)
+        .await;
 
-    //     assert!(result == ControlFlow::Break(output));
-    // }
+        assert!(result == ControlFlow::Break(output));
+    }
 }

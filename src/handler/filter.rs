@@ -37,47 +37,47 @@ mod tests {
 
     use crate::{handler::core::Handleable, TerminalCont};
 
-    // #[tokio::test]
-    // async fn test_filter() {
-    //     let input = 123;
-    //     let output = 7;
+    #[tokio::test]
+    async fn test_filter() {
+        let input = 123;
+        let output = 7;
 
-    //     let result = filter(|&event| async move {
-    //         assert_eq!(event, input);
-    //         true
-    //     })
-    //     .endpoint(|event| async move {
-    //         assert_eq!(event, input);
-    //         output
-    //     })
-    //     .handle(input)
-    //     .await;
+        let result = filter::<_, _, _, _, TerminalCont>(|&event| async move {
+            assert_eq!(event, input);
+            true
+        })
+        .endpoint(|event| async move {
+            assert_eq!(event, input);
+            output
+        })
+        .handle(input)
+        .await;
 
-    //     assert!(result == ControlFlow::Break(output));
-    // }
+        assert!(result == ControlFlow::Break(output));
+    }
 
-    // #[tokio::test]
-    // async fn test_and_then_filter() {
-    //     let input = 123;
-    //     let output = 7;
+    #[tokio::test]
+    async fn test_and_then_filter() {
+        let input = 123;
+        let output = 7;
 
-    //     let result = filter(|&event| async move {
-    //         assert_eq!(event, input);
-    //         true
-    //     })
-    //     .pipe_to::<TerminalCont>(
-    //         filter(|&event| async move {
-    //             assert_eq!(event, input);
-    //             true
-    //         })
-    //         .endpoint(|event| async move {
-    //             assert_eq!(event, input);
-    //             output
-    //         }),
-    //     )
-    //     .handle(input)
-    //     .await;
+        let result = filter::<_, _, _, _, TerminalCont>(|&event| async move {
+            assert_eq!(event, input);
+            true
+        })
+        .pipe_to::<TerminalCont>(
+            filter::<_, _, _, _, TerminalCont>(|&event| async move {
+                assert_eq!(event, input);
+                true
+            })
+            .endpoint(|event| async move {
+                assert_eq!(event, input);
+                output
+            }),
+        )
+        .handle(input)
+        .await;
 
-    //     assert!(result == ControlFlow::Break(output));
-    // }
+        assert!(result == ControlFlow::Break(output));
+    }
 }
