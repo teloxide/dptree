@@ -41,8 +41,6 @@ pub type Endpoint<'a, Input, Output> = Handler<'a, Input, Output>;
 mod tests {
     use super::*;
 
-    use crate::handler::core::Handleable;
-
     #[tokio::test]
     async fn test_endpoint() {
         let input = 123;
@@ -52,7 +50,7 @@ mod tests {
             assert_eq!(event, input);
             output
         })
-        .handle(input)
+        .dispatch(input)
         .await;
 
         assert!(result == ControlFlow::Break(output));

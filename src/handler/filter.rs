@@ -20,7 +20,7 @@ where
 
         async move {
             if pred(&event).await {
-                cont.handle(event).await
+                cont.dispatch(event).await
             } else {
                 ControlFlow::Continue(event)
             }
@@ -35,7 +35,7 @@ pub type Filter<'a, Input, Output, Cont> =
 mod tests {
     use super::*;
 
-    use crate::{handler::core::Handleable, TerminalCont};
+    use crate::TerminalCont;
 
     #[tokio::test]
     async fn test_filter() {
@@ -50,7 +50,7 @@ mod tests {
             assert_eq!(event, input);
             output
         })
-        .handle(input)
+        .dispatch(input)
         .await;
 
         assert!(result == ControlFlow::Break(output));
@@ -65,7 +65,7 @@ mod tests {
             assert_eq!(event, input);
             true
         })
-        .pipe_to::<TerminalCont>(
+        .pipe_to(
             filter::<_, _, _, _, TerminalCont>(|&event| async move {
                 assert_eq!(event, input);
                 true
@@ -75,7 +75,7 @@ mod tests {
                 output
             }),
         )
-        .handle(input)
+        .dispatch(input)
         .await;
 
         assert!(result == ControlFlow::Break(output));

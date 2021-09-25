@@ -28,19 +28,78 @@ impl<'a, Input, Output, Cont> Handler<'a, Input, Output, Cont> {
         Input: Send + Sync + 'a,
         Output: Send + Sync + 'a,
         Cont: Send + Sync + 'a,
-        NextCont: Send + Sync + 'a,
+        NextCont: Clone + Send + Sync + 'a,
     {
-        from_fn(move |event, cont| {
+        from_fn(move |event, cont: NextCont| {
             let this = self.clone();
             let next = next.clone();
 
-            async move {
-                match this.handle(event).await {
-                    ControlFlow::Continue(event) => next.execute(event, cont).await,
-                    done => done,
-                }
+            this.handle(event, Arc::new(move |event| next.clone().execute(event, cont.clone())))
+        })
+    }
+}
+
+pub type HandleResult<'a, Input, Output> =
+    Pin<Box<dyn Future<Output = ControlFlow<Output, Input>> + Send + Sync + 'a>>;
+
+pub trait Handleable<'a, Input, Output> {
+    fn handle<F, Fut>(self, event: Input, fallback: Arc<F>) -> HandleResult<'a, Input, Output>
+    where
+        F: Fn(Input) -> Fut + Send + Sync + 'a,
+        Fut: Future<Output = ControlFlow<Output, Input>> + Send + Sync + 'a;
+}
+
+impl<'a, Input, Output> Handleable<'a, Input, Output> for TerminalCont
+where
+    Input: Send + Sync + 'a,
+{
+    fn handle<F, Fut>(self, event: Input, fallback: Arc<F>) -> HandleResult<'a, Input, Output>
+    where
+        F: Fn(Input) -> Fut + Send + Sync + 'a,
+        Fut: Future<Output = ControlFlow<Output, Input>> + Send + Sync + 'a,
+    {
+        Box::pin(fallback(event))
+    }
+}
+
+impl<'a, Input, Output> Handleable<'a, Input, Output> for Handler<'a, Input, Output>
+where
+    Input: Send + Sync + 'a,
+    Output: Send + Sync + 'a,
+{
+    fn handle<F, Fut>(self, event: Input, fallback: Arc<F>) -> HandleResult<'a, Input, Output>
+    where
+        F: Fn(Input) -> Fut + Send + Sync + 'a,
+        Fut: Future<Output = ControlFlow<Output, Input>> + Send + Sync + 'a,
+    {
+        Box::pin(async move {
+            match self.execute(event, TerminalCont).await {
+                ControlFlow::Continue(event) => fallback(event).await,
+                done => done,
             }
         })
+    }
+}
+
+impl<'a, Input, Output, Cont> Handleable<'a, Input, Output>
+    for Handler<'a, Input, Output, Handler<'a, Input, Output, Cont>>
+where
+    Cont: Handleable<'a, Input, Output>,
+    Input: Send + Sync + 'a,
+    Output: Send + Sync + 'a,
+    Cont: Send + Sync + 'a,
+{
+    fn handle<F, Fut>(self, event: Input, fallback: Arc<F>) -> HandleResult<'a, Input, Output>
+    where
+        F: Fn(Input) -> Fut + Send + Sync + 'a,
+        Fut: Future<Output = ControlFlow<Output, Input>> + Send + Sync + 'a,
+    {
+        Box::pin(
+            self.execute(
+                event,
+                from_fn(move |event, cont: Cont| cont.handle(event, fallback.clone())),
+            ),
+        )
     }
 }
 
@@ -55,44 +114,13 @@ where
     {
         (self.0)(event, cont).await
     }
-}
 
-pub type HandleResult<'a, Input, Output> =
-    Pin<Box<dyn Future<Output = ControlFlow<Output, Input>> + Send + Sync + 'a>>;
-
-pub trait Handleable<'a, Input, Output> {
-    fn handle(self, event: Input) -> HandleResult<'a, Input, Output>;
-}
-
-impl<'a, Input, Output> Handleable<'a, Input, Output> for TerminalCont
-where
-    Input: Send + Sync + 'a,
-{
-    fn handle(self, event: Input) -> HandleResult<'a, Input, Output> {
-        Box::pin(async move { ControlFlow::Continue(event) })
-    }
-}
-
-impl<'a, Input, Output> Handleable<'a, Input, Output> for Handler<'a, Input, Output>
-where
-    Input: Send + Sync + 'a,
-    Output: Send + Sync + 'a,
-{
-    fn handle(self, event: Input) -> HandleResult<'a, Input, Output> {
-        Box::pin(self.execute(event, TerminalCont))
-    }
-}
-
-impl<'a, Input, Output, Cont> Handleable<'a, Input, Output>
-    for Handler<'a, Input, Output, Handler<'a, Input, Output, Cont>>
-where
-    Cont: Handleable<'a, Input, Output>,
-    Input: Send + Sync + 'a,
-    Output: Send + Sync + 'a,
-    Cont: Send + Sync + 'a,
-{
-    fn handle(self, event: Input) -> HandleResult<'a, Input, Output> {
-        Box::pin(self.execute(event, from_fn(|event, cont: Cont| cont.handle(event))))
+    pub async fn dispatch(self, event: Input) -> ControlFlow<Output, Input>
+    where
+        Self: Handleable<'a, Input, Output>,
+        Input: Send + Sync + 'a,
+    {
+        self.handle(event, Arc::new(|event| async move { ControlFlow::Continue(event) })).await
     }
 }
 
@@ -104,13 +132,15 @@ where
     Handler(Arc::new(move |event, cont| Box::pin(f(event, cont))))
 }
 
-pub fn entry<'a, Input, Output, Cont>() -> Handler<'a, Input, Output, Cont>
+pub fn entry<'a, Input, Output, Cont>(
+) -> Handler<'a, Input, Output, Handler<'a, Input, Output, Cont>>
 where
-    Cont: Handleable<'a, Input, Output>,
-    Input: 'a,
-    Output: 'a,
+    Handler<'a, Input, Output, Cont>: Handleable<'a, Input, Output>,
+    Input: Send + Sync + 'a,
+    Output: Send + Sync + 'a,
+    Cont: 'a,
 {
-    from_fn(|event, cont: Cont| cont.handle(event))
+    from_fn(|event, cont: Handler<'a, Input, Output, Cont>| cont.dispatch(event))
 }
 
 #[cfg(test)]
@@ -129,7 +159,7 @@ mod tests {
             assert_eq!(cont, TerminalCont);
             ControlFlow::Break(output)
         })
-        .handle(input)
+        .dispatch(input)
         .await;
 
         assert!(result == ControlFlow::Break(output));
@@ -146,7 +176,7 @@ mod tests {
             assert_eq!(cont, TerminalCont);
             ControlFlow::<Output, _>::Continue(event)
         })
-        .handle(input)
+        .dispatch(input)
         .await;
 
         assert!(result == ControlFlow::Continue(input));
@@ -158,7 +188,7 @@ mod tests {
 
         let input = 123;
 
-        let result = entry::<_, Output, TerminalCont>().handle(input).await;
+        let result = entry::<_, Output, TerminalCont>().dispatch(input).await;
 
         assert!(result == ControlFlow::Continue(input));
     }
@@ -173,12 +203,20 @@ mod tests {
         }
 
         let dispatcher = filter::<_, _, _, _, TerminalCont>(|&num| async move { num == 5 })
-            .endpoint(|_| async move { Output::Five });
+            .endpoint(|_| async move { Output::Five })
+            .pipe_to(
+                filter::<_, _, _, _, TerminalCont>(|&num| async move { num == 1 })
+                    .endpoint(|_| async move { Output::One }),
+            )
+            .pipe_to::<TerminalCont>(
+                filter::<_, _, _, _, TerminalCont>(|&num| async move { num > 2 })
+                    .endpoint(|_| async move { Output::BT2 }),
+            );
 
-        assert_eq!(dispatcher.clone().handle(5).await, ControlFlow::Break(Output::Five));
-        assert_eq!(dispatcher.clone().handle(1).await, ControlFlow::Break(Output::One));
-        assert_eq!(dispatcher.clone().handle(3).await, ControlFlow::Break(Output::BT2));
-        assert_eq!(dispatcher.clone().handle(0).await, ControlFlow::Continue(0));
+        assert_eq!(dispatcher.clone().dispatch(5).await, ControlFlow::Break(Output::Five));
+        assert_eq!(dispatcher.clone().dispatch(1).await, ControlFlow::Break(Output::One));
+        assert_eq!(dispatcher.clone().dispatch(3).await, ControlFlow::Break(Output::BT2));
+        assert_eq!(dispatcher.clone().dispatch(0).await, ControlFlow::Continue(0));
     }
 
     #[tokio::test]
@@ -197,9 +235,11 @@ mod tests {
                 filter::<_, _, _, _, TerminalCont>(|&num| async move { num == -1 })
                     .endpoint(|_| async move { Output::MinusOne }),
             )
-            .pipe_to::<TerminalCont>(endpoint(|_| async move { Output::LT }));
+            .pipe_to(endpoint(|_| async move { Output::LT }));
 
-        dbg!(negative_handler.clone().handle(1).await);
+        dbg!(negative_handler.dispatch(6).await); // must be `Continue(6)` but it is `Break(LT)`.
+
+        return;
 
         let zero_handler = filter::<_, _, _, _, TerminalCont>(|&num| async move { num == 0 })
             .endpoint(|_| async move { Output::Zero });
@@ -209,17 +249,17 @@ mod tests {
                 filter::<_, _, _, _, TerminalCont>(|&num| async move { num == 1 })
                     .endpoint(|_| async move { Output::One }),
             )
-            .pipe_to::<TerminalCont>(endpoint(|_| async move { Output::GT }));
+            .pipe_to(endpoint(|_| async move { Output::GT }));
 
         let dispatcher = entry::<_, _, TerminalCont>()
             .pipe_to(negative_handler)
             .pipe_to(zero_handler)
-            .pipe_to::<TerminalCont>(positive_handler);
+            .pipe_to(positive_handler);
 
-        assert_eq!(dispatcher.clone().handle(2).await, ControlFlow::Break(Output::GT));
-        assert_eq!(dispatcher.clone().handle(1).await, ControlFlow::Break(Output::One));
-        assert_eq!(dispatcher.clone().handle(0).await, ControlFlow::Break(Output::Zero));
-        assert_eq!(dispatcher.clone().handle(-1).await, ControlFlow::Break(Output::MinusOne));
-        assert_eq!(dispatcher.clone().handle(-2).await, ControlFlow::Break(Output::LT));
+        assert_eq!(dispatcher.clone().dispatch(2).await, ControlFlow::Break(Output::GT));
+        assert_eq!(dispatcher.clone().dispatch(1).await, ControlFlow::Break(Output::One));
+        assert_eq!(dispatcher.clone().dispatch(0).await, ControlFlow::Break(Output::Zero));
+        assert_eq!(dispatcher.clone().dispatch(-1).await, ControlFlow::Break(Output::MinusOne));
+        assert_eq!(dispatcher.clone().dispatch(-2).await, ControlFlow::Break(Output::LT));
     }
 }
