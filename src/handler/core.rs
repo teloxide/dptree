@@ -18,23 +18,69 @@ pub struct TerminalCont;
 pub type HandlerOutput<'fut, Input, Output> =
     Pin<Box<dyn Future<Output = ControlFlow<Output, Input>> + Send + Sync + 'fut>>;
 
-impl<'a, Input, Output, Cont> Handler<'a, Input, Output, Cont> {
+impl<'a, Input, Output, Cont> Handler<'a, Input, Output, Handler<'a, Input, Output, Cont>> {
     pub fn pipe_to<NextCont>(
         self,
         next: Handler<'a, Input, Output, NextCont>,
-    ) -> Handler<'a, Input, Output, NextCont>
+    ) -> Handler<'a, Input, Output, Handler<'a, Input, Output, NextCont>>
     where
         Self: Handleable<'a, Input, Output>,
+        Handler<'a, Input, Output, NextCont>: Handleable<'a, Input, Output>,
         Input: Send + Sync + 'a,
         Output: Send + Sync + 'a,
         Cont: Send + Sync + 'a,
         NextCont: Clone + Send + Sync + 'a,
     {
-        from_fn(move |event, cont: NextCont| {
+        from_fn(move |event, cont: Handler<'a, Input, Output, NextCont>| {
             let this = self.clone();
             let next = next.clone();
+            let cont = cont.clone();
 
-            this.handle(event, Arc::new(move |event| next.clone().execute(event, cont.clone())))
+            this.handle(
+                event,
+                Arc::new(move |event| {
+                    let next = next.clone();
+                    let cont = cont.clone();
+
+                    next.handle(event, Arc::new(move |event| cont.clone().dispatch(event)))
+                }),
+            )
+        })
+    }
+}
+
+impl<'a, Input, Output, Cont> Handler<'a, Input, Output, Handler<'a, Input, Output, Cont>> {
+    pub fn dispatch_to<NextCont>(
+        self,
+        next: Handler<'a, Input, Output, NextCont>,
+    ) -> Handler<'a, Input, Output, Handler<'a, Input, Output, NextCont>>
+    where
+        Self: Handleable<'a, Input, Output>,
+        Handler<'a, Input, Output, NextCont>: Handleable<'a, Input, Output>,
+        Input: Send + Sync + 'a,
+        Output: Send + Sync + 'a,
+        Cont: Send + Sync + 'a,
+        NextCont: Clone + Send + Sync + 'a,
+    {
+        from_fn(move |event, cont: Handler<'a, Input, Output, NextCont>| {
+            let this = self.clone();
+            let next = next.clone();
+            let cont = cont.clone();
+
+            this.handle(
+                event,
+                Arc::new(move |event| {
+                    let next = next.clone();
+                    let cont = cont.clone();
+
+                    async move {
+                        match next.dispatch(event).await {
+                            ControlFlow::Continue(event) => cont.clone().dispatch(event).await,
+                            done => done,
+                        }
+                    }
+                }),
+            )
         })
     }
 }
@@ -140,12 +186,14 @@ where
     Output: Send + Sync + 'a,
     Cont: 'a,
 {
-    from_fn(|event, cont: Handler<'a, Input, Output, Cont>| cont.dispatch(event))
+    from_fn(
+        |event, cont: Handler<'a, Input, Output, Cont>| async move { cont.dispatch(event).await },
+    )
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::handler::{endpoint, filter};
+    use crate::handler::{endpoint::endpoint, filter};
 
     use super::*;
 
@@ -194,33 +242,31 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_linear_pipe_to() {
+    async fn test_dispatch_to() {
         #[derive(Debug, PartialEq)]
         enum Output {
             Five,
             One,
-            BT2,
+            GT,
         }
 
-        let dispatcher = filter::<_, _, _, _, TerminalCont>(|&num| async move { num == 5 })
-            .endpoint(|_| async move { Output::Five })
-            .pipe_to(
-                filter::<_, _, _, _, TerminalCont>(|&num| async move { num == 1 })
-                    .endpoint(|_| async move { Output::One }),
+        let dispatcher = entry::<_, _, TerminalCont>()
+            .dispatch_to(
+                filter(|&num| async move { num == 5 }).endpoint(|_| async move { Output::Five }),
             )
-            .pipe_to::<TerminalCont>(
-                filter::<_, _, _, _, TerminalCont>(|&num| async move { num > 2 })
-                    .endpoint(|_| async move { Output::BT2 }),
-            );
+            .dispatch_to(
+                filter(|&num| async move { num == 1 }).endpoint(|_| async move { Output::One }),
+            )
+            .pipe_to(filter(|&num| async move { num > 2 }).endpoint(|_| async move { Output::GT }));
 
         assert_eq!(dispatcher.clone().dispatch(5).await, ControlFlow::Break(Output::Five));
         assert_eq!(dispatcher.clone().dispatch(1).await, ControlFlow::Break(Output::One));
-        assert_eq!(dispatcher.clone().dispatch(3).await, ControlFlow::Break(Output::BT2));
+        assert_eq!(dispatcher.clone().dispatch(3).await, ControlFlow::Break(Output::GT));
         assert_eq!(dispatcher.clone().dispatch(0).await, ControlFlow::Continue(0));
     }
 
     #[tokio::test]
-    async fn test_hierarchical_pipe_to() {
+    async fn test_tree() {
         #[derive(Debug, PartialEq)]
         enum Output {
             LT,
@@ -231,30 +277,25 @@ mod tests {
         }
 
         let negative_handler = filter::<_, _, _, _, TerminalCont>(|&num| async move { num < 0 })
-            .pipe_to(
-                filter::<_, _, _, _, TerminalCont>(|&num| async move { num == -1 })
+            .dispatch_to(
+                filter(|&num| async move { num == -1 })
                     .endpoint(|_| async move { Output::MinusOne }),
             )
-            .pipe_to(endpoint(|_| async move { Output::LT }));
+            .dispatch_to(endpoint(|_| async move { Output::LT }));
 
-        dbg!(negative_handler.dispatch(6).await); // must be `Continue(6)` but it is `Break(LT)`.
-
-        return;
-
-        let zero_handler = filter::<_, _, _, _, TerminalCont>(|&num| async move { num == 0 })
-            .endpoint(|_| async move { Output::Zero });
+        let zero_handler =
+            filter(|&num| async move { num == 0 }).endpoint(|_| async move { Output::Zero });
 
         let positive_handler = filter::<_, _, _, _, TerminalCont>(|&num| async move { num > 0 })
-            .pipe_to(
-                filter::<_, _, _, _, TerminalCont>(|&num| async move { num == 1 })
-                    .endpoint(|_| async move { Output::One }),
+            .dispatch_to(
+                filter(|&num| async move { num == 1 }).endpoint(|_| async move { Output::One }),
             )
-            .pipe_to(endpoint(|_| async move { Output::GT }));
+            .dispatch_to(endpoint(|_| async move { Output::GT }));
 
         let dispatcher = entry::<_, _, TerminalCont>()
-            .pipe_to(negative_handler)
-            .pipe_to(zero_handler)
-            .pipe_to(positive_handler);
+            .dispatch_to(negative_handler)
+            .dispatch_to(zero_handler)
+            .dispatch_to(positive_handler);
 
         assert_eq!(dispatcher.clone().dispatch(2).await, ControlFlow::Break(Output::GT));
         assert_eq!(dispatcher.clone().dispatch(1).await, ControlFlow::Break(Output::One));

@@ -1,23 +1,25 @@
 use crate::{
     handler::core::{from_fn, Handler},
-    Handleable,
+    Handleable, TerminalCont,
 };
 
 use std::{future::Future, ops::ControlFlow, sync::Arc};
 
-impl<'a, Input, Output, Cont> Handler<'a, Input, Output, Cont>
+impl<'a, Input, Output> Handler<'a, Input, Output, Endpoint<'a, Input, Output>>
 where
     Self: Handleable<'a, Input, Output>,
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
-    Cont: Send + Sync + 'a,
 {
-    pub fn endpoint<F, Fut>(self, endp: F) -> Endpoint<'a, Input, Output>
+    pub fn endpoint<F, Fut>(
+        self,
+        endp: F,
+    ) -> Handler<'a, Input, Output, Endpoint<'a, Input, Output>>
     where
         F: Fn(Input) -> Fut + Send + Sync + 'a,
         Fut: Future<Output = Output> + Send + Sync,
     {
-        self.pipe_to(endpoint(endp))
+        self.pipe_to::<TerminalCont>(endpoint(endp))
     }
 }
 
