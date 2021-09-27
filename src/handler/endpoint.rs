@@ -5,16 +5,13 @@ use crate::{
 
 use std::{future::Future, ops::ControlFlow, sync::Arc};
 
-impl<'a, Input, Output> Handler<'a, Input, Output, Endpoint<'a, Input, Output>>
+impl<'a, Input, Output> Handler<'a, Input, Output, Handler<'a, Input, Output>>
 where
     Self: Handleable<'a, Input, Output>,
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
 {
-    pub fn endpoint<F, Fut>(
-        self,
-        endp: F,
-    ) -> Handler<'a, Input, Output, Endpoint<'a, Input, Output>>
+    pub fn endpoint<F, Fut>(self, endp: F) -> Handler<'a, Input, Output, Handler<'a, Input, Output>>
     where
         F: Fn(Input) -> Fut + Send + Sync + 'a,
         Fut: Future<Output = Output> + Send + Sync,
@@ -23,7 +20,7 @@ where
     }
 }
 
-pub fn endpoint<'a, F, Fut, Input, Output>(f: F) -> Endpoint<'a, Input, Output>
+pub fn endpoint<'a, F, Fut, Input, Output>(f: F) -> Handler<'a, Input, Output>
 where
     F: Fn(Input) -> Fut + Send + Sync + 'a,
     Fut: Future<Output = Output> + Send + Sync,
@@ -36,8 +33,6 @@ where
         async move { ControlFlow::Break(f(event).await) }
     })
 }
-
-pub type Endpoint<'a, Input, Output> = Handler<'a, Input, Output>;
 
 #[cfg(test)]
 mod tests {

@@ -15,7 +15,8 @@
 // 123
 // ```
 
-use dptree::Handler;
+use dptree::{Filter, TerminalCont};
+
 use std::{
     io::Write,
     ops::ControlFlow,
@@ -43,29 +44,29 @@ impl Event {
     }
 }
 
-fn ping_handler() -> Handler<'static, Event, String> {
+fn ping_handler() -> Filter<'static, Event, String, TerminalCont> {
     dptree::filter(|&event| async move { matches!(event, Event::Ping) })
         .endpoint(|_| async { "Pong".to_string() })
 }
 
-fn set_value_handler(store: Arc<AtomicI32>) -> Handler<'static, Event, String> {
-    dptree::parser(|&event| async move {
-        match event {
-            Event::SetValue(value) => Some(value),
-            _ => None,
-        }
-    })
-    .endpoint(move |value: i32| {
-        let store = store.clone();
+// fn set_value_handler(store: Arc<AtomicI32>) -> Handler<'static, Event,
+// String> {     dptree::parser(|&event| async move {
+//         match event {
+//             Event::SetValue(value) => Some(value),
+//             _ => None,
+//         }
+//     })
+//     .endpoint(move |value: i32| {
+//         let store = store.clone();
 
-        async move {
-            store.store(value, Ordering::SeqCst);
-            format!("{} stored", value)
-        }
-    })
-}
+//         async move {
+//             store.store(value, Ordering::SeqCst);
+//             format!("{} stored", value)
+//         }
+//     })
+// }
 
-fn print_value_handler(store: Arc<AtomicI32>) -> Handler<'static, Event, String> {
+fn print_value_handler(store: Arc<AtomicI32>) -> Filter<'static, Event, String, TerminalCont> {
     dptree::filter(|&event| async move { matches!(event, Event::PrintValue) }).endpoint(move |_| {
         let store = store.clone();
 
@@ -87,7 +88,7 @@ async fn main() {
     // simple job: passed input event to all handlers that it have and wait
     // until the event is processed. If no one endpoint process the event,
     // `Dispatcher` will return an error.
-    let dispatcher = dptree::dummy()
+    let dispatcher = dptree::entry::<_, _, Filter<_, _, TerminalCont>>()
         .pipe_to(ping_handler())
         //        .pipe_to(&set_value_handler(store.clone()))
         .pipe_to(print_value_handler(store.clone()));
@@ -104,7 +105,7 @@ async fn main() {
         let event = Event::parse(strs.as_slice());
 
         let out = match event {
-            Some(event) => match dispatcher.handle(event).await {
+            Some(event) => match dispatcher.clone().dispatch(event).await {
                 ControlFlow::Continue(event) => panic!("Unhandled event {:?}", event),
                 ControlFlow::Break(result) => result,
             },

@@ -193,10 +193,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::handler::{
-        endpoint::{endpoint, Endpoint},
-        filter,
-    };
+    use crate::handler::{endpoint::endpoint, filter};
 
     use super::*;
 
@@ -245,7 +242,7 @@ mod tests {
         let input = 123;
         let output = "ABC";
 
-        let result = from_fn(|event, cont: Endpoint<_, _>| {
+        let result = from_fn(|event, cont: Handler<_, _>| {
             assert!(event == input);
             cont.dispatch(event)
         })
@@ -344,7 +341,7 @@ mod tests {
         let input = 123;
         let output = "ABC";
 
-        let result = from_fn(|event, cont: Endpoint<_, _>| {
+        let result = from_fn(|event, cont: Handler<_, _>| {
             assert!(event == input);
             cont.dispatch(event)
         })
@@ -369,7 +366,7 @@ mod tests {
         let input = 123;
         type Output = &'static str;
 
-        let result = from_fn(|event, cont: Endpoint<_, _>| {
+        let result = from_fn(|event, cont: Handler<_, _>| {
             assert!(event == input);
             cont.dispatch(event)
         })
