@@ -193,7 +193,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::handler::{endpoint::endpoint, filter};
+    use crate::handler::{
+        endpoint::{endpoint, Endpoint},
+        filter,
+    };
 
     use super::*;
 
@@ -214,9 +217,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_from_fn_continue() {
-        type Output = &'static str;
-
         let input = 123;
+        type Output = &'static str;
 
         let result = from_fn(|event: i32, _: TerminalCont| async move {
             assert_eq!(event, input);
@@ -230,9 +232,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_entry() {
-        type Output = &'static str;
-
         let input = 123;
+        type Output = &'static str;
 
         let result = entry::<_, Output, TerminalCont>().dispatch(input).await;
 
@@ -240,7 +241,156 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_dispatch_to() {
+    async fn test_execute() {
+        let input = 123;
+        let output = "ABC";
+
+        let result = from_fn(|event, cont: Endpoint<_, _>| {
+            assert!(event == input);
+            cont.dispatch(event)
+        })
+        .execute(
+            input,
+            endpoint(|event| {
+                assert!(event == input);
+                async move { output }
+            }),
+        )
+        .await;
+
+        assert!(result == ControlFlow::Break(output));
+    }
+
+    #[tokio::test]
+    async fn test_handle_base_case_0_break() {
+        let input = 123;
+        let output = "ABC";
+
+        let result = TerminalCont
+            .handle(
+                input,
+                Arc::new(|event| async move {
+                    assert!(event == input);
+                    ControlFlow::Break(output)
+                }),
+            )
+            .await;
+
+        assert!(result == ControlFlow::Break(output));
+    }
+
+    #[tokio::test]
+    async fn test_handle_base_case_0_continue() {
+        let input = 123;
+        type Output = &'static str;
+
+        let result = TerminalCont
+            .handle(
+                input,
+                Arc::new(|event| async move {
+                    assert!(event == input);
+                    ControlFlow::<Output, _>::Continue(event)
+                }),
+            )
+            .await;
+
+        assert!(result == ControlFlow::Continue(input));
+    }
+
+    #[tokio::test]
+    async fn test_handle_base_case_1_break() {
+        let input = 123;
+        let output = "ABC";
+
+        let result = from_fn(|event, _: TerminalCont| async move {
+            assert!(event == input);
+            ControlFlow::Continue(event)
+        })
+        .handle(
+            input,
+            Arc::new(|event| async move {
+                assert!(event == input);
+                ControlFlow::Break(output)
+            }),
+        )
+        .await;
+
+        assert!(result == ControlFlow::Break(output));
+    }
+
+    #[tokio::test]
+    async fn test_handle_base_case_1_continue() {
+        let input = 123;
+        type Output = &'static str;
+
+        let result = from_fn(|event, _: TerminalCont| async move {
+            assert!(event == input);
+            ControlFlow::Continue(event)
+        })
+        .handle(
+            input,
+            Arc::new(|event| async move {
+                assert!(event == input);
+                ControlFlow::<Output, _>::Continue(event)
+            }),
+        )
+        .await;
+
+        assert!(result == ControlFlow::Continue(input));
+    }
+
+    #[tokio::test]
+    async fn test_handle_induction_case_break() {
+        let input = 123;
+        let output = "ABC";
+
+        let result = from_fn(|event, cont: Endpoint<_, _>| {
+            assert!(event == input);
+            cont.dispatch(event)
+        })
+        .pipe_to(from_fn(|event, _: TerminalCont| async move {
+            assert!(event == input);
+            ControlFlow::Continue(event)
+        }))
+        .handle(
+            input,
+            Arc::new(|event| async move {
+                assert!(event == input);
+                ControlFlow::Break(output)
+            }),
+        )
+        .await;
+
+        assert!(result == ControlFlow::Break(output));
+    }
+
+    #[tokio::test]
+    async fn test_handle_induction_case_continue() {
+        let input = 123;
+        type Output = &'static str;
+
+        let result = from_fn(|event, cont: Endpoint<_, _>| {
+            assert!(event == input);
+            cont.dispatch(event)
+        })
+        .pipe_to(from_fn(|event, _: TerminalCont| async move {
+            assert!(event == input);
+            ControlFlow::Continue(event)
+        }))
+        .handle(
+            input,
+            Arc::new(|event| async move {
+                assert!(event == input);
+                ControlFlow::<Output, _>::Continue(input)
+            }),
+        )
+        .await;
+
+        assert!(result == ControlFlow::Continue(input));
+    }
+
+    #[tokio::test]
+    async fn test_tree() {
         #[derive(Debug, PartialEq)]
         enum Output {
             Five,
@@ -266,7 +416,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_tree() {
+    async fn test_deeply_nested_tree() {
         #[derive(Debug, PartialEq)]
         enum Output {
             LT,
