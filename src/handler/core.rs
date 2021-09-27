@@ -202,9 +202,8 @@ mod tests {
         let input = 123;
         let output = "ABC";
 
-        let result = from_fn(|event: i32, cont: TerminalCont| async move {
+        let result = from_fn(|event: i32, _: TerminalCont| async move {
             assert_eq!(event, input);
-            assert_eq!(cont, TerminalCont);
             ControlFlow::Break(output)
         })
         .dispatch(input)
@@ -219,9 +218,8 @@ mod tests {
 
         let input = 123;
 
-        let result = from_fn(|event: i32, cont: TerminalCont| async move {
+        let result = from_fn(|event: i32, _: TerminalCont| async move {
             assert_eq!(event, input);
-            assert_eq!(cont, TerminalCont);
             ControlFlow::<Output, _>::Continue(event)
         })
         .dispatch(input)
@@ -257,7 +255,9 @@ mod tests {
             .dispatch_to(
                 filter(|&num| async move { num == 1 }).endpoint(|_| async move { Output::One }),
             )
-            .pipe_to(filter(|&num| async move { num > 2 }).endpoint(|_| async move { Output::GT }));
+            .dispatch_to(
+                filter(|&num| async move { num > 2 }).endpoint(|_| async move { Output::GT }),
+            );
 
         assert_eq!(dispatcher.clone().dispatch(5).await, ControlFlow::Break(Output::Five));
         assert_eq!(dispatcher.clone().dispatch(1).await, ControlFlow::Break(Output::One));

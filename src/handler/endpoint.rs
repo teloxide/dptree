@@ -31,7 +31,7 @@ where
 {
     let f = Arc::new(f);
 
-    from_fn(move |event, _cont| {
+    from_fn(move |event, _: TerminalCont| {
         let f = Arc::clone(&f);
         async move { ControlFlow::Break(f(event).await) }
     })
