@@ -19,7 +19,7 @@ pub type HandlerOutput<'fut, Input, Output> =
     Pin<Box<dyn Future<Output = ControlFlow<Output, Input>> + Send + Sync + 'fut>>;
 
 impl<'a, Input, Output, Cont> Handler<'a, Input, Output, Handler<'a, Input, Output, Cont>> {
-    pub fn pipe_to<NextCont>(
+    pub fn chain<NextCont>(
         self,
         next: Handler<'a, Input, Output, NextCont>,
     ) -> Handler<'a, Input, Output, Handler<'a, Input, Output, NextCont>>
@@ -50,7 +50,7 @@ impl<'a, Input, Output, Cont> Handler<'a, Input, Output, Handler<'a, Input, Outp
 }
 
 impl<'a, Input, Output, Cont> Handler<'a, Input, Output, Handler<'a, Input, Output, Cont>> {
-    pub fn dispatch_to<NextCont>(
+    pub fn branch<NextCont>(
         self,
         next: Handler<'a, Input, Output, NextCont>,
     ) -> Handler<'a, Input, Output, Handler<'a, Input, Output, NextCont>>
@@ -345,7 +345,7 @@ mod tests {
             assert!(event == input);
             cont.dispatch(event)
         })
-        .pipe_to(from_fn(|event, _: TerminalCont| async move {
+        .chain(from_fn(|event, _: TerminalCont| async move {
             assert!(event == input);
             ControlFlow::Continue(event)
         }))
@@ -370,7 +370,7 @@ mod tests {
             assert!(event == input);
             cont.dispatch(event)
         })
-        .pipe_to(from_fn(|event, _: TerminalCont| async move {
+        .chain(from_fn(|event, _: TerminalCont| async move {
             assert!(event == input);
             ControlFlow::Continue(event)
         }))
@@ -396,15 +396,11 @@ mod tests {
         }
 
         let dispatcher = entry::<_, _, TerminalCont>()
-            .dispatch_to(
+            .branch(
                 filter(|&num| async move { num == 5 }).endpoint(|_| async move { Output::Five }),
             )
-            .dispatch_to(
-                filter(|&num| async move { num == 1 }).endpoint(|_| async move { Output::One }),
-            )
-            .dispatch_to(
-                filter(|&num| async move { num > 2 }).endpoint(|_| async move { Output::GT }),
-            );
+            .branch(filter(|&num| async move { num == 1 }).endpoint(|_| async move { Output::One }))
+            .branch(filter(|&num| async move { num > 2 }).endpoint(|_| async move { Output::GT }));
 
         assert_eq!(dispatcher.clone().dispatch(5).await, ControlFlow::Break(Output::Five));
         assert_eq!(dispatcher.clone().dispatch(1).await, ControlFlow::Break(Output::One));
@@ -424,25 +420,23 @@ mod tests {
         }
 
         let negative_handler = filter::<_, _, _, _, TerminalCont>(|&num| async move { num < 0 })
-            .dispatch_to(
+            .branch(
                 filter(|&num| async move { num == -1 })
                     .endpoint(|_| async move { Output::MinusOne }),
             )
-            .dispatch_to(endpoint(|_| async move { Output::LT }));
+            .branch(endpoint(|_| async move { Output::LT }));
 
         let zero_handler =
             filter(|&num| async move { num == 0 }).endpoint(|_| async move { Output::Zero });
 
         let positive_handler = filter::<_, _, _, _, TerminalCont>(|&num| async move { num > 0 })
-            .dispatch_to(
-                filter(|&num| async move { num == 1 }).endpoint(|_| async move { Output::One }),
-            )
-            .dispatch_to(endpoint(|_| async move { Output::GT }));
+            .branch(filter(|&num| async move { num == 1 }).endpoint(|_| async move { Output::One }))
+            .branch(endpoint(|_| async move { Output::GT }));
 
         let dispatcher = entry::<_, _, TerminalCont>()
-            .dispatch_to(negative_handler)
-            .dispatch_to(zero_handler)
-            .dispatch_to(positive_handler);
+            .branch(negative_handler)
+            .branch(zero_handler)
+            .branch(positive_handler);
 
         assert_eq!(dispatcher.clone().dispatch(2).await, ControlFlow::Break(Output::GT));
         assert_eq!(dispatcher.clone().dispatch(1).await, ControlFlow::Break(Output::One));

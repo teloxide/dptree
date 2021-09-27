@@ -16,7 +16,7 @@ where
         F: Fn(Input) -> Fut + Send + Sync + 'a,
         Fut: Future<Output = Output> + Send + Sync,
     {
-        self.pipe_to::<TerminalCont>(endpoint(endp))
+        self.chain::<TerminalCont>(endpoint(endp))
     }
 }
 

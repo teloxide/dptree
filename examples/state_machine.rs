@@ -95,31 +95,31 @@ fn active_handler() -> Handler {
     dptree::filter::<_, _, _, _, TerminalCont>(|(_, state)| {
         future::ready(matches!(state, CommandState::Active))
     })
-    .dispatch_to(transitions::pause())
-    .dispatch_to(transitions::end())
+    .branch(transitions::pause())
+    .branch(transitions::end())
 }
 
 fn paused_handler() -> Handler {
     dptree::filter::<_, _, _, _, TerminalCont>(|(_, state)| {
         future::ready(matches!(state, CommandState::Paused))
     })
-    .dispatch_to(transitions::resume())
-    .dispatch_to(transitions::end())
+    .branch(transitions::resume())
+    .branch(transitions::end())
 }
 
 fn inactive_handler() -> Handler {
     dptree::filter::<_, _, _, _, TerminalCont>(|(_, state)| {
         future::ready(matches!(state, CommandState::Inactive))
     })
-    .dispatch_to(transitions::begin())
-    .dispatch_to(transitions::exit())
+    .branch(transitions::begin())
+    .branch(transitions::exit())
 }
 
 fn exit_handler() -> Handler {
     dptree::filter::<_, _, _, _, TerminalCont>(|(_, state)| {
         future::ready(matches!(state, CommandState::Exit))
     })
-    .dispatch_to(transitions::exit())
+    .branch(transitions::exit())
 }
 
 #[tokio::main]
@@ -127,10 +127,10 @@ async fn main() {
     let mut state = CommandState::Inactive;
 
     let dispatcher = dptree::entry::<_, _, TerminalCont>()
-        .dispatch_to(active_handler())
-        .dispatch_to(paused_handler())
-        .dispatch_to(inactive_handler())
-        .dispatch_to(exit_handler());
+        .branch(active_handler())
+        .branch(paused_handler())
+        .branch(inactive_handler())
+        .branch(exit_handler());
 
     loop {
         println!("|| Current state is {}", state);

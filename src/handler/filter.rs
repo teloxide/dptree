@@ -65,7 +65,7 @@ mod tests {
             assert_eq!(event, input);
             true
         })
-        .pipe_to(
+        .chain(
             filter::<_, _, _, _, TerminalCont>(|&event| async move {
                 assert_eq!(event, input);
                 true
