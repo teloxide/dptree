@@ -89,9 +89,9 @@ async fn main() {
     // until the event is processed. If no one endpoint process the event,
     // `Dispatcher` will return an error.
     let dispatcher = dptree::entry::<_, _, Filter<_, _, TerminalCont>>()
-        .chain(ping_handler())
+        .branch(ping_handler())
         //        .pipe_to(&set_value_handler(store.clone()))
-        .chain(print_value_handler(store.clone()));
+        .branch(print_value_handler(store.clone()));
 
     // Simple REPL for the constructed dispatcher.
     loop {
