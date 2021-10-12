@@ -15,7 +15,7 @@
 // 123
 // ```
 
-use dptree::{Filter, TerminalCont};
+use dptree::{Filter, Parser, TerminalCont};
 
 use std::{
     io::Write,
@@ -49,22 +49,24 @@ fn ping_handler() -> Filter<'static, Event, String, TerminalCont> {
         .endpoint(|_| async { "Pong".to_string() })
 }
 
-// fn set_value_handler(store: Arc<AtomicI32>) -> Handler<'static, Event,
-// String> {     dptree::parser(|&event| async move {
-//         match event {
-//             Event::SetValue(value) => Some(value),
-//             _ => None,
-//         }
-//     })
-//     .endpoint(move |value: i32| {
-//         let store = store.clone();
+fn set_value_handler(store: Arc<AtomicI32>) -> Parser<'static, Event, String, i32, TerminalCont> {
+    let parse: Parser<Event, String, i32, TerminalCont> =
+        dptree::parser::<_, _, _, _, _, TerminalCont>(|&event| async move {
+            match event {
+                Event::SetValue(value) => Some(value),
+                _ => None,
+            }
+        });
 
-//         async move {
-//             store.store(value, Ordering::SeqCst);
-//             format!("{} stored", value)
-//         }
-//     })
-// }
+    parse.endpoint(move |value| {
+        let store = store.clone();
+
+        async move {
+            store.store(value, Ordering::SeqCst);
+            format!("{} stored", value)
+        }
+    })
+}
 
 fn print_value_handler(store: Arc<AtomicI32>) -> Filter<'static, Event, String, TerminalCont> {
     dptree::filter(|&event| async move { matches!(event, Event::PrintValue) }).endpoint(move |_| {
@@ -90,7 +92,7 @@ async fn main() {
     // `Dispatcher` will return an error.
     let dispatcher = dptree::entry::<_, _, Filter<_, _, TerminalCont>>()
         .branch(ping_handler())
-        //        .pipe_to(&set_value_handler(store.clone()))
+        .branch(set_value_handler(store.clone()))
         .branch(print_value_handler(store.clone()));
 
     // Simple REPL for the constructed dispatcher.

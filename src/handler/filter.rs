@@ -1,21 +1,20 @@
-use crate::{
-    handler::core::{from_fn, Handler},
-    Handleable,
-};
+use crate::handler::core::{from_fn, Handler};
 use std::{future::Future, ops::ControlFlow, sync::Arc};
 
-pub fn filter<'a, Pred, Fut, Input, Output, Cont>(pred: Pred) -> Filter<'a, Input, Output, Cont>
+pub fn filter<'a, Pred, Fut, Input, Output, Intermediate, Cont, ContFut>(
+    pred: Pred,
+) -> Handler<'a, Input, Output, Cont>
 where
     Pred: Fn(&Input) -> Fut + Send + Sync + 'a,
     Fut: Future<Output = bool> + Send + Sync,
-    Handler<'a, Input, Output, Cont>: Handleable<'a, Input, Output>,
-    Cont: 'a,
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
+    Cont: Fn(Intermediate) -> ContFut,
+    ContFut: Future<Output = ControlFlow<Output, Intermediate>>,
 {
     let pred = Arc::new(pred);
 
-    from_fn(move |event, cont: Handler<'a, Input, Output, Cont>| {
+    from_fn(move |event, cont| {
         let pred = Arc::clone(&pred);
 
         async move {
@@ -28,21 +27,16 @@ where
     })
 }
 
-pub type Filter<'a, Input, Output, Cont> =
-    Handler<'a, Input, Output, Handler<'a, Input, Output, Cont>>;
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use crate::TerminalCont;
 
     #[tokio::test]
     async fn test_filter() {
         let input = 123;
         let output = 7;
 
-        let result = filter::<_, _, _, _, TerminalCont>(|&event| async move {
+        let result = filter(|&event| async move {
             assert_eq!(event, input);
             true
         })
@@ -61,12 +55,12 @@ mod tests {
         let input = 123;
         let output = 7;
 
-        let result = filter::<_, _, _, _, TerminalCont>(|&event| async move {
+        let result = filter(|&event: &i32| async move {
             assert_eq!(event, input);
             true
         })
         .chain(
-            filter::<_, _, _, _, TerminalCont>(|&event| async move {
+            filter(|&event| async move {
                 assert_eq!(event, input);
                 true
             })
