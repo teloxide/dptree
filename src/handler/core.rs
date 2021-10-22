@@ -3,6 +3,7 @@ use std::{future::Future, ops::ControlFlow, sync::Arc};
 use futures::future::BoxFuture;
 
 pub struct Handler<'a, Input, Output, Intermediate>(
+    #[allow(clippy::type_complexity)]
     Arc<
         dyn Fn(Input, Cont<'a, Intermediate, Output>) -> HandlerResult<'a, Input, Output>
             + Send
@@ -41,10 +42,13 @@ where
         from_fn(move |event, cont| {
             let this = self.clone();
             let next = next.clone();
+            let cont = Arc::new(cont);
 
             this.execute(event, move |event| {
                 let next = next.clone();
+                let cont = cont.clone();
 
+                #[allow(clippy::redundant_closure)] // Clippy is a fucking donkey.
                 next.execute(event, move |event| cont(event))
             })
         })
@@ -61,9 +65,11 @@ where
         from_fn(move |event, cont| {
             let this = self.clone();
             let next = next.clone();
+            let cont = Arc::new(cont);
 
             this.execute(event, move |event| {
                 let next = next.clone();
+                let cont = cont.clone();
 
                 async move {
                     match next.dispatch(event).await {
@@ -97,7 +103,7 @@ pub fn from_fn<'a, F, Fut, Input, Output, Intermediate>(
     f: F,
 ) -> Handler<'a, Input, Output, Intermediate>
 where
-    F: Fn(Input, Cont<Intermediate, Output>) -> Fut + Send + Sync + 'a,
+    F: Fn(Input, Cont<'a, Intermediate, Output>) -> Fut + Send + Sync + 'a,
     Fut: Future<Output = ControlFlow<Output, Input>> + Send + 'a,
 {
     Handler(Arc::new(move |event, cont| Box::pin(f(event, cont))))
