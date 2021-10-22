@@ -1,16 +1,12 @@
 use crate::handler::core::{from_fn, Handler};
 use std::{future::Future, ops::ControlFlow, sync::Arc};
 
-pub fn filter<'a, Pred, Fut, Input, Output, Intermediate, Cont, ContFut>(
-    pred: Pred,
-) -> Handler<'a, Input, Output, Cont>
+pub fn filter<'a, Pred, Fut, Input, Output>(pred: Pred) -> Handler<'a, Input, Output>
 where
     Pred: Fn(&Input) -> Fut + Send + Sync + 'a,
     Fut: Future<Output = bool> + Send + Sync,
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
-    Cont: Fn(Intermediate) -> ContFut,
-    ContFut: Future<Output = ControlFlow<Output, Intermediate>>,
 {
     let pred = Arc::new(pred);
 
@@ -19,7 +15,7 @@ where
 
         async move {
             if pred(&event).await {
-                cont.dispatch(event).await
+                cont(event).await
             } else {
                 ControlFlow::Continue(event)
             }

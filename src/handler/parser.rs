@@ -4,9 +4,9 @@ use futures::Future;
 
 use crate::{from_fn, Handler};
 
-pub fn parser<'a, Projection, Fut, Input, Output, Intermediate, Cont>(
+pub fn parser<'a, Projection, Fut, Input, Output, Intermediate>(
     proj: Projection,
-) -> Handler<'a, Input, Output, Cont>
+) -> Handler<'a, Input, Output, Intermediate>
 where
     Projection: Fn(&Input) -> Fut + Send + Sync + 'a,
     Fut: Future<Output = Option<Intermediate>> + Send + Sync,
@@ -16,12 +16,12 @@ where
 {
     let proj = Arc::new(proj);
 
-    from_fn(move |event, cont: Handler<'a, Intermediate, Output>| {
+    from_fn(move |event, cont| {
         let proj = Arc::clone(&proj);
 
         async move {
             match proj(&event).await {
-                Some(intermediate) => match cont.dispatch(intermediate).await {
+                Some(intermediate) => match cont(intermediate).await {
                     ControlFlow::Continue(_) => ControlFlow::Continue(event),
                     ControlFlow::Break(result) => ControlFlow::Break(result),
                 },
@@ -38,14 +38,14 @@ mod tests {
     #[tokio::test]
     async fn test_some() {
         let input = 123;
-        let output = 7;
+        let output = "abc";
 
         let result = parser(|&event| async move {
             assert_eq!(event, input);
-            Some(event)
+            Some(output)
         })
         .endpoint(|event| async move {
-            assert_eq!(event, input);
+            assert_eq!(event, output);
             output
         })
         .dispatch(input)
@@ -57,16 +57,12 @@ mod tests {
     #[tokio::test]
     async fn test_none() {
         let input = 123;
-        let output = 7;
 
         let result = parser(|&event| async move {
             assert_eq!(event, input);
-            None
+            None::<String>
         })
-        .endpoint(|event| async move {
-            assert_eq!(event, input);
-            output
-        })
+        .endpoint(|_event| async move { unreachable!() })
         .dispatch(input)
         .await;
 
@@ -74,9 +70,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_and_then_parser() {
+    async fn test_chain_some() {
         let input = 123;
-        let output = 7;
+        let output = "abc";
 
         let result = parser(|&event| async move {
             assert_eq!(event, input);
@@ -85,12 +81,33 @@ mod tests {
         .chain(
             parser(|&event| async move {
                 assert_eq!(event, input);
-                None
+                Some(output)
             })
             .endpoint(|event| async move {
-                assert_eq!(event, input);
+                assert_eq!(event, output);
                 output
             }),
+        )
+        .dispatch(input)
+        .await;
+
+        assert!(result == ControlFlow::Break(output));
+    }
+
+    #[tokio::test]
+    async fn test_chain_none() {
+        let input = 123;
+
+        let result = parser(|&event| async move {
+            assert_eq!(event, input);
+            Some(event)
+        })
+        .chain(
+            parser(|&event| async move {
+                assert_eq!(event, input);
+                None::<&'static str>
+            })
+            .endpoint(|_event| async move { unreachable!() }),
         )
         .dispatch(input)
         .await;

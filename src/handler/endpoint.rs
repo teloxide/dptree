@@ -1,38 +1,39 @@
-use crate::{entry, handler::core::Handler};
+use crate::{from_fn, handler::core::Handler};
 
-use std::{future::Future, ops::ControlFlow};
+use std::{convert::Infallible, future::Future, ops::ControlFlow, sync::Arc};
 
-impl<'a, Input, Output, Cont> Handler<'a, Input, Output, Cont>
+impl<'a, Input, Output, Intermediate> Handler<'a, Input, Output, Intermediate>
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
+    Intermediate: Send + Sync + 'a,
 {
-    pub fn endpoint<Intermediate, ContFut, F, Fut>(self, endp: F) -> Self
+    pub fn endpoint<F, Fut>(self, endp: F) -> Endpoint<'a, Input, Output>
     where
         F: Fn(Intermediate) -> Fut + Send + Sync + 'a,
         Fut: Future<Output = Output> + Send + Sync,
-        Intermediate: Send + Sync + 'a,
-        Cont: Fn(Intermediate) -> ContFut,
-        ContFut: Future<Output = ControlFlow<Output, Intermediate>>,
     {
         self.chain(endpoint(endp))
     }
 }
 
-pub fn endpoint<'a, F, Fut, Input, Output, Intermediate, Cont, ContFut>(
-    f: F,
-) -> Handler<'a, Input, Output, Cont>
+pub fn endpoint<'a, F, Fut, Input, Output>(f: F) -> Endpoint<'a, Input, Output>
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
     F: Fn(Input) -> Fut + Send + Sync + 'a,
     Fut: Future<Output = Output> + Send + Sync,
     Input: Send + Sync + 'a,
-    Cont: Fn(Intermediate) -> ContFut,
-    ContFut: Future<Output = ControlFlow<Output, Intermediate>>,
 {
-    entry().chain(f)
+    let f = Arc::new(f);
+
+    from_fn(move |event, _cont| {
+        let f = Arc::clone(&f);
+        async move { ControlFlow::Break(f(event).await) }
+    })
 }
+
+pub type Endpoint<'a, Input, Output> = Handler<'a, Input, Output, Infallible>;
 
 #[cfg(test)]
 mod tests {
