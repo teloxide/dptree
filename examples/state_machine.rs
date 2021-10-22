@@ -8,7 +8,53 @@ use std::{
 
 use futures::future;
 
-use dptree::{Filter, TerminalCont};
+use dptree::prelude::*;
+
+#[tokio::main]
+async fn main() {
+    let state = CommandState::Inactive;
+
+    let dispatcher = dptree::entry()
+        .branch(active_handler())
+        .branch(paused_handler())
+        .branch(inactive_handler())
+        .branch(exit_handler());
+
+    repl(state, dispatcher).await
+}
+
+async fn repl(
+    mut state: CommandState,
+    dispatcher: Handler<'static, (Event, CommandState), CommandState>,
+) -> ! {
+    loop {
+        println!("|| Current state is {}", state);
+        print!(">> ");
+        std::io::stdout().flush().unwrap();
+
+        let mut cmd = String::new();
+        std::io::stdin().read_line(&mut cmd).unwrap();
+
+        let str = cmd.trim();
+        let event = Event::parse(str);
+
+        let new_state = match event {
+            Some(event) => match dispatcher.clone().dispatch((event, state)).await {
+                ControlFlow::Break(state) => state,
+                ControlFlow::Continue((_, the_state)) => {
+                    println!("There is no transition for the event");
+                    state = the_state;
+                    continue;
+                }
+            },
+            _ => {
+                println!("Unknown event");
+                continue;
+            }
+        };
+        state = new_state;
+    }
+}
 
 #[derive(Debug)]
 pub enum CommandState {
@@ -51,7 +97,7 @@ impl Event {
     }
 }
 
-type Transition = Filter<'static, TransitionIn, TransitionOut, TerminalCont>;
+type Transition = Endpoint<'static, TransitionIn, TransitionOut>;
 type TransitionIn = (Event, CommandState);
 type TransitionOut = CommandState;
 
@@ -84,79 +130,27 @@ mod transitions {
     }
 }
 
-type Handler = Filter<
-    'static,
-    TransitionIn,
-    TransitionOut,
-    dptree::Handler<'static, TransitionIn, TransitionOut>,
->;
+type FsmHandler = Handler<'static, TransitionIn, TransitionOut>;
 
-fn active_handler() -> Handler {
-    dptree::filter::<_, _, _, _, TerminalCont>(|(_, state)| {
-        future::ready(matches!(state, CommandState::Active))
-    })
-    .branch(transitions::pause())
-    .branch(transitions::end())
+fn active_handler() -> FsmHandler {
+    dptree::filter(|(_, state)| future::ready(matches!(state, CommandState::Active)))
+        .branch(transitions::pause())
+        .branch(transitions::end())
 }
 
-fn paused_handler() -> Handler {
-    dptree::filter::<_, _, _, _, TerminalCont>(|(_, state)| {
-        future::ready(matches!(state, CommandState::Paused))
-    })
-    .branch(transitions::resume())
-    .branch(transitions::end())
+fn paused_handler() -> FsmHandler {
+    dptree::filter(|(_, state)| future::ready(matches!(state, CommandState::Paused)))
+        .branch(transitions::resume())
+        .branch(transitions::end())
 }
 
-fn inactive_handler() -> Handler {
-    dptree::filter::<_, _, _, _, TerminalCont>(|(_, state)| {
-        future::ready(matches!(state, CommandState::Inactive))
-    })
-    .branch(transitions::begin())
-    .branch(transitions::exit())
+fn inactive_handler() -> FsmHandler {
+    dptree::filter(|(_, state)| future::ready(matches!(state, CommandState::Inactive)))
+        .branch(transitions::begin())
+        .branch(transitions::exit())
 }
 
-fn exit_handler() -> Handler {
-    dptree::filter::<_, _, _, _, TerminalCont>(|(_, state)| {
-        future::ready(matches!(state, CommandState::Exit))
-    })
-    .branch(transitions::exit())
-}
-
-#[tokio::main]
-async fn main() {
-    let mut state = CommandState::Inactive;
-
-    let dispatcher = dptree::entry::<_, _, TerminalCont>()
-        .branch(active_handler())
-        .branch(paused_handler())
-        .branch(inactive_handler())
-        .branch(exit_handler());
-
-    loop {
-        println!("|| Current state is {}", state);
-        print!(">> ");
-        std::io::stdout().flush().unwrap();
-
-        let mut cmd = String::new();
-        std::io::stdin().read_line(&mut cmd).unwrap();
-
-        let str = cmd.trim();
-        let event = Event::parse(str);
-
-        let new_state = match event {
-            Some(event) => match dispatcher.clone().dispatch((event, state)).await {
-                ControlFlow::Break(state) => state,
-                ControlFlow::Continue((_, the_state)) => {
-                    println!("There is no transition for the event");
-                    state = the_state;
-                    continue;
-                }
-            },
-            _ => {
-                println!("Unknown event");
-                continue;
-            }
-        };
-        state = new_state;
-    }
+fn exit_handler() -> FsmHandler {
+    dptree::filter(|(_, state)| future::ready(matches!(state, CommandState::Exit)))
+        .branch(transitions::exit())
 }

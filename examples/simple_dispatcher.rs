@@ -15,8 +15,6 @@
 // 123
 // ```
 
-use dptree::{Filter, Parser, TerminalCont};
-
 use std::{
     io::Write,
     ops::ControlFlow,
@@ -26,76 +24,21 @@ use std::{
     },
 };
 
-#[derive(Copy, Clone, Debug)]
-enum Event {
-    Ping,
-    SetValue(i32),
-    PrintValue,
-}
-
-impl Event {
-    fn parse(input: &[&str]) -> Option<Self> {
-        match input {
-            ["ping"] => Some(Event::Ping),
-            ["set_value", value] => Some(Event::SetValue(value.parse().ok()?)),
-            ["print"] => Some(Event::PrintValue),
-            _ => None,
-        }
-    }
-}
-
-fn ping_handler() -> Filter<'static, Event, String, TerminalCont> {
-    dptree::filter(|&event| async move { matches!(event, Event::Ping) })
-        .endpoint(|_| async { "Pong".to_string() })
-}
-
-fn set_value_handler(store: Arc<AtomicI32>) -> Parser<'static, Event, String, i32, TerminalCont> {
-    let parse: Parser<Event, String, i32, TerminalCont> =
-        dptree::parser::<_, _, _, _, _, TerminalCont>(|&event| async move {
-            match event {
-                Event::SetValue(value) => Some(value),
-                _ => None,
-            }
-        });
-
-    parse.endpoint(move |value| {
-        let store = store.clone();
-
-        async move {
-            store.store(value, Ordering::SeqCst);
-            format!("{} stored", value)
-        }
-    })
-}
-
-fn print_value_handler(store: Arc<AtomicI32>) -> Filter<'static, Event, String, TerminalCont> {
-    dptree::filter(|&event| async move { matches!(event, Event::PrintValue) }).endpoint(move |_| {
-        let store = store.clone();
-
-        async move {
-            let value = store.load(Ordering::SeqCst);
-            // Return value.
-            format!("{}", value)
-        }
-    })
-}
+use dptree::prelude::*;
 
 #[tokio::main]
 async fn main() {
-    // Create program store.
     let store = Arc::new(AtomicI32::new(0));
 
-    // When we write all of our constructors - there are a question: how can we
-    // combine them? For that purpose we use `Dispatcher` handler. It does a
-    // simple job: passed input event to all handlers that it have and wait
-    // until the event is processed. If no one endpoint process the event,
-    // `Dispatcher` will return an error.
-    let dispatcher = dptree::entry::<_, _, Filter<_, _, TerminalCont>>()
+    let dispatcher = dptree::entry()
         .branch(ping_handler())
         .branch(set_value_handler(store.clone()))
         .branch(print_value_handler(store.clone()));
 
-    // Simple REPL for the constructed dispatcher.
+    repl(dispatcher).await
+}
+
+async fn repl(dispatcher: Handler<'static, Event, String>) -> ! {
     loop {
         print!(">> ");
         std::io::stdout().flush().unwrap();
@@ -115,4 +58,58 @@ async fn main() {
         };
         println!("{}", out);
     }
+}
+
+#[derive(Copy, Clone, Debug)]
+enum Event {
+    Ping,
+    SetValue(i32),
+    PrintValue,
+}
+
+impl Event {
+    fn parse(input: &[&str]) -> Option<Self> {
+        match input {
+            ["ping"] => Some(Event::Ping),
+            ["set_value", value] => Some(Event::SetValue(value.parse().ok()?)),
+            ["print"] => Some(Event::PrintValue),
+            _ => None,
+        }
+    }
+}
+
+type CommandHandler = Endpoint<'static, Event, String>;
+
+fn ping_handler() -> CommandHandler {
+    dptree::filter(|&event| async move { matches!(event, Event::Ping) })
+        .endpoint(|_| async { "Pong".to_string() })
+}
+
+fn set_value_handler(store: Arc<AtomicI32>) -> CommandHandler {
+    dptree::parser(|&event| async move {
+        match event {
+            Event::SetValue(value) => Some(value),
+            _ => None,
+        }
+    })
+    .endpoint(move |value| {
+        let store = store.clone();
+
+        async move {
+            store.store(value, Ordering::SeqCst);
+            format!("{} stored", value)
+        }
+    })
+}
+
+fn print_value_handler(store: Arc<AtomicI32>) -> CommandHandler {
+    dptree::filter(|&event| async move { matches!(event, Event::PrintValue) }).endpoint(move |_| {
+        let store = store.clone();
+
+        async move {
+            let value = store.load(Ordering::SeqCst);
+            // Return value.
+            format!("{}", value)
+        }
+    })
 }
