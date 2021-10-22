@@ -119,258 +119,122 @@ where
 mod tests {
     // use crate::handler::{endpoint::endpoint, filter};
 
+    use crate::handler::{endpoint, filter};
+
     use super::*;
 
-    // #[tokio::test]
-    // async fn test_from_fn_break() {
-    //     let input = 123;
-    //     let output = "ABC";
+    #[tokio::test]
+    async fn test_from_fn_break() {
+        let input = 123;
+        let output = "ABC";
 
-    //     let result = from_fn(|event, _cont| async move {
-    //         assert_eq!(event, input);
-    //         ControlFlow::Break(output)
-    //     })
-    //     .dispatch(input)
-    //     .await;
+        let result = from_fn(|event, _cont: Cont<i32, &'static str>| async move {
+            assert_eq!(event, input);
+            ControlFlow::Break(output)
+        })
+        .dispatch(input)
+        .await;
 
-    //     assert!(result == ControlFlow::Break(output));
-    // }
+        assert!(result == ControlFlow::Break(output));
+    }
 
-    // #[tokio::test]
-    // async fn test_from_fn_continue() {
-    //     let input = 123;
-    //     type Output = &'static str;
+    #[tokio::test]
+    async fn test_from_fn_continue() {
+        let input = 123;
+        type Output = &'static str;
 
-    //     let result = from_fn(|event: i32, _: TerminalCont| async move {
-    //         assert_eq!(event, input);
-    //         ControlFlow::<Output, _>::Continue(event)
-    //     })
-    //     .dispatch(input)
-    //     .await;
+        let result = from_fn(|event: i32, _cont: Cont<i32, &'static str>| async move {
+            assert_eq!(event, input);
+            ControlFlow::<Output, _>::Continue(event)
+        })
+        .dispatch(input)
+        .await;
 
-    //     assert!(result == ControlFlow::Continue(input));
-    // }
+        assert!(result == ControlFlow::Continue(input));
+    }
 
-    // #[tokio::test]
-    // async fn test_entry() {
-    //     let input = 123;
-    //     type Output = &'static str;
+    #[tokio::test]
+    async fn test_entry() {
+        let input = 123;
+        type Output = &'static str;
 
-    //     let result = entry::<_, Output, TerminalCont>().dispatch(input).await;
+        let result = entry::<_, Output>().dispatch(input).await;
 
-    //     assert!(result == ControlFlow::Continue(input));
-    // }
+        assert!(result == ControlFlow::Continue(input));
+    }
 
-    // #[tokio::test]
-    // async fn test_execute() {
-    //     let input = 123;
-    //     let output = "ABC";
+    #[tokio::test]
+    async fn test_execute() {
+        let input = 123;
+        let output = "ABC";
 
-    //     let result = from_fn(|event, cont: Handler<_, _>| {
-    //         assert!(event == input);
-    //         cont.dispatch(event)
-    //     })
-    //     .execute(
-    //         input,
-    //         endpoint(|event| {
-    //             assert!(event == input);
-    //             async move { output }
-    //         }),
-    //     )
-    //     .await;
+        let result = from_fn(|event, cont| {
+            assert!(event == input);
+            cont(event)
+        })
+        .execute(input, |event| async move {
+            assert!(event == input);
+            ControlFlow::Break(output)
+        })
+        .await;
 
-    //     assert!(result == ControlFlow::Break(output));
-    // }
+        assert!(result == ControlFlow::Break(output));
+    }
 
-    // #[tokio::test]
-    // async fn test_handle_base_case_0_break() {
-    //     let input = 123;
-    //     let output = "ABC";
+    #[tokio::test]
+    async fn test_tree() {
+        #[derive(Debug, PartialEq)]
+        enum Output {
+            Five,
+            One,
+            GT,
+        }
 
-    //     let result = TerminalCont
-    //         .handle(
-    //             input,
-    //             Arc::new(|event| async move {
-    //                 assert!(event == input);
-    //                 ControlFlow::Break(output)
-    //             }),
-    //         )
-    //         .await;
+        let dispatcher = entry()
+            .branch(
+                filter(|&num| async move { num == 5 }).endpoint(|_| async move { Output::Five }),
+            )
+            .branch(filter(|&num| async move { num == 1 }).endpoint(|_| async move { Output::One }))
+            .branch(filter(|&num| async move { num > 2 }).endpoint(|_| async move { Output::GT }));
 
-    //     assert!(result == ControlFlow::Break(output));
-    // }
+        assert_eq!(dispatcher.clone().dispatch(5).await, ControlFlow::Break(Output::Five));
+        assert_eq!(dispatcher.clone().dispatch(1).await, ControlFlow::Break(Output::One));
+        assert_eq!(dispatcher.clone().dispatch(3).await, ControlFlow::Break(Output::GT));
+        assert_eq!(dispatcher.clone().dispatch(0).await, ControlFlow::Continue(0));
+    }
 
-    // #[tokio::test]
-    // async fn test_handle_base_case_0_continue() {
-    //     let input = 123;
-    //     type Output = &'static str;
+    #[tokio::test]
+    async fn test_deeply_nested_tree() {
+        #[derive(Debug, PartialEq)]
+        enum Output {
+            LT,
+            MinusOne,
+            Zero,
+            One,
+            GT,
+        }
 
-    //     let result = TerminalCont
-    //         .handle(
-    //             input,
-    //             Arc::new(|event| async move {
-    //                 assert!(event == input);
-    //                 ControlFlow::<Output, _>::Continue(event)
-    //             }),
-    //         )
-    //         .await;
+        let negative_handler = filter(|&num| async move { num < 0 })
+            .branch(
+                filter(|&num| async move { num == -1 })
+                    .endpoint(|_| async move { Output::MinusOne }),
+            )
+            .branch(endpoint(|_| async move { Output::LT }));
 
-    //     assert!(result == ControlFlow::Continue(input));
-    // }
+        let zero_handler =
+            filter(|&num| async move { num == 0 }).endpoint(|_| async move { Output::Zero });
 
-    // #[tokio::test]
-    // async fn test_handle_base_case_1_break() {
-    //     let input = 123;
-    //     let output = "ABC";
+        let positive_handler = filter(|&num| async move { num > 0 })
+            .branch(filter(|&num| async move { num == 1 }).endpoint(|_| async move { Output::One }))
+            .branch(endpoint(|_| async move { Output::GT }));
 
-    //     let result = from_fn(|event, _cont| async move {
-    //         assert!(event == input);
-    //         ControlFlow::Continue(event)
-    //     })
-    //     .execute(
-    //         input,
-    //         Arc::new(|event| async move {
-    //             assert!(event == input);
-    //             ControlFlow::Break(output)
-    //         }),
-    //     )
-    //     .await;
+        let dispatcher =
+            entry().branch(negative_handler).branch(zero_handler).branch(positive_handler);
 
-    //     assert!(result == ControlFlow::Break(output));
-    // }
-
-    // #[tokio::test]
-    // async fn test_handle_base_case_1_continue() {
-    //     let input = 123;
-    //     type Output = &'static str;
-
-    //     let result = from_fn(|event, _cont| async move {
-    //         assert!(event == input);
-    //         ControlFlow::Continue(event)
-    //     })
-    //     .execute(
-    //         input,
-    //         Arc::new(|event| async move {
-    //             assert!(event == input);
-    //             ControlFlow::<Output, _>::Continue(event)
-    //         }),
-    //     )
-    //     .await;
-
-    //     assert!(result == ControlFlow::Continue(input));
-    // }
-
-    // #[tokio::test]
-    // async fn test_handle_induction_case_break() {
-    //     let input = 123;
-    //     let output = "ABC";
-
-    //     let result = from_fn::<_, _, i32, _, _>(|event, cont: Handler<_, _>|
-    // {         assert!(event == input);
-    //         cont.dispatch(event)
-    //     })
-    //     .chain(from_fn(|event, _: TerminalCont| async move {
-    //         assert!(event == input);
-    //         ControlFlow::Continue(event)
-    //     }))
-    //     .handle(
-    //         input,
-    //         Arc::new(|event| async move {
-    //             assert!(event == input);
-    //             ControlFlow::Break(output)
-    //         }),
-    //     )
-    //     .await;
-
-    //     assert!(result == ControlFlow::Break(output));
-    // }
-
-    // #[tokio::test]
-    // async fn test_handle_induction_case_continue() {
-    //     let input = 123;
-    //     type Output = &'static str;
-
-    //     let result = from_fn(|event, cont: Handler<_, _>| {
-    //         assert!(event == input);
-    //         cont.dispatch(event)
-    //     })
-    //     .chain(from_fn(|event, _: TerminalCont| async move {
-    //         assert!(event == input);
-    //         ControlFlow::Continue(event)
-    //     }))
-    //     .handle(
-    //         input,
-    //         Arc::new(|event| async move {
-    //             assert!(event == input);
-    //             ControlFlow::<Output, _>::Continue(input)
-    //         }),
-    //     )
-    //     .await;
-
-    //     assert!(result == ControlFlow::Continue(input));
-    // }
-
-    // #[tokio::test]
-    // async fn test_tree() {
-    //     #[derive(Debug, PartialEq)]
-    //     enum Output {
-    //         Five,
-    //         One,
-    //         GT,
-    //     }
-
-    //     let dispatcher = entry::<_, _, TerminalCont>()
-    //         .branch(
-    //             filter(|&num| async move { num == 5 }).endpoint(|_| async
-    // move { Output::Five }),         )
-    //         .branch(filter(|&num| async move { num == 1 }).endpoint(|_| async
-    // move { Output::One }))         .branch(filter(|&num| async move { num
-    // > 2 }).endpoint(|_| async move { Output::GT }));
-
-    //     assert_eq!(dispatcher.clone().dispatch(5).await,
-    // ControlFlow::Break(Output::Five));     assert_eq!(dispatcher.clone().
-    // dispatch(1).await, ControlFlow::Break(Output::One));     assert_eq!
-    // (dispatcher.clone().dispatch(3).await, ControlFlow::Break(Output::GT));
-    //     assert_eq!(dispatcher.clone().dispatch(0).await,
-    // ControlFlow::Continue(0)); }
-
-    // #[tokio::test]
-    // async fn test_deeply_nested_tree() {
-    //     #[derive(Debug, PartialEq)]
-    //     enum Output {
-    //         LT,
-    //         MinusOne,
-    //         Zero,
-    //         One,
-    //         GT,
-    //     }
-
-    //     let negative_handler = filter::<_, _, _, _, TerminalCont>(|&num|
-    // async move { num < 0 })         .branch(
-    //             filter(|&num| async move { num == -1 })
-    //                 .endpoint(|_| async move { Output::MinusOne }),
-    //         )
-    //         .branch(endpoint(|_| async move { Output::LT }));
-
-    //     let zero_handler =
-    //         filter(|&num| async move { num == 0 }).endpoint(|_| async move {
-    // Output::Zero });
-
-    //     let positive_handler = filter::<_, _, _, _, TerminalCont>(|&num|
-    // async move { num > 0 })         .branch(filter(|&num| async move {
-    // num == 1 }).endpoint(|_| async move { Output::One }))
-    //         .branch(endpoint(|_| async move { Output::GT }));
-
-    //     let dispatcher = entry::<_, _, TerminalCont>()
-    //         .branch(negative_handler)
-    //         .branch(zero_handler)
-    //         .branch(positive_handler);
-
-    //     assert_eq!(dispatcher.clone().dispatch(2).await,
-    // ControlFlow::Break(Output::GT));     assert_eq!(dispatcher.clone().
-    // dispatch(1).await, ControlFlow::Break(Output::One));     assert_eq!
-    // (dispatcher.clone().dispatch(0).await, ControlFlow::Break(Output::Zero));
-    //     assert_eq!(dispatcher.clone().dispatch(-1).await,
-    // ControlFlow::Break(Output::MinusOne));     assert_eq!(dispatcher.
-    // clone().dispatch(-2).await, ControlFlow::Break(Output::LT)); }
+        assert_eq!(dispatcher.clone().dispatch(2).await, ControlFlow::Break(Output::GT));
+        assert_eq!(dispatcher.clone().dispatch(1).await, ControlFlow::Break(Output::One));
+        assert_eq!(dispatcher.clone().dispatch(0).await, ControlFlow::Break(Output::Zero));
+        assert_eq!(dispatcher.clone().dispatch(-1).await, ControlFlow::Break(Output::MinusOne));
+        assert_eq!(dispatcher.clone().dispatch(-2).await, ControlFlow::Break(Output::LT));
+    }
 }
