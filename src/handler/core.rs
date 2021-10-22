@@ -4,7 +4,7 @@ use futures::future::BoxFuture;
 
 pub struct Handler<'a, Input, Output, Intermediate>(
     Arc<
-        dyn for<'b> Fn(Input, Cont<'b, Intermediate, Output>) -> HandlerResult<'a, Input, Output>
+        dyn Fn(Input, Cont<'a, Intermediate, Output>) -> HandlerResult<'a, Input, Output>
             + Send
             + Sync
             + 'a,
@@ -108,7 +108,7 @@ where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
 {
-    from_fn(|event, cont| cont(event))
+    from_fn(|event, cont: Cont<'a, Input, Output>| cont(event))
 }
 
 #[cfg(test)]
