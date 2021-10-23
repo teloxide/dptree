@@ -117,8 +117,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    // use crate::handler::{endpoint::endpoint, filter};
-
     use crate::handler::{endpoint, filter};
 
     use super::*;
