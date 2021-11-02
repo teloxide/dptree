@@ -1,6 +1,7 @@
 // pub mod guides;
+#[cfg(feature = "di")]
+pub mod di;
 mod handler;
 pub mod prelude;
-pub mod store;
 
 pub use handler::*;

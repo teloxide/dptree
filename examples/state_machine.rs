@@ -8,7 +8,8 @@ use std::{
 
 use futures::future;
 
-use dptree::prelude::*;
+use dptree::{di::TypeMapDi, prelude::*};
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() {
@@ -23,10 +24,7 @@ async fn main() {
     repl(state, dispatcher).await
 }
 
-async fn repl(
-    mut state: CommandState,
-    dispatcher: Handler<'static, (Event, CommandState), CommandState>,
-) -> ! {
+async fn repl(mut state: CommandState, dispatcher: Handler<'static, Store, CommandState>) -> ! {
     loop {
         println!("|| Current state is {}", state);
         print!(">> ");
@@ -39,14 +37,16 @@ async fn repl(
         let event = Event::parse(str);
 
         let new_state = match event {
-            Some(event) => match dispatcher.clone().dispatch((event, state)).await {
-                ControlFlow::Break(state) => state,
-                ControlFlow::Continue((_, the_state)) => {
-                    println!("There is no transition for the event");
-                    state = the_state;
-                    continue;
+            Some(event) => {
+                let container = TypeMapDi::new().data(event).data(state.clone());
+                match dispatcher.clone().dispatch(container).await {
+                    ControlFlow::Break(new_state) => new_state,
+                    ControlFlow::Continue(_) => {
+                        println!("There is no transition for the event");
+                        continue;
+                    }
                 }
-            },
+            }
             _ => {
                 println!("Unknown event");
                 continue;
@@ -56,7 +56,7 @@ async fn repl(
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CommandState {
     Active,
     Paused,
@@ -97,60 +97,62 @@ impl Event {
     }
 }
 
-type Transition = Endpoint<'static, TransitionIn, TransitionOut>;
-type TransitionIn = (Event, CommandState);
+type Store = dptree::di::TypeMapDi;
+type Transition = Endpoint<'static, Store, TransitionOut>;
 type TransitionOut = CommandState;
 
 mod transitions {
     use super::*;
 
     pub fn begin() -> Transition {
-        dptree::filter(|(event, _)| future::ready(matches!(event, Event::Begin)))
-            .endpoint(|_| async { CommandState::Active })
+        dptree::filter(|event: Arc<Event>| future::ready(matches!(*event, Event::Begin)))
+            .endpoint(|| async { CommandState::Active })
     }
 
     pub fn pause() -> Transition {
-        dptree::filter(|(event, _)| future::ready(matches!(event, Event::Pause)))
-            .endpoint(|_| async { CommandState::Paused })
+        dptree::filter(|event: Arc<Event>| future::ready(matches!(*event, Event::Pause)))
+            .endpoint(|| async { CommandState::Paused })
     }
 
     pub fn end() -> Transition {
-        dptree::filter(|(event, _)| future::ready(matches!(event, Event::End)))
-            .endpoint(|_| async { CommandState::Inactive })
+        dptree::filter(|event: Arc<Event>| future::ready(matches!(*event, Event::End)))
+            .endpoint(|| async { CommandState::Inactive })
     }
 
     pub fn resume() -> Transition {
-        dptree::filter(|(event, _)| future::ready(matches!(event, Event::Resume)))
-            .endpoint(|_| async { CommandState::Active })
+        dptree::filter(|event: Arc<Event>| future::ready(matches!(*event, Event::Resume)))
+            .endpoint(|| async { CommandState::Active })
     }
 
     pub fn exit() -> Transition {
-        dptree::filter(|(event, _)| future::ready(matches!(event, Event::Exit)))
-            .endpoint(|_| async { CommandState::Exit })
+        dptree::filter(|event: Arc<Event>| future::ready(matches!(*event, Event::Exit)))
+            .endpoint(|| async { CommandState::Exit })
     }
 }
 
-type FsmHandler = Handler<'static, TransitionIn, TransitionOut>;
+type FsmHandler = Handler<'static, Store, TransitionOut>;
 
 fn active_handler() -> FsmHandler {
-    dptree::filter(|(_, state)| future::ready(matches!(state, CommandState::Active)))
+    dptree::filter(|state: Arc<CommandState>| future::ready(matches!(*state, CommandState::Active)))
         .branch(transitions::pause())
         .branch(transitions::end())
 }
 
 fn paused_handler() -> FsmHandler {
-    dptree::filter(|(_, state)| future::ready(matches!(state, CommandState::Paused)))
+    dptree::filter(|state: Arc<CommandState>| future::ready(matches!(*state, CommandState::Paused)))
         .branch(transitions::resume())
         .branch(transitions::end())
 }
 
 fn inactive_handler() -> FsmHandler {
-    dptree::filter(|(_, state)| future::ready(matches!(state, CommandState::Inactive)))
-        .branch(transitions::begin())
-        .branch(transitions::exit())
+    dptree::filter(|state: Arc<CommandState>| {
+        future::ready(matches!(*state, CommandState::Inactive))
+    })
+    .branch(transitions::begin())
+    .branch(transitions::exit())
 }
 
 fn exit_handler() -> FsmHandler {
-    dptree::filter(|(_, state)| future::ready(matches!(state, CommandState::Exit)))
+    dptree::filter(|state: Arc<CommandState>| future::ready(matches!(*state, CommandState::Exit)))
         .branch(transitions::exit())
 }

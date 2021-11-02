@@ -1,14 +1,16 @@
-use crate::handler::core::{from_fn, Handler};
-use std::{future::Future, ops::ControlFlow, sync::Arc};
+use crate::{
+    handler::core::{from_fn, Handler},
+    IntoDiFunc,
+};
+use std::{ops::ControlFlow, sync::Arc};
 
-pub fn filter<'a, Pred, Fut, Input, Output>(pred: Pred) -> Handler<'a, Input, Output>
+pub fn filter<'a, Pred, Input, Output, Args>(pred: Pred) -> Handler<'a, Input, Output>
 where
-    Pred: Fn(&Input) -> Fut + Send + Sync + 'a,
-    Fut: Future<Output = bool> + Send + Sync,
+    Pred: IntoDiFunc<Input, bool, Args>,
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
 {
-    let pred = Arc::new(pred);
+    let pred = pred.into();
 
     from_fn(move |event, cont| {
         let pred = Arc::clone(&pred);
@@ -26,18 +28,20 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::di::Value;
 
     #[tokio::test]
     async fn test_filter() {
-        let input = 123;
+        let input_value = 123;
+        let input = Value::new(input_value);
         let output = 7;
 
-        let result = filter(|&event| async move {
-            assert_eq!(event, input);
+        let result = filter(move |event: Arc<i32>| async move {
+            assert_eq!(*event, input_value);
             true
         })
-        .endpoint(|event| async move {
-            assert_eq!(event, input);
+        .endpoint(move |event: Arc<i32>| async move {
+            assert_eq!(*event, input_value);
             output
         })
         .dispatch(input)
@@ -51,21 +55,21 @@ mod tests {
         let input = 123;
         let output = 7;
 
-        let result = filter(|&event: &i32| async move {
-            assert_eq!(event, input);
+        let result = filter(move |event: Arc<i32>| async move {
+            assert_eq!(*event, input);
             true
         })
         .chain(
-            filter(|&event| async move {
-                assert_eq!(event, input);
+            filter(move |event: Arc<i32>| async move {
+                assert_eq!(*event, input);
                 true
             })
-            .endpoint(|event| async move {
-                assert_eq!(event, input);
+            .endpoint(move |event: Arc<i32>| async move {
+                assert_eq!(*event, input);
                 output
             }),
         )
-        .dispatch(input)
+        .dispatch(Value::new(input))
         .await;
 
         assert!(result == ControlFlow::Break(output));
