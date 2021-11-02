@@ -120,6 +120,7 @@ mod tests {
     use crate::handler::{endpoint, filter};
 
     use super::*;
+    use crate::di::Value;
 
     #[tokio::test]
     async fn test_from_fn_break() {
@@ -190,15 +191,34 @@ mod tests {
 
         let dispatcher = entry()
             .branch(
-                filter(|&num: &i32| async move { num == 5 }).endpoint(|| async move { Output::Five }),
+                filter(|num: Arc<i32>| async move { *num == 5 })
+                    .endpoint(|| async move { Output::Five }),
             )
-            .branch(filter(|&num| async move { num == 1 }).endpoint(|_| async move { Output::One }))
-            .branch(filter(|&num| async move { num > 2 }).endpoint(|_| async move { Output::GT }));
+            .branch(
+                filter(|num: Arc<i32>| async move { *num == 1 })
+                    .endpoint(|| async move { Output::One }),
+            )
+            .branch(
+                filter(|num: Arc<i32>| async move { *num > 2 })
+                    .endpoint(|| async move { Output::GT }),
+            );
 
-        assert_eq!(dispatcher.clone().dispatch(5).await, ControlFlow::Break(Output::Five));
-        assert_eq!(dispatcher.clone().dispatch(1).await, ControlFlow::Break(Output::One));
-        assert_eq!(dispatcher.clone().dispatch(3).await, ControlFlow::Break(Output::GT));
-        assert_eq!(dispatcher.clone().dispatch(0).await, ControlFlow::Continue(0));
+        assert_eq!(
+            dispatcher.clone().dispatch(Value::new(5)).await,
+            ControlFlow::Break(Output::Five)
+        );
+        assert_eq!(
+            dispatcher.clone().dispatch(Value::new(1)).await,
+            ControlFlow::Break(Output::One)
+        );
+        assert_eq!(
+            dispatcher.clone().dispatch(Value::new(3)).await,
+            ControlFlow::Break(Output::GT)
+        );
+        assert_eq!(
+            dispatcher.clone().dispatch(Value::new(0)).await,
+            ControlFlow::Continue(Value::new(0))
+        );
     }
 
     #[tokio::test]
@@ -212,27 +232,45 @@ mod tests {
             GT,
         }
 
-        let negative_handler = filter(|&num| async move { num < 0 })
+        let negative_handler = filter(|num: Arc<i32>| async move { *num < 0 })
             .branch(
-                filter(|&num| async move { num == -1 })
-                    .endpoint(|_| async move { Output::MinusOne }),
+                filter(|num: Arc<i32>| async move { *num == -1 })
+                    .endpoint(|| async move { Output::MinusOne }),
             )
-            .branch(endpoint(|_| async move { Output::LT }));
+            .branch(endpoint(|| async move { Output::LT }));
 
-        let zero_handler =
-            filter(|&num| async move { num == 0 }).endpoint(|_| async move { Output::Zero });
+        let zero_handler = filter(|num: Arc<i32>| async move { *num == 0 })
+            .endpoint(|| async move { Output::Zero });
 
-        let positive_handler = filter(|&num| async move { num > 0 })
-            .branch(filter(|&num| async move { num == 1 }).endpoint(|_| async move { Output::One }))
-            .branch(endpoint(|_| async move { Output::GT }));
+        let positive_handler = filter(|num: Arc<i32>| async move { *num > 0 })
+            .branch(
+                filter(|num: Arc<i32>| async move { *num == 1 })
+                    .endpoint(|| async move { Output::One }),
+            )
+            .branch(endpoint(|| async move { Output::GT }));
 
         let dispatcher =
             entry().branch(negative_handler).branch(zero_handler).branch(positive_handler);
 
-        assert_eq!(dispatcher.clone().dispatch(2).await, ControlFlow::Break(Output::GT));
-        assert_eq!(dispatcher.clone().dispatch(1).await, ControlFlow::Break(Output::One));
-        assert_eq!(dispatcher.clone().dispatch(0).await, ControlFlow::Break(Output::Zero));
-        assert_eq!(dispatcher.clone().dispatch(-1).await, ControlFlow::Break(Output::MinusOne));
-        assert_eq!(dispatcher.clone().dispatch(-2).await, ControlFlow::Break(Output::LT));
+        assert_eq!(
+            dispatcher.clone().dispatch(Value::new(2)).await,
+            ControlFlow::Break(Output::GT)
+        );
+        assert_eq!(
+            dispatcher.clone().dispatch(Value::new(1)).await,
+            ControlFlow::Break(Output::One)
+        );
+        assert_eq!(
+            dispatcher.clone().dispatch(Value::new(0)).await,
+            ControlFlow::Break(Output::Zero)
+        );
+        assert_eq!(
+            dispatcher.clone().dispatch(Value::new(-1)).await,
+            ControlFlow::Break(Output::MinusOne)
+        );
+        assert_eq!(
+            dispatcher.clone().dispatch(Value::new(-2)).await,
+            ControlFlow::Break(Output::LT)
+        );
     }
 }
