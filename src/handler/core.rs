@@ -2,6 +2,11 @@ use std::{future::Future, ops::ControlFlow, sync::Arc};
 
 use futures::future::BoxFuture;
 
+/// Struct that handles input values and returns some output. You can think of
+/// it as a function that do some calculations.
+///
+/// You must not create it directly by yourself. Instead, you can use predefined
+/// functions from `dptree::handler` mod.
 pub struct Handler<'a, Input, Output, Intermediate = Input>(
     #[allow(clippy::type_complexity)]
     Arc<
@@ -12,9 +17,11 @@ pub struct Handler<'a, Input, Output, Intermediate = Input>(
     >,
 );
 
+/// Continuation of the handler, which will be called if handler want it.
 pub type Cont<'a, Intermediate, Output> =
     Box<dyn Fn(Intermediate) -> HandlerResult<'a, Intermediate, Output> + Send + Sync + 'a>;
 
+/// Output of the `Handler`
 pub type HandlerResult<'a, Input, Output> = BoxFuture<'a, ControlFlow<Output, Input>>;
 
 // `#[derive(Clone)]` obligates all type parameters to satisfy `Clone` as well,
@@ -31,6 +38,32 @@ where
     Output: Send + Sync + 'a,
     Intermediate: Send + Sync + 'a,
 {
+    /// Chain two handlers to form a [Chain of responsibility].
+    ///
+    /// When executed, first will be executed `self` handler, and then, if
+    /// `self` has been executed successfully, `next` handler will be
+    /// executed.
+    ///
+    /// Example:
+    /// ```
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// use dptree::{di::Value, prelude::*};
+    /// use std::ops::ControlFlow;
+    ///
+    /// let handler = dptree::filter(|x: Arc<i32>| async move { *x > 0 })
+    ///     .chain(dptree::endpoint(|| async { "done" }));
+    ///
+    /// assert_eq!(handler.clone().dispatch(Value::new(10)).await, ControlFlow::Break("done"));
+    /// assert_eq!(
+    ///     handler.clone().dispatch(Value::new(-10)).await,
+    ///     ControlFlow::Continue(Value::new(-10))
+    /// );
+    ///
+    /// # }
+    /// ```
+    ///
+    /// [Chain of responsibility]: https://en.wikipedia.org/wiki/Chain-of-responsibility_pattern
     pub fn chain<Intermediate2>(
         self,
         next: Handler<'a, Intermediate, Output, Intermediate2>,

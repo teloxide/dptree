@@ -9,7 +9,6 @@ use std::{
 use futures::future;
 
 use dptree::{di::TypeMapDi, prelude::*};
-use std::sync::Arc;
 
 #[tokio::main]
 async fn main() {
