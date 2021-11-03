@@ -1,6 +1,6 @@
 use crate::{
+    di_fn::IntoDiFn,
     handler::core::{from_fn, Handler},
-    IntoDiFn,
 };
 use std::{ops::ControlFlow, sync::Arc};
 
