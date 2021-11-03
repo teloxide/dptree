@@ -38,7 +38,7 @@ async fn repl(mut state: CommandState, dispatcher: Handler<'static, Store, Comma
         let new_state = match event {
             Some(event) => {
                 let container = TypeMapDi::new().data(event).data(state.clone());
-                match dispatcher.clone().dispatch(container).await {
+                match dispatcher.dispatch(container).await {
                     ControlFlow::Break(new_state) => new_state,
                     ControlFlow::Continue(_) => {
                         println!("There is no transition for the event");

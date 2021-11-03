@@ -54,11 +54,8 @@ where
     /// let handler = dptree::filter(|x: Arc<i32>| async move { *x > 0 })
     ///     .chain(dptree::endpoint(|| async { "done" }));
     ///
-    /// assert_eq!(handler.clone().dispatch(Value::new(10)).await, ControlFlow::Break("done"));
-    /// assert_eq!(
-    ///     handler.clone().dispatch(Value::new(-10)).await,
-    ///     ControlFlow::Continue(Value::new(-10))
-    /// );
+    /// assert_eq!(handler.dispatch(Value::new(10)).await, ControlFlow::Break("done"));
+    /// assert_eq!(handler.dispatch(Value::new(-10)).await, ControlFlow::Continue(Value::new(-10)));
     ///
     /// # }
     /// ```
@@ -125,8 +122,8 @@ where
         (self.0)(event, Box::new(move |event| Box::pin(cont(event)))).await
     }
 
-    pub async fn dispatch(self, container: Input) -> ControlFlow<Output, Input> {
-        self.execute(container, |event| async move { ControlFlow::Continue(event) }).await
+    pub async fn dispatch(&self, container: Input) -> ControlFlow<Output, Input> {
+        self.clone().execute(container, |event| async move { ControlFlow::Continue(event) }).await
     }
 }
 
@@ -236,22 +233,10 @@ mod tests {
                     .endpoint(|| async move { Output::GT }),
             );
 
-        assert_eq!(
-            dispatcher.clone().dispatch(Value::new(5)).await,
-            ControlFlow::Break(Output::Five)
-        );
-        assert_eq!(
-            dispatcher.clone().dispatch(Value::new(1)).await,
-            ControlFlow::Break(Output::One)
-        );
-        assert_eq!(
-            dispatcher.clone().dispatch(Value::new(3)).await,
-            ControlFlow::Break(Output::GT)
-        );
-        assert_eq!(
-            dispatcher.clone().dispatch(Value::new(0)).await,
-            ControlFlow::Continue(Value::new(0))
-        );
+        assert_eq!(dispatcher.dispatch(Value::new(5)).await, ControlFlow::Break(Output::Five));
+        assert_eq!(dispatcher.dispatch(Value::new(1)).await, ControlFlow::Break(Output::One));
+        assert_eq!(dispatcher.dispatch(Value::new(3)).await, ControlFlow::Break(Output::GT));
+        assert_eq!(dispatcher.dispatch(Value::new(0)).await, ControlFlow::Continue(Value::new(0)));
     }
 
     #[tokio::test]
@@ -285,25 +270,10 @@ mod tests {
         let dispatcher =
             entry().branch(negative_handler).branch(zero_handler).branch(positive_handler);
 
-        assert_eq!(
-            dispatcher.clone().dispatch(Value::new(2)).await,
-            ControlFlow::Break(Output::GT)
-        );
-        assert_eq!(
-            dispatcher.clone().dispatch(Value::new(1)).await,
-            ControlFlow::Break(Output::One)
-        );
-        assert_eq!(
-            dispatcher.clone().dispatch(Value::new(0)).await,
-            ControlFlow::Break(Output::Zero)
-        );
-        assert_eq!(
-            dispatcher.clone().dispatch(Value::new(-1)).await,
-            ControlFlow::Break(Output::MinusOne)
-        );
-        assert_eq!(
-            dispatcher.clone().dispatch(Value::new(-2)).await,
-            ControlFlow::Break(Output::LT)
-        );
+        assert_eq!(dispatcher.dispatch(Value::new(2)).await, ControlFlow::Break(Output::GT));
+        assert_eq!(dispatcher.dispatch(Value::new(1)).await, ControlFlow::Break(Output::One));
+        assert_eq!(dispatcher.dispatch(Value::new(0)).await, ControlFlow::Break(Output::Zero));
+        assert_eq!(dispatcher.dispatch(Value::new(-1)).await, ControlFlow::Break(Output::MinusOne));
+        assert_eq!(dispatcher.dispatch(Value::new(-2)).await, ControlFlow::Break(Output::LT));
     }
 }

@@ -53,7 +53,7 @@ async fn repl(dispatcher: Handler<'static, Store, String>, store: Arc<AtomicI32>
             Some(event) => {
                 let container = TypeMapDi::new().data(event).data(store.clone());
 
-                match dispatcher.clone().dispatch(container).await {
+                match dispatcher.dispatch(container).await {
                     ControlFlow::Continue(event) => panic!("Unhandled event {:?}", event),
                     ControlFlow::Break(result) => result,
                 }
