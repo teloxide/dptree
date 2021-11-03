@@ -1,4 +1,4 @@
-use crate::di::DiContainer;
+use crate::container::DiContainer;
 
 use crate::{from_fn, Handler};
 use futures::{future::BoxFuture, FutureExt};
@@ -86,7 +86,7 @@ impl_into_di!(A, B, C, D, E, F, G, H, I);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::di::TypeMapDi;
+    use crate::container::TypeMapDi;
 
     #[tokio::test]
     async fn test_endpoint() {

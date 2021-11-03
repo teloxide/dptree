@@ -28,7 +28,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::di::Value;
+    use crate::container::Value;
 
     #[tokio::test]
     async fn test_filter() {

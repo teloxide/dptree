@@ -1,4 +1,4 @@
-use dptree::{di::TypeMapDi, prelude::*};
+use dptree::{container::TypeMapDi, prelude::*};
 use std::{net::Ipv4Addr, sync::Arc};
 
 type Store = Arc<TypeMapDi>;

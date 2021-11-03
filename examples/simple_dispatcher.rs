@@ -24,7 +24,7 @@ use std::{
     },
 };
 
-use dptree::{di::TypeMapDi, prelude::*};
+use dptree::{container::TypeMapDi, prelude::*};
 
 #[tokio::main]
 async fn main() {

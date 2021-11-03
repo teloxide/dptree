@@ -1,6 +1,6 @@
 use std::{ops::ControlFlow, sync::Arc};
 
-use crate::{di::DiContainer, from_fn, Handler};
+use crate::{container::DiContainer, from_fn, Handler};
 
 pub fn parser<'a, Projection, Input, IT, OT, Output, Intermediate>(
     proj: Projection,
@@ -45,7 +45,7 @@ pub trait Replace<From, To> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::di::Value;
+    use crate::container::Value;
 
     #[tokio::test]
     async fn test_some() {

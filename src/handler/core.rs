@@ -48,7 +48,7 @@ where
     /// ```
     /// # #[tokio::main]
     /// # async fn main() {
-    /// use dptree::{di::Value, prelude::*};
+    /// use dptree::{container::Value, prelude::*};
     /// use std::ops::ControlFlow;
     ///
     /// let handler = dptree::filter(|x: Arc<i32>| async move { *x > 0 })
@@ -93,7 +93,7 @@ where
     ///
     /// Example:
     /// ```
-    /// use dptree::{di::Value, prelude::*};
+    /// use dptree::{container::Value, prelude::*};
     /// use std::ops::ControlFlow;
     ///
     /// # #[tokio::main]
@@ -162,7 +162,7 @@ where
     /// ```
     /// # #[tokio::main]
     /// # async fn main() {
-    /// use dptree::{di::Value, prelude::*};
+    /// use dptree::{container::Value, prelude::*};
     /// use std::ops::ControlFlow;
     ///
     /// let handler = dptree::filter(|x: Arc<i32>| async move { *x > 0 });
@@ -225,7 +225,7 @@ mod tests {
     use crate::handler::{endpoint, filter};
 
     use super::*;
-    use crate::di::Value;
+    use crate::container::Value;
 
     #[tokio::test]
     async fn test_from_fn_break() {

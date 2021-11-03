@@ -8,7 +8,7 @@ use std::{
 
 use futures::future;
 
-use dptree::{di::TypeMapDi, prelude::*};
+use dptree::{container::TypeMapDi, prelude::*};
 
 #[tokio::main]
 async fn main() {
@@ -96,7 +96,7 @@ impl Event {
     }
 }
 
-type Store = dptree::di::TypeMapDi;
+type Store = dptree::container::TypeMapDi;
 type Transition = Endpoint<'static, Store, TransitionOut>;
 type TransitionOut = CommandState;
 
