@@ -52,7 +52,7 @@ macro_rules! impl_into_di {
     ($($generic:ident),*) => {
         impl<Func, Input, Output, Fut, $($generic),*> IntoDiFn<Input, Output, (Fut, $($generic),*)> for Func
         where
-            $(Input: DiContainer<$generic>,)*
+            Input: $(DiContainer<$generic> +)*,
             Func: Fn($(Arc<$generic>),*) -> Fut + Send + Sync + 'static,
             Fut: Future<Output = Output> + Send + Sync + 'static,
             $($generic: Send + Sync),*
@@ -63,11 +63,9 @@ macro_rules! impl_into_di {
                 let this = Arc::new(self);
                 Arc::new(move |input: &Input| {
                     let this = this.clone();
-                    $(let $generic = {
-                        let x = input.get();
-                        x
-                    };)*
-                    Box::pin(this($($generic),*))
+                    $(let $generic = input.get();)*
+                    let fut = this( $( $generic ),* );
+                    Box::pin(fut)
                 })
             }
         }
