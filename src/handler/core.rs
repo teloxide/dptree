@@ -83,6 +83,49 @@ where
         })
     }
 
+    /// Chain two handlers to make a tree.
+    ///
+    /// When executed, first will be executed `self` handler, and then, if
+    /// `self` has been executed successfully, `next` handler will be
+    /// executed. If `next` handler returns `ControlFlow::Break`, execution will
+    /// stop, otherwise next handler added by `Handler::branch` will be
+    /// executed.
+    ///
+    /// Example:
+    /// ```
+    /// use dptree::{di::Value, prelude::*};
+    /// use std::ops::ControlFlow;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    ///
+    /// #[derive(Debug, PartialEq)]
+    /// enum Output {
+    ///     Five,
+    ///     One,
+    ///     GT,
+    /// }
+    ///
+    /// let dispatcher = dptree::entry()
+    ///     .branch(
+    ///         dptree::filter(|num: Arc<i32>| async move { *num == 5 })
+    ///             .endpoint(|| async move { Output::Five }),
+    ///     )
+    ///     .branch(
+    ///         dptree::filter(|num: Arc<i32>| async move { *num == 1 })
+    ///             .endpoint(|| async move { Output::One }),
+    ///     )
+    ///     .branch(
+    ///         dptree::filter(|num: Arc<i32>| async move { *num > 2 })
+    ///             .endpoint(|| async move { Output::GT }),
+    ///     );
+    ///
+    /// assert_eq!(dispatcher.dispatch(Value::new(5)).await, ControlFlow::Break(Output::Five));
+    /// assert_eq!(dispatcher.dispatch(Value::new(1)).await, ControlFlow::Break(Output::One));
+    /// assert_eq!(dispatcher.dispatch(Value::new(3)).await, ControlFlow::Break(Output::GT));
+    /// assert_eq!(dispatcher.dispatch(Value::new(0)).await, ControlFlow::Continue(Value::new(0)));
+    /// # }
+    /// ```
     pub fn branch<Intermediate2>(
         self,
         next: Handler<'a, Intermediate, Output, Intermediate2>,
@@ -208,35 +251,6 @@ mod tests {
         .await;
 
         assert!(result == ControlFlow::Break(output));
-    }
-
-    #[tokio::test]
-    async fn test_tree() {
-        #[derive(Debug, PartialEq)]
-        enum Output {
-            Five,
-            One,
-            GT,
-        }
-
-        let dispatcher = entry()
-            .branch(
-                filter(|num: Arc<i32>| async move { *num == 5 })
-                    .endpoint(|| async move { Output::Five }),
-            )
-            .branch(
-                filter(|num: Arc<i32>| async move { *num == 1 })
-                    .endpoint(|| async move { Output::One }),
-            )
-            .branch(
-                filter(|num: Arc<i32>| async move { *num > 2 })
-                    .endpoint(|| async move { Output::GT }),
-            );
-
-        assert_eq!(dispatcher.dispatch(Value::new(5)).await, ControlFlow::Break(Output::Five));
-        assert_eq!(dispatcher.dispatch(Value::new(1)).await, ControlFlow::Break(Output::One));
-        assert_eq!(dispatcher.dispatch(Value::new(3)).await, ControlFlow::Break(Output::GT));
-        assert_eq!(dispatcher.dispatch(Value::new(0)).await, ControlFlow::Continue(Value::new(0)));
     }
 
     #[tokio::test]
