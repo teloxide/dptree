@@ -10,6 +10,7 @@ where
     Output: Send + Sync + 'a,
     Intermediate: Send + Sync + 'a,
 {
+    /// Chain self handler with `endpoint` handler.
     pub fn endpoint<F, Args>(self, endp: F) -> Endpoint<'a, Input, Output>
     where
         F: IntoDiFunc<Intermediate, Output, Args>,
@@ -18,6 +19,9 @@ where
     }
 }
 
+/// Create endpoint handler.
+///
+/// Endpoint is a handler that _always_ break execution after its completion.
 pub fn endpoint<'a, F, Input, Output, Args>(f: F) -> Endpoint<'a, Input, Output>
 where
     Input: Send + Sync + 'a,

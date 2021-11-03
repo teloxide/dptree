@@ -152,6 +152,26 @@ where
         })
     }
 
+    /// Execute handler with specified continuation.
+    ///
+    /// Usually, you do not want to call this method by yourself, if you do not
+    /// write your own handler. If you wish to execute handler without
+    /// continuation, take a look at the `Handler::dispatch` method.
+    ///
+    /// Example:
+    /// ```
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// use dptree::{di::Value, prelude::*};
+    /// use std::ops::ControlFlow;
+    ///
+    /// let handler = dptree::filter(|x: Arc<i32>| async move { *x > 0 });
+    ///
+    /// let output = handler.execute(Value::new(10), |_| async { ControlFlow::Break("done") }).await;
+    /// assert_eq!(output, ControlFlow::Break("done"));
+    ///
+    /// # }
+    /// ```
     pub async fn execute<Cont, ContFut>(
         self,
         event: Input,
@@ -165,11 +185,19 @@ where
         (self.0)(event, Box::new(move |event| Box::pin(cont(event)))).await
     }
 
+    /// Execute handler with specified container.
+    ///
+    /// Returns `ControlFlow::Break` when executed successfully,
+    /// `ControlFlow::Continue` otherwise.
     pub async fn dispatch(&self, container: Input) -> ControlFlow<Output, Input> {
         self.clone().execute(container, |event| async move { ControlFlow::Continue(event) }).await
     }
 }
 
+/// Constructor for the `Handler` struct.
+///
+/// Usually you do not want to use this func. Take a look at the functions
+/// available in the root of the crate.
 pub fn from_fn<'a, F, Fut, Input, Output, Intermediate>(
     f: F,
 ) -> Handler<'a, Input, Output, Intermediate>
@@ -180,6 +208,10 @@ where
     Handler(Arc::new(move |event, cont| Box::pin(f(event, cont))))
 }
 
+/// Create empty handler.
+///
+/// Convenient way to start building handler, because it provide all functions
+/// to build chained handler: `filter`, `parser`, `endpoint`, etc.
 pub fn entry<'a, Input, Output>() -> Handler<'a, Input, Output, Input>
 where
     Input: Send + Sync + 'a,
