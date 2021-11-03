@@ -1,12 +1,12 @@
 use crate::{
     handler::core::{from_fn, Handler},
-    IntoDiFunc,
+    IntoDiFn,
 };
 use std::{ops::ControlFlow, sync::Arc};
 
-pub fn filter<'a, Pred, Input, Output, Args>(pred: Pred) -> Handler<'a, Input, Output>
+pub fn filter<'a, Pred, Input, Output, FnArgs>(pred: Pred) -> Handler<'a, Input, Output>
 where
-    Pred: IntoDiFunc<Input, bool, Args>,
+    Pred: IntoDiFn<Input, bool, FnArgs>,
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
 {

@@ -11,9 +11,9 @@ where
     Intermediate: Send + Sync + 'a,
 {
     /// Chain self handler with `endpoint` handler.
-    pub fn endpoint<F, Args>(self, endp: F) -> Endpoint<'a, Input, Output>
+    pub fn endpoint<F, FnArgs>(self, endp: F) -> Endpoint<'a, Input, Output>
     where
-        F: IntoDiFunc<Intermediate, Output, Args>,
+        F: IntoDiFn<Intermediate, Output, FnArgs>,
     {
         self.chain(endpoint(endp))
     }
@@ -22,11 +22,11 @@ where
 /// Create endpoint handler.
 ///
 /// Endpoint is a handler that _always_ break execution after its completion.
-pub fn endpoint<'a, F, Input, Output, Args>(f: F) -> Endpoint<'a, Input, Output>
+pub fn endpoint<'a, F, Input, Output, FnArgs>(f: F) -> Endpoint<'a, Input, Output>
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
-    F: IntoDiFunc<Input, Output, Args>,
+    F: IntoDiFn<Input, Output, FnArgs>,
 {
     let func = f.into();
     from_fn(move |x, _cont| {
@@ -40,17 +40,17 @@ where
     })
 }
 
-pub trait IntoDiFunc<Input, Output, Args> {
-    fn into(self) -> DiFunc<Input, Output>;
+pub trait IntoDiFn<Input, Output, FnArgs> {
+    fn into(self) -> DiFn<Input, Output>;
 }
 
 pub type Endpoint<'a, Input, Output> = Handler<'a, Input, Output, Infallible>;
-pub type DiFunc<Input, Output> =
+pub type DiFn<Input, Output> =
     Arc<dyn for<'a> Fn(&'a Input) -> BoxFuture<'a, Output> + Send + Sync + 'static>;
 
 macro_rules! impl_into_di {
     ($($generic:ident),*) => {
-        impl<Func, Input, Output, Fut, $($generic),*> IntoDiFunc<Input, Output, (Fut, $($generic),*)> for Func
+        impl<Func, Input, Output, Fut, $($generic),*> IntoDiFn<Input, Output, (Fut, $($generic),*)> for Func
         where
             $(Input: DiContainer<$generic>,)*
             Func: Fn($(Arc<$generic>),*) -> Fut + Send + Sync + 'static,
@@ -59,7 +59,7 @@ macro_rules! impl_into_di {
         {
             #[allow(non_snake_case)]
             #[allow(unused_variables)]
-            fn into(self) -> DiFunc<Input, Output> {
+            fn into(self) -> DiFn<Input, Output> {
                 let this = Arc::new(self);
                 Arc::new(move |input: &Input| {
                     let this = this.clone();
