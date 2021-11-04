@@ -99,11 +99,6 @@ impl TypeMapDi {
         Self { map: HashMap::new() }
     }
 
-    pub fn data<T: Send + Sync + 'static>(mut self, value: T) -> Self {
-        self.insert(value);
-        self
-    }
-
     pub fn insert<T: Send + Sync + 'static>(&mut self, item: T) {
         self.map.insert(TypeId::of::<T>(), Arc::new(item));
     }
