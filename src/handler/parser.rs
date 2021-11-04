@@ -2,6 +2,50 @@ use std::{ops::ControlFlow, sync::Arc};
 
 use crate::{container::DiContainer, from_fn, Handler};
 
+#[rustfmt::skip] // rustfmt too bad in formatting lists
+/// Create handler that try to parse one input value from container into
+/// another.
+///
+/// How it works:
+///
+/// 1. Handler get value of type `A` specified in the parser function from input container.
+/// 2. Handler call parser function, and pass input value `A` into a function.
+/// 3. If the function returns `None`, then handler returns `ControlFlow::Continue`.
+/// 4. Otherwise if the function returns `Some(B)`, handler replace `A` type with `B` type in the container.
+/// 5. Handler call continuation with new container with `B` type.
+/// 6. If next handler returns `ControlFlow::Continue`, handler replace value `B` with `A`.
+///
+/// Example:
+/// ```
+/// # #[tokio::main]
+/// # async fn main() {
+/// use dptree::{container::Value, prelude::*};
+/// use std::ops::ControlFlow;
+///
+/// #[derive(Debug, PartialEq)]
+/// enum StringOrInt {
+///     String(String),
+///     Int(i32),
+/// }
+///
+/// let handler = dptree::parser(|x: &StringOrInt| match x {
+///     StringOrInt::String(s) => s.parse().ok(),
+///     StringOrInt::Int(int) => Some(*int),
+/// })
+/// .endpoint(|value: Arc<i32>| async move { *value });
+///
+/// assert_eq!(handler.dispatch(Value::new(StringOrInt::Int(10))).await, ControlFlow::Break(10));
+/// assert_eq!(
+///     handler.dispatch(Value::new(StringOrInt::String("10".into()))).await,
+///     ControlFlow::Break(10)
+/// );
+/// assert!(matches!(
+///     handler.dispatch(Value::new(StringOrInt::String("NaN".into()))).await,
+///     ControlFlow::Continue(_)
+/// ));
+///
+/// # }
+/// ```
 pub fn parser<'a, Projection, Input, IT, OT, Output, Intermediate>(
     proj: Projection,
 ) -> Handler<'a, Input, Output, Intermediate>

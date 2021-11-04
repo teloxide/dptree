@@ -1,3 +1,24 @@
+//! Traits and implementations of [Dependency Injection pattern].
+//!
+//! If you do not know what is DI (dependency injection), please, read [this
+//! discussion on StackOverflow], then come back. Only difference that in
+//! `dptree` we inject objects into functions-handlers, not in objects.
+//!
+//! Most important trait here is `DiContainer`. It must be implemented for all
+//! DI containers. It specify types that can be obtained from DI container.
+//!
+//! There are two implementations in `dptree` of this trait:
+//! 1. `Value`. It always contain only one value. Use it where you want to pass
+//! only one value to the handlers. 2. `TypeMapDi`. It implements DI pattern
+//! fully, but be careful: it can panic when you do not provide necessary types.
+//! See more in its documentation.
+//!
+//! We strongly not recommend to use these implementations in production code,
+//! because of its inefficient. You can use them for testing or prototyping, but
+//! we recommend to switch on implementations of foreign `DI` libraries ASAP.
+//!
+//! [Dependency Injection pattern]: https://en.wikipedia.org/wiki/Dependency_injection
+//! [this discussion on StackOverflow]: https://stackoverflow.com/questions/130794/what-is-dependency-injection
 use crate::Replace;
 use std::{
     any::{Any, TypeId},
@@ -7,12 +28,42 @@ use std::{
     sync::Arc,
 };
 
-/// The trait is used to specify data type as storing some value `Value`. Means
-/// that `Value` can be obtained by-value.
+/// The trait is used to specify container that can return value of specified
+/// type.
+///
+/// There are two possible ways to handle situation when container cannot return
+/// value of specified type:
+///
+/// 1. Container may not implement `DiContainer` for the type.
+/// It often requires some type-level manipulations.
+/// 2. Container can panic in the runtime. Be careful in this case,
+/// and check whether you add you type to container.
+///
+/// Concrete solution is chosen by implementation.
 pub trait DiContainer<Value> {
+    /// Get value.
+    ///
+    /// We assume that all values are stored in `Arc<_>`.
     fn get(&self) -> Arc<Value>;
 }
 
+/// Container that store only one value.
+///
+/// Primarily used in tests, but can be also used in the handlers which require
+/// only one input value.
+///
+/// ```
+/// # #[tokio::main]
+/// # async fn main() {
+/// use dptree::{container::Value, prelude::*};
+/// use std::ops::ControlFlow;
+///
+/// let handler = dptree::endpoint(|x: Arc<i32>| async move { *x });
+///
+/// assert_eq!(handler.dispatch(Value::new(10)).await, ControlFlow::Break(10));
+///
+/// # }
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct Value<T>(pub Arc<T>);
 
@@ -36,7 +87,9 @@ impl<From, To> Replace<From, To> for Value<From> {
     }
 }
 
-/// Panickable realisation for the `Store` trait.
+/// DI container using TypeMap pattern.
+///
+/// TODO: doc
 pub struct TypeMapDi {
     map: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
 }

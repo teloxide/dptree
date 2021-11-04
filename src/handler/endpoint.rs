@@ -19,7 +19,8 @@ where
 
 /// Create endpoint handler.
 ///
-/// Endpoint is a handler that _always_ break handler execution after its completion.
+/// Endpoint is a handler that _always_ break handler execution after its
+/// completion.
 pub fn endpoint<'a, F, Input, Output, FnArgs>(f: F) -> Endpoint<'a, Input, Output>
 where
     Input: Send + Sync + 'a,

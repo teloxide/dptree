@@ -4,6 +4,26 @@ use crate::{
 };
 use std::{ops::ControlFlow, sync::Arc};
 
+/// Create a handler that filter input by some condition.
+///
+/// Condition can access to all values that are stored in the input container,
+/// and must return `bool` value. If it returns `true`, continuation of the
+/// handler will be called, otherwise handler returns `ControlFlow::Continue`.
+///
+/// Example:
+/// ```
+/// # #[tokio::main]
+/// # async fn main() {
+/// use dptree::{container::Value, prelude::*};
+/// use std::ops::ControlFlow;
+///
+/// let handler = dptree::filter(|x: Arc<i32>| async move { *x > 0 }).endpoint(|| async { "done" });
+///
+/// assert_eq!(handler.dispatch(Value::new(10)).await, ControlFlow::Break("done"));
+/// assert_eq!(handler.dispatch(Value::new(-10)).await, ControlFlow::Continue(Value::new(-10)));
+///
+/// # }
+/// ```
 pub fn filter<'a, Pred, Input, Output, FnArgs>(pred: Pred) -> Handler<'a, Input, Output>
 where
     Pred: IntoDiFn<Input, bool, FnArgs>,

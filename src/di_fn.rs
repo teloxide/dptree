@@ -1,11 +1,23 @@
+//! Function that can be used with DI. Used in such handlers.
+
 use crate::container::DiContainer;
 use futures::future::BoxFuture;
 use std::{future::Future, sync::Arc};
 
+#[rustfmt::skip] // rustfmt too bad in formatting lists
+/// The trait is used to convert functions into `DiFn`.
+///
+/// The function must follow some rules, to be usable with DI:
+///
+/// 1. All input values must be wrapped around `Arc`. It is requirement of the
+/// `DiContainer` trait.
+/// 2. Function must have 0-9 arguments.
+/// 3. Function must return `Future`.
 pub trait IntoDiFn<Input, Output, FnArgs> {
     fn into(self) -> DiFn<Input, Output>;
 }
 
+/// The function to which the reference to the container is passed.
 pub type DiFn<Input, Output> =
     Arc<dyn for<'a> Fn(&'a Input) -> BoxFuture<'a, Output> + Send + Sync + 'static>;
 
