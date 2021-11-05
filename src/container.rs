@@ -8,14 +8,15 @@
 //! DI containers. It specify types that can be obtained from DI container.
 //!
 //! There are two implementations in `dptree` of this trait:
+//!
 //! 1. `Value`. It always contain only one value. Use it where you want to pass
-//! only one value to the handlers. 2. `TypeMapDi`. It implements DI pattern
-//! fully, but be careful: it can panic when you do not provide necessary types.
-//! See more in its documentation.
+//! only one value to the handlers.
+//! 2. `TypeMapDi`. It implements DI pattern fully, but be careful: it can panic
+//! when you do not provide necessary types. See more in its documentation.
 //!
 //! We strongly not recommend to use these implementations in production code,
 //! because of its inefficient. You can use them for testing or prototyping, but
-//! we recommend to switch on implementations of foreign `DI` libraries ASAP.
+//! we recommend to switch on implementations of foreign `DI` libraries.
 //!
 //! [Dependency Injection pattern]: https://en.wikipedia.org/wiki/Dependency_injection
 //! [this discussion on StackOverflow]: https://stackoverflow.com/questions/130794/what-is-dependency-injection
@@ -89,7 +90,38 @@ impl<From, To> Replace<From, To> for Value<From> {
 
 /// DI container using TypeMap pattern.
 ///
-/// TODO: doc
+/// This DI container stores types by its `TypeId`. It cannot prove in compile-time what
+/// types are contained inside, so if you do not provide necessary types but they were requested,
+/// panic will cause.
+///
+/// Example of right usage:
+/// ```
+/// # use std::sync::Arc;
+/// use dptree::container::{TypeMapDi, DiContainer};
+///
+/// let mut container = TypeMapDi::new();
+/// container.insert(5_i32);
+/// container.insert("abc");
+///
+/// assert_eq!(container.get(), Arc::new(5_i32));
+/// assert_eq!(container.get(), Arc::new("abc"));
+///
+/// // if we add a type that already stored, it will be replaced
+/// container.insert(5i32);
+/// assert_ne!(container.get(), Arc::new(10i32));
+/// assert_eq!(container.get(), Arc::new(5i32));
+///
+/// ```
+///
+/// When type is not provided, panic will cause:
+/// ```should_panic
+/// # use std::sync::Arc;
+/// use dptree::container::{TypeMapDi, DiContainer};
+/// let mut container = TypeMapDi::new();
+/// container.insert(10i32);
+///
+/// let string: Arc<String> = container.get();
+/// ```
 pub struct TypeMapDi {
     map: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
 }

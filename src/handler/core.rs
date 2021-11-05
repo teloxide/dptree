@@ -21,7 +21,7 @@ pub struct Handler<'a, Input, Output, Intermediate = Input>(
 pub type Cont<'a, Intermediate, Output> =
     Box<dyn Fn(Intermediate) -> HandlerResult<'a, Intermediate, Output> + Send + Sync + 'a>;
 
-/// Output of the `Handler`
+/// Output of the `Handler`.
 pub type HandlerResult<'a, Input, Output> = BoxFuture<'a, ControlFlow<Output, Input>>;
 
 // `#[derive(Clone)]` obligates all type parameters to satisfy `Clone` as well,
@@ -174,7 +174,7 @@ where
     /// ```
     pub async fn execute<Cont, ContFut>(
         self,
-        event: Input,
+        container: Input,
         cont: Cont,
     ) -> ControlFlow<Output, Input>
     where
@@ -182,7 +182,7 @@ where
         Cont: Fn(Intermediate) -> ContFut + Send + Sync + 'a,
         ContFut: Future<Output = ControlFlow<Output, Intermediate>> + Send + 'a,
     {
-        (self.0)(event, Box::new(move |event| Box::pin(cont(event)))).await
+        (self.0)(container, Box::new(move |event| Box::pin(cont(event)))).await
     }
 
     /// Execute handler with specified container.
@@ -208,10 +208,7 @@ where
     Handler(Arc::new(move |event, cont| Box::pin(f(event, cont))))
 }
 
-/// Create empty handler.
-///
-/// Convenient way to start building handler, because it provide all functions
-/// to build chained handler: `filter`, `parser`, `endpoint`, etc.
+/// Create empty handler, that do nothing.
 pub fn entry<'a, Input, Output>() -> Handler<'a, Input, Output, Input>
 where
     Input: Send + Sync + 'a,

@@ -20,7 +20,24 @@ where
 /// Create endpoint handler.
 ///
 /// Endpoint is a handler that _always_ break handler execution after its
-/// completion.
+/// completion. So, you can use it when your chain of responsibility must end
+/// up, and handle incoming event.
+///
+/// Examples:
+/// ```
+/// # #[tokio::main]
+/// # async fn main() {
+/// use dptree::{container::Value, prelude::*};
+/// use std::ops::ControlFlow;
+///
+/// let hello_world = dptree::endpoint(|| async { "Hello, World!" });
+/// assert_eq!(hello_world.dispatch(Value::new(0)).await, ControlFlow::Break("Hello, World!"));
+///
+/// let multiply = dptree::endpoint(|x: Arc<i32>| async move { *x * 10 });
+/// assert_eq!(multiply.dispatch(Value::new(5)).await, ControlFlow::Break(50));
+///
+/// # }
+/// ```
 pub fn endpoint<'a, F, Input, Output, FnArgs>(f: F) -> Endpoint<'a, Input, Output>
 where
     Input: Send + Sync + 'a,
@@ -40,6 +57,8 @@ where
 }
 
 /// Endpoint handler type.
+///
+/// Infallible in position of intermediate type means that continuation never will be called.
 pub type Endpoint<'a, Input, Output> = Handler<'a, Input, Output, Infallible>;
 
 #[cfg(test)]
