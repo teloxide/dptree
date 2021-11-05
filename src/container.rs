@@ -90,14 +90,14 @@ impl<From, To> Replace<From, To> for Value<From> {
 
 /// DI container using TypeMap pattern.
 ///
-/// This DI container stores types by its `TypeId`. It cannot prove in compile-time what
-/// types are contained inside, so if you do not provide necessary types but they were requested,
-/// panic will cause.
+/// This DI container stores types by its `TypeId`. It cannot prove in
+/// compile-time what types are contained inside, so if you do not provide
+/// necessary types but they were requested, panic will cause.
 ///
 /// Example of right usage:
 /// ```
 /// # use std::sync::Arc;
-/// use dptree::container::{TypeMapDi, DiContainer};
+/// use dptree::container::{DiContainer, TypeMapDi};
 ///
 /// let mut container = TypeMapDi::new();
 /// container.insert(5_i32);
@@ -107,16 +107,16 @@ impl<From, To> Replace<From, To> for Value<From> {
 /// assert_eq!(container.get(), Arc::new("abc"));
 ///
 /// // if we add a type that already stored, it will be replaced
-/// container.insert(5i32);
-/// assert_ne!(container.get(), Arc::new(10i32));
-/// assert_eq!(container.get(), Arc::new(5i32));
+/// let old_value = container.insert(10_i32).unwrap();
 ///
+/// assert_eq!(old_value, Arc::new(5_i32));
+/// assert_eq!(container.get(), Arc::new(10_i32));
 /// ```
 ///
 /// When type is not provided, panic will cause:
 /// ```should_panic
 /// # use std::sync::Arc;
-/// use dptree::container::{TypeMapDi, DiContainer};
+/// use dptree::container::{DiContainer, TypeMapDi};
 /// let mut container = TypeMapDi::new();
 /// container.insert(10i32);
 ///
@@ -131,10 +131,26 @@ impl TypeMapDi {
         Self { map: HashMap::new() }
     }
 
-    pub fn insert<T: Send + Sync + 'static>(&mut self, item: T) {
-        self.map.insert(TypeId::of::<T>(), Arc::new(item));
+    /// Inserts a value into container.
+    ///
+    /// If the container did not have this type present, `None` is returned.
+    ///
+    /// If the container did have this type present, the value is updated, and
+    /// the old value is returned.
+    ///
+    /// For examples see `TypeMapDi` docs.
+    pub fn insert<T: Send + Sync + 'static>(&mut self, item: T) -> Option<Arc<T>> {
+        self.map
+            .insert(TypeId::of::<T>(), Arc::new(item))
+            .map(|arc| arc.downcast().expect("Values are stored by TypeId"))
     }
 
+    /// Remove value from container.
+    ///
+    /// If the container did not have this type present, `None` is returned.
+    ///
+    /// If the map did have this type present, the value is removed and
+    /// returned.
     pub fn remove<T: Send + Sync + 'static>(&mut self) -> Option<Arc<T>> {
         self.map
             .remove(&TypeId::of::<T>())

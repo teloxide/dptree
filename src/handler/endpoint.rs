@@ -58,7 +58,8 @@ where
 
 /// Endpoint handler type.
 ///
-/// Infallible in position of intermediate type means that continuation never will be called.
+/// Infallible in position of intermediate type means that continuation never
+/// will be called.
 pub type Endpoint<'a, Input, Output> = Handler<'a, Input, Output, Infallible>;
 
 #[cfg(test)]
