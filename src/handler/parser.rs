@@ -81,7 +81,13 @@ where
     })
 }
 
+/// The trait is used to replace value of one type to a value with another type.
+///
+/// Used only in `dptree::parser` method when parsing one type to another. You
+/// can implement it for your DI container to allow users use your container in
+/// `dptree::parser`.
 pub trait Replace<From, To> {
+    /// An output when type `From` is replaced by type `To`.
     type Out;
     fn replace(self, to: Arc<To>) -> (Self::Out, Arc<From>);
 }
