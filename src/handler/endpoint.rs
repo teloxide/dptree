@@ -1,6 +1,6 @@
-use crate::{di::IntoDiFn, from_fn, Handler};
+use crate::{di::Injector, from_fn, Handler};
 use futures::FutureExt;
-use std::{convert::Infallible, ops::ControlFlow};
+use std::{convert::Infallible, ops::ControlFlow, sync::Arc};
 
 impl<'a, Input, Output, Intermediate> Handler<'a, Input, Output, Intermediate>
 where
@@ -11,7 +11,7 @@ where
     /// Chain self handler with `endpoint` handler.
     pub fn endpoint<F, FnArgs>(self, endp: F) -> Endpoint<'a, Input, Output>
     where
-        F: IntoDiFn<Intermediate, Output, FnArgs>,
+        F: Injector<Intermediate, Output, FnArgs> + Send + Sync + 'a,
     {
         self.chain(endpoint(endp))
     }
@@ -42,16 +42,15 @@ pub fn endpoint<'a, F, Input, Output, FnArgs>(f: F) -> Endpoint<'a, Input, Outpu
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
-    F: IntoDiFn<Input, Output, FnArgs>,
+    F: Injector<Input, Output, FnArgs> + Send + Sync + 'a,
 {
-    let func = f.into();
+    let f = Arc::new(f);
+
     from_fn(move |x, _cont| {
-        let func = func.clone();
+        let f = Arc::clone(&f);
         async move {
-            let x = x;
-            let func2 = func;
-            let res = func2(&x).map(ControlFlow::Break).await;
-            res
+            let f = f.inject(&x);
+            f().map(ControlFlow::Break).await
         }
     })
 }

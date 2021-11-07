@@ -216,31 +216,29 @@ where
 /// `DiContainer` trait.
 /// 2. Function must have 0-9 arguments.
 /// 3. Function must return `Future`.
-pub trait IntoDiFn<Input, Output, FnArgs> {
-    fn into(self) -> DiFn<Input, Output>;
+pub trait Injector<Input, Output, FnArgs> {
+    fn inject<'a>(&'a self, container: &'a Input) -> CompiledFn<'a, Output>;
 }
 
 /// The function to which the reference to the container is passed.
-pub type DiFn<Input, Output> =
-    Arc<dyn for<'a> Fn(&'a Input) -> BoxFuture<'a, Output> + Send + Sync + 'static>;
+pub type CompiledFn<'a, Output> = Arc<dyn Fn() -> BoxFuture<'a, Output> + Send + Sync + 'a>;
 
 macro_rules! impl_into_di {
     ($($generic:ident),*) => {
-        impl<Func, Input, Output, Fut, $($generic),*> IntoDiFn<Input, Output, (Fut, $($generic),*)> for Func
+        impl<Func, Input, Output, Fut, $($generic),*>  Injector<Input, Output, (Fut, $($generic),*)> for Func
         where
             Input: $(DependencySupplier<$generic> +)*,
+            Input: Send + Sync,
             Func: Fn($(Arc<$generic>),*) -> Fut + Send + Sync + 'static,
             Fut: Future<Output = Output> + Send + Sync + 'static,
             $($generic: Send + Sync),*
         {
             #[allow(non_snake_case)]
             #[allow(unused_variables)]
-            fn into(self) -> DiFn<Input, Output> {
-                let this = Arc::new(self);
-                Arc::new(move |input: &Input| {
-                    let this = this.clone();
-                    $(let $generic = input.get();)*
-                    let fut = this( $( $generic ),* );
+            fn inject<'a>(&'a self, container: &'a Input) -> CompiledFn<'a, Output> {
+                Arc::new(move || {
+                    $(let $generic = container.get();)*
+                    let fut = self( $( $generic ),* );
                     Box::pin(fut)
                 })
             }
