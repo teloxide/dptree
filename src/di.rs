@@ -60,7 +60,7 @@ pub trait DependencySupplier<Value> {
 /// ```
 /// # #[tokio::main]
 /// # async fn main() {
-/// use dptree::{container::Value, prelude::*};
+/// use dptree::{di::Value, prelude::*};
 /// use std::ops::ControlFlow;
 ///
 /// let handler = dptree::endpoint(|x: Arc<i32>| async move { *x });
@@ -101,7 +101,7 @@ impl<From, To> Replace<From, To> for Value<From> {
 /// Example of right usage:
 /// ```
 /// # use std::sync::Arc;
-/// use dptree::container::{DependencyMap, DiContainer};
+/// use dptree::di::{DependencyMap, DependencySupplier};
 ///
 /// let mut container = DependencyMap::new();
 /// container.insert(5_i32);
@@ -120,7 +120,7 @@ impl<From, To> Replace<From, To> for Value<From> {
 /// When type is not provided, panic will cause:
 /// ```should_panic
 /// # use std::sync::Arc;
-/// use dptree::container::{DependencyMap, DiContainer};
+/// use dptree::di::{DependencyMap, DependencySupplier};
 /// let mut container = DependencyMap::new();
 /// container.insert(10i32);
 ///

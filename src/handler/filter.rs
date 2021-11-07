@@ -14,7 +14,7 @@ use std::{ops::ControlFlow, sync::Arc};
 /// ```
 /// # #[tokio::main]
 /// # async fn main() {
-/// use dptree::{container::Value, prelude::*};
+/// use dptree::{di::Value, prelude::*};
 /// use std::ops::ControlFlow;
 ///
 /// let handler = dptree::filter(|x: Arc<i32>| async move { *x > 0 }).endpoint(|| async { "done" });
@@ -48,7 +48,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::container::Value;
+    use crate::di::Value;
 
     #[tokio::test]
     async fn test_filter() {

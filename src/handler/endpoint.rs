@@ -27,7 +27,7 @@ where
 /// ```
 /// # #[tokio::main]
 /// # async fn main() {
-/// use dptree::{container::Value, prelude::*};
+/// use dptree::{di::Value, prelude::*};
 /// use std::ops::ControlFlow;
 ///
 /// let hello_world = dptree::endpoint(|| async { "Hello, World!" });
@@ -65,7 +65,7 @@ pub type Endpoint<'a, Input, Output> = Handler<'a, Input, Output, Infallible>;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::container::DependencyMap;
+    use crate::di::DependencyMap;
     use std::sync::Arc;
 
     #[tokio::test]

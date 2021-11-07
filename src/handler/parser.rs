@@ -19,7 +19,7 @@ use crate::{di::DependencySupplier, from_fn, Handler};
 /// ```
 /// # #[tokio::main]
 /// # async fn main() {
-/// use dptree::{container::Value, prelude::*};
+/// use dptree::{di::Value, prelude::*};
 /// use std::ops::ControlFlow;
 ///
 /// #[derive(Debug, PartialEq)]
@@ -95,7 +95,7 @@ pub trait Replace<From, To> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::container::Value;
+    use crate::di::Value;
 
     #[tokio::test]
     async fn test_some() {
