@@ -1,6 +1,6 @@
 use std::{ops::ControlFlow, sync::Arc};
 
-use crate::{container::DiContainer, from_fn, Handler};
+use crate::{di::DependencySupplier, from_fn, Handler};
 
 #[rustfmt::skip] // rustfmt too bad in formatting lists
 /// Create handler that try to parse one input value from container into
@@ -50,7 +50,7 @@ pub fn parser<'a, Projection, Input, IT, OT, Output, Intermediate>(
     proj: Projection,
 ) -> Handler<'a, Input, Output, Intermediate>
 where
-    Input: Replace<IT, OT, Out = Intermediate> + DiContainer<IT>,
+    Input: Replace<IT, OT, Out = Intermediate> + DependencySupplier<IT>,
     Intermediate: Replace<OT, IT, Out = Input>,
     Projection: Fn(&IT) -> Option<OT> + Send + Sync + 'a,
     Input: Send + Sync + 'a,

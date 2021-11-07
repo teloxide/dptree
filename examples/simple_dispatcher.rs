@@ -24,7 +24,7 @@ use std::{
     },
 };
 
-use dptree::{container::TypeMapDi, prelude::*};
+use dptree::{di::DependencyMap, prelude::*};
 
 #[tokio::main]
 async fn main() {
@@ -46,12 +46,12 @@ async fn repl(dispatcher: Handler<'static, Store, String>, store: Arc<AtomicI32>
         let mut cmd = String::new();
         std::io::stdin().read_line(&mut cmd).unwrap();
 
-        let strs = cmd.trim().split(" ").collect::<Vec<_>>();
+        let strs = cmd.trim().split(' ').collect::<Vec<_>>();
         let event = Event::parse(strs.as_slice());
 
         let out = match event {
             Some(event) => {
-                let mut container = TypeMapDi::new();
+                let mut container = DependencyMap::new();
                 container.insert(event);
                 container.insert(store.clone());
 
@@ -62,6 +62,7 @@ async fn repl(dispatcher: Handler<'static, Store, String>, store: Arc<AtomicI32>
             }
             _ => "Unknown command".to_string(),
         };
+
         println!("{}", out);
     }
 }
@@ -84,7 +85,7 @@ impl Event {
     }
 }
 
-type Store = TypeMapDi;
+type Store = DependencyMap;
 type CommandHandler = Endpoint<'static, Store, String>;
 
 fn ping_handler() -> CommandHandler {

@@ -1,7 +1,7 @@
-use dptree::{container::TypeMapDi, prelude::*};
+use dptree::{di::DependencyMap, prelude::*};
 use std::{net::Ipv4Addr, sync::Arc};
 
-type Store = Arc<TypeMapDi>;
+type Store = Arc<DependencyMap>;
 
 #[tokio::main]
 async fn main() {
@@ -35,12 +35,10 @@ async fn main() {
 }
 
 fn init_store() -> Store {
-    let mut store = TypeMapDi::new();
+    let mut store = DependencyMap::new();
 
     store.insert(10u32);
     store.insert("Hello".to_string());
 
-    let store = Arc::new(store);
-
-    store
+    Arc::new(store)
 }

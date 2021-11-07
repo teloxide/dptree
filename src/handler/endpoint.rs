@@ -1,4 +1,4 @@
-use crate::{di_fn::IntoDiFn, from_fn, Handler};
+use crate::{di::IntoDiFn, from_fn, Handler};
 use futures::FutureExt;
 use std::{convert::Infallible, ops::ControlFlow};
 
@@ -65,7 +65,7 @@ pub type Endpoint<'a, Input, Output> = Handler<'a, Input, Output, Infallible>;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::container::TypeMapDi;
+    use crate::container::DependencyMap;
     use std::sync::Arc;
 
     #[tokio::test]
@@ -73,7 +73,7 @@ mod tests {
         let input = 123;
         let output = 7;
 
-        let mut store = TypeMapDi::new();
+        let mut store = DependencyMap::new();
         store.insert(input);
 
         let result = endpoint(move |num: Arc<i32>| async move {

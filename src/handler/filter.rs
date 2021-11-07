@@ -1,5 +1,5 @@
 use crate::{
-    di_fn::IntoDiFn,
+    di::IntoDiFn,
     handler::core::{from_fn, Handler},
 };
 use std::{ops::ControlFlow, sync::Arc};

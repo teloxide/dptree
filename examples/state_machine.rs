@@ -8,7 +8,7 @@ use std::{
 
 use futures::future;
 
-use dptree::{container::TypeMapDi, prelude::*};
+use dptree::{di::DependencyMap, prelude::*};
 
 #[tokio::main]
 async fn main() {
@@ -37,9 +37,10 @@ async fn repl(mut state: CommandState, dispatcher: Handler<'static, Store, Comma
 
         let new_state = match event {
             Some(event) => {
-                let mut container = TypeMapDi::new();
+                let mut container = DependencyMap::new();
                 container.insert(event);
                 container.insert(state.clone());
+
                 match dispatcher.dispatch(container).await {
                     ControlFlow::Break(new_state) => new_state,
                     ControlFlow::Continue(_) => {
@@ -98,7 +99,7 @@ impl Event {
     }
 }
 
-type Store = dptree::container::TypeMapDi;
+type Store = dptree::di::DependencyMap;
 type Transition = Endpoint<'static, Store, TransitionOut>;
 type TransitionOut = CommandState;
 
