@@ -230,7 +230,7 @@ macro_rules! impl_into_di {
             Input: $(DependencySupplier<$generic> +)*,
             Input: Send + Sync,
             Func: Fn($(Arc<$generic>),*) -> Fut + Send + Sync + 'static,
-            Fut: Future<Output = Output> + Send + Sync + 'static,
+            Fut: Future<Output = Output> + Send + 'static,
             $($generic: Send + Sync),*
         {
             #[allow(non_snake_case)]

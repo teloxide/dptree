@@ -228,13 +228,13 @@
 //!             .endpoint(delete_weather)
 //!     );
 //!
-//! # dispatcher.dispatch(dptree::container::TypeMapDi::new()); // to infer input type
+//! # dispatcher.dispatch(dptree::di::DependencyMap::new()); // to infer input type
 //! ```
 //!
 //! Now we can try to dispatch some event. In `dptree` dispatching happens with
 //! containers. Container is an abstraction that holds value of the specified
-//! type. For more information see [dptree::container] module. We will use
-//! [`TypeMapDi`] container that implement DI pattern:
+//! type. For more information see [dptree::di] module. We will use
+//! [`DependencyMap`] container:
 //!
 //! ```ignore
 //! use dptree::container::TypeMapDi;
@@ -242,7 +242,7 @@
 //!
 //! # struct WeatherStorage { connection: SqlitePool }
 //!
-//! let mut container = TypeMapDi::new();
+//! let mut container = DependencyMap::new();
 //! let connection = SqlitePool::connect("sqlite::memory:");
 //! container.insert(WeatherStorage { connection });
 //!
@@ -255,7 +255,7 @@
 //! ```
 //! use sqlx::SqlitePool;
 //! use dptree::prelude::*;
-//! use dptree::container::TypeMapDi;
+//! use dptree::di::DependencyMap;
 //!
 //! type City = String;
 //! type Kelvins = f32;
@@ -383,7 +383,7 @@
 //!     Sqlite(#[from] sqlx::Error)
 //! }
 //!
-//! fn create_dispatcher() -> Handler<'static, TypeMapDi, Result<Response, Error>> {
+//! fn create_dispatcher() -> Handler<'static, DependencyMap, Result<Response, Error>> {
 //! // Entry returns empty handler, that will pass input event into next branches.
 //! dptree::entry()
 //!     // `branch` method create a branch in the tree of dispatching, which is
@@ -413,7 +413,6 @@
 //! let dispatcher = create_dispatcher();
 //!
 //! // ------------------------Examples of run---------------
-//! use dptree::container::TypeMapDi;
 //! use std::ops::ControlFlow;
 //!
 //! let connection = SqlitePool::connect("sqlite::memory:").await.unwrap();
@@ -421,7 +420,7 @@
 //! store.init_db().await;
 //!
 //! let create_cont = |event: Event| {
-//!     let mut container = TypeMapDi::new();
+//!     let mut container = DependencyMap::new();
 //!     container.insert(store.clone());
 //!     container.insert(event);
 //!     container
@@ -441,7 +440,7 @@
 //! assert_eq!(unwrap(dispatcher.dispatch(get_weather_cont()).await), Err(Error::CityDoesNotExists("London".into())));
 //!
 //! // ControlFlow::unwrap is unstable
-//! fn unwrap(cf: ControlFlow<Result<Response, Error>, TypeMapDi>) -> Result<Response, Error> {
+//! fn unwrap(cf: ControlFlow<Result<Response, Error>, DependencyMap>) -> Result<Response, Error> {
 //!     match cf {
 //!         ControlFlow::Break(b) => b, _ => unreachable!(),
 //!     }
