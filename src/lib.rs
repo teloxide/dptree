@@ -1,6 +1,6 @@
-// pub mod guides;
 pub mod container;
 pub mod di_fn;
+pub mod guides;
 mod handler;
 pub mod prelude;
 

@@ -27,7 +27,7 @@ macro_rules! impl_into_di {
         where
             Input: $(DiContainer<$generic> +)*,
             Func: Fn($(Arc<$generic>),*) -> Fut + Send + Sync + 'static,
-            Fut: Future<Output = Output> + Send + Sync + 'static,
+            Fut: Future<Output = Output> + Send + 'static,
             $($generic: Send + Sync),*
         {
             #[allow(non_snake_case)]
