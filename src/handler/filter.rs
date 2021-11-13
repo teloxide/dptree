@@ -1,5 +1,5 @@
 use crate::{
-    di_fn::IntoDiFn,
+    di::Injector,
     handler::core::{from_fn, Handler},
 };
 use std::{ops::ControlFlow, sync::Arc};
@@ -14,7 +14,7 @@ use std::{ops::ControlFlow, sync::Arc};
 /// ```
 /// # #[tokio::main]
 /// # async fn main() {
-/// use dptree::{container::Value, prelude::*};
+/// use dptree::{di::Value, prelude::*};
 /// use std::ops::ControlFlow;
 ///
 /// let handler = dptree::filter(|x: Arc<i32>| async move { *x > 0 }).endpoint(|| async { "done" });
@@ -26,17 +26,21 @@ use std::{ops::ControlFlow, sync::Arc};
 /// ```
 pub fn filter<'a, Pred, Input, Output, FnArgs>(pred: Pred) -> Handler<'a, Input, Output>
 where
-    Pred: IntoDiFn<Input, bool, FnArgs>,
+    Pred: Injector<Input, bool, FnArgs> + Send + Sync + 'a,
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
 {
-    let pred = pred.into();
+    let pred = Arc::new(pred);
 
     from_fn(move |event, cont| {
         let pred = Arc::clone(&pred);
 
         async move {
-            if pred(&event).await {
+            let pred = pred.inject(&event);
+            let cond = pred().await;
+            drop(pred);
+
+            if cond {
                 cont(event).await
             } else {
                 ControlFlow::Continue(event)
@@ -48,7 +52,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::container::Value;
+    use crate::di::Value;
 
     #[tokio::test]
     async fn test_filter() {

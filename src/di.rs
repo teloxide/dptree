@@ -11,8 +11,9 @@
 //!
 //! 1. `Value`. It always contain only one value. Use it where you want to pass
 //! only one value to the handlers.
-//! 2. `TypeMapDi`. It implements DI pattern fully, but be careful: it can panic
-//! when you do not provide necessary types. See more in its documentation.
+//! 2. `DependencyMap`. It implements DI pattern fully, but be careful: it can
+//! panic when you do not provide necessary types. See more in its
+//! documentation.
 //!
 //! We strongly not recommend to use these implementations in production code,
 //! because of its inefficient. You can use them for testing or prototyping, but
@@ -20,11 +21,14 @@
 //!
 //! [Dependency Injection pattern]: https://en.wikipedia.org/wiki/Dependency_injection
 //! [this discussion on StackOverflow]: https://stackoverflow.com/questions/130794/what-is-dependency-injection
+use futures::future::BoxFuture;
+
 use crate::Replace;
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
     fmt::{Debug, Formatter},
+    future::Future,
     ops::Deref,
     sync::Arc,
 };
@@ -41,7 +45,7 @@ use std::{
 /// and check whether you add you type to container.
 ///
 /// Concrete solution is chosen by implementation.
-pub trait DiContainer<Value> {
+pub trait DependencySupplier<Value> {
     /// Get value.
     ///
     /// We assume that all values are stored in `Arc<_>`.
@@ -56,7 +60,7 @@ pub trait DiContainer<Value> {
 /// ```
 /// # #[tokio::main]
 /// # async fn main() {
-/// use dptree::{container::Value, prelude::*};
+/// use dptree::{di::Value, prelude::*};
 /// use std::ops::ControlFlow;
 ///
 /// let handler = dptree::endpoint(|x: Arc<i32>| async move { *x });
@@ -74,7 +78,7 @@ impl<T> Value<T> {
     }
 }
 
-impl<T> DiContainer<T> for Value<T> {
+impl<T> DependencySupplier<T> for Value<T> {
     fn get(&self) -> Arc<T> {
         self.0.clone()
     }
@@ -88,7 +92,7 @@ impl<From, To> Replace<From, To> for Value<From> {
     }
 }
 
-/// DI container using TypeMap pattern.
+/// DI container using DependencyMap pattern.
 ///
 /// This DI container stores types by its `TypeId`. It cannot prove in
 /// compile-time what types are contained inside, so if you do not provide
@@ -97,9 +101,9 @@ impl<From, To> Replace<From, To> for Value<From> {
 /// Example of right usage:
 /// ```
 /// # use std::sync::Arc;
-/// use dptree::container::{DiContainer, TypeMapDi};
+/// use dptree::di::{DependencyMap, DependencySupplier};
 ///
-/// let mut container = TypeMapDi::new();
+/// let mut container = DependencyMap::new();
 /// container.insert(5_i32);
 /// container.insert("abc");
 ///
@@ -116,19 +120,20 @@ impl<From, To> Replace<From, To> for Value<From> {
 /// When type is not provided, panic will cause:
 /// ```should_panic
 /// # use std::sync::Arc;
-/// use dptree::container::{DiContainer, TypeMapDi};
-/// let mut container = TypeMapDi::new();
+/// use dptree::di::{DependencyMap, DependencySupplier};
+/// let mut container = DependencyMap::new();
 /// container.insert(10i32);
 ///
 /// let string: Arc<String> = container.get();
 /// ```
-pub struct TypeMapDi {
+#[derive(Default)]
+pub struct DependencyMap {
     map: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
 }
 
-impl TypeMapDi {
+impl DependencyMap {
     pub fn new() -> Self {
-        Self { map: HashMap::new() }
+        Self::default()
     }
 
     /// Inserts a value into container.
@@ -138,7 +143,7 @@ impl TypeMapDi {
     /// If the container did have this type present, the value is updated, and
     /// the old value is returned.
     ///
-    /// For examples see `TypeMapDi` docs.
+    /// For examples see `DependencyMap` docs.
     pub fn insert<T: Send + Sync + 'static>(&mut self, item: T) -> Option<Arc<T>> {
         self.map
             .insert(TypeId::of::<T>(), Arc::new(item))
@@ -158,13 +163,13 @@ impl TypeMapDi {
     }
 }
 
-impl Debug for TypeMapDi {
+impl Debug for DependencyMap {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        f.debug_struct("TypeMapPanickableStore").finish()
+        f.debug_struct("DependencyMapPanickableStore").finish()
     }
 }
 
-impl<V: Send + Sync + 'static> DiContainer<V> for TypeMapDi {
+impl<V: Send + Sync + 'static> DependencySupplier<V> for DependencyMap {
     fn get(&self) -> Arc<V> {
         self.map
             .get(&TypeId::of::<V>())
@@ -177,14 +182,14 @@ impl<V: Send + Sync + 'static> DiContainer<V> for TypeMapDi {
     }
 }
 
-impl<From, To> Replace<From, To> for TypeMapDi
+impl<From, To> Replace<From, To> for DependencyMap
 where
     From: Send + Sync + 'static,
     To: Send + Sync + 'static,
 {
-    type Out = TypeMapDi;
+    type Out = DependencyMap;
 
-    fn replace(mut self, to: Arc<To>) -> (TypeMapDi, Arc<From>) {
+    fn replace(mut self, to: Arc<To>) -> (DependencyMap, Arc<From>) {
         let from = self.remove::<From>().unwrap_or_else(|| {
             panic!("Requested type {} does not provided.", std::any::type_name::<From>())
         });
@@ -193,11 +198,61 @@ where
     }
 }
 
-impl<V, S> DiContainer<V> for Arc<S>
+impl<V, S> DependencySupplier<V> for Arc<S>
 where
-    S: DiContainer<V>,
+    S: DependencySupplier<V>,
 {
     fn get(&self) -> Arc<V> {
         self.deref().get()
     }
 }
+
+#[rustfmt::skip] // rustfmt too bad in formatting lists
+/// The trait is used to convert functions into `DiFn`.
+///
+/// The function must follow some rules, to be usable with DI:
+///
+/// 1. All input values must be wrapped around `Arc`. It is requirement of the
+/// `DiContainer` trait.
+/// 2. Function must have 0-9 arguments.
+/// 3. Function must return `Future`.
+pub trait Injector<Input, Output, FnArgs> {
+    fn inject<'a>(&'a self, container: &'a Input) -> CompiledFn<'a, Output>;
+}
+
+/// The function to which the reference to the container is passed.
+pub type CompiledFn<'a, Output> = Arc<dyn Fn() -> BoxFuture<'a, Output> + Send + Sync + 'a>;
+
+macro_rules! impl_into_di {
+    ($($generic:ident),*) => {
+        impl<Func, Input, Output, Fut, $($generic),*>  Injector<Input, Output, (Fut, $($generic),*)> for Func
+        where
+            Input: $(DependencySupplier<$generic> +)*,
+            Input: Send + Sync,
+            Func: Fn($(Arc<$generic>),*) -> Fut + Send + Sync + 'static,
+            Fut: Future<Output = Output> + Send + Sync + 'static,
+            $($generic: Send + Sync),*
+        {
+            #[allow(non_snake_case)]
+            #[allow(unused_variables)]
+            fn inject<'a>(&'a self, container: &'a Input) -> CompiledFn<'a, Output> {
+                Arc::new(move || {
+                    $(let $generic = container.get();)*
+                    let fut = self( $( $generic ),* );
+                    Box::pin(fut)
+                })
+            }
+        }
+    };
+}
+
+impl_into_di!();
+impl_into_di!(A);
+impl_into_di!(A, B);
+impl_into_di!(A, B, C);
+impl_into_di!(A, B, C, D);
+impl_into_di!(A, B, C, D, E);
+impl_into_di!(A, B, C, D, E, F);
+impl_into_di!(A, B, C, D, E, F, G);
+impl_into_di!(A, B, C, D, E, F, G, H);
+impl_into_di!(A, B, C, D, E, F, G, H, I);
