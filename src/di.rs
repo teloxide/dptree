@@ -126,7 +126,7 @@ impl<From, To> Replace<From, To> for Value<From> {
 ///
 /// let string: Arc<String> = container.get();
 /// ```
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct DependencyMap {
     map: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
 }
