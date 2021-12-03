@@ -1,19 +1,12 @@
 use std::{ops::ControlFlow, sync::Arc};
 
-use crate::{di::DependencySupplier, from_fn, Handler};
+use crate::{from_fn, Handler};
 
-#[rustfmt::skip] // rustfmt too bad in formatting lists
-/// Create handler that try to parse one input value from container into
-/// another.
+/// Create handler that has direct access to the container.
 ///
-/// How it works:
+/// If a function returns `Some(new_container)` then next handler will be called with `new_container`.
 ///
-/// 1. Handler get value of type `A` specified in the parser function from input container.
-/// 2. Handler call parser function, and pass input value `A` into a function.
-/// 3. If the function returns `None`, then handler returns `ControlFlow::Continue`.
-/// 4. Otherwise if the function returns `Some(B)`, handler replace `A` type with `B` type in the container.
-/// 5. Handler call continuation with new container with `B` type.
-/// 6. If next handler returns `ControlFlow::Continue`, handler replace value `B` with `A`.
+/// If a function returns `None` then handler will return `ControlFlow::Continue(old_container)`.
 ///
 /// Example:
 /// ```
@@ -21,6 +14,7 @@ use crate::{di::DependencySupplier, from_fn, Handler};
 /// # async fn main() {
 /// use dptree::{di::Value, prelude::*};
 /// use std::ops::ControlFlow;
+/// use dptree::di::DependencyMap;
 ///
 /// #[derive(Debug, PartialEq)]
 /// enum StringOrInt {
@@ -28,9 +22,12 @@ use crate::{di::DependencySupplier, from_fn, Handler};
 ///     Int(i32),
 /// }
 ///
-/// let handler = dptree::parser(|x: &StringOrInt| match x {
-///     StringOrInt::String(s) => s.parse().ok(),
-///     StringOrInt::Int(int) => Some(*int),
+/// let handler = dptree::middleware(|val: &Value<StringOrInt>| {
+///     let value = match val.0.as_ref() {
+///         StringOrInt::String(s) => s.parse().ok()?,
+///         StringOrInt::Int(int) => *int,
+///     };
+///     Some(Value::new(value))
 /// })
 /// .endpoint(|value: Arc<i32>| async move { *value });
 ///
@@ -46,17 +43,13 @@ use crate::{di::DependencySupplier, from_fn, Handler};
 ///
 /// # }
 /// ```
-pub fn parser<'a, Projection, Input, IT, OT, Output, Intermediate>(
+pub fn middleware<'a, Projection, Input, Output, Intermediate>(
     proj: Projection,
 ) -> Handler<'a, Input, Output, Intermediate>
 where
-    Input: Replace<IT, OT, Out = Intermediate> + DependencySupplier<IT>,
-    Intermediate: Replace<OT, IT, Out = Input>,
-    Projection: Fn(&IT) -> Option<OT> + Send + Sync + 'a,
+    Projection: Fn(&Input) -> Option<Intermediate> + Send + Sync + 'a,
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
-    OT: Send + Sync + 'static,
-    IT: Send + Sync + 'static,
     Intermediate: Send + Sync + 'a,
 {
     let proj = Arc::new(proj);
@@ -65,13 +58,10 @@ where
         let proj = Arc::clone(&proj);
 
         async move {
-            match proj(&container.get()) {
-                Some(ot) => {
-                    let (intermediate, inp) = container.replace(Arc::new(ot));
+            match proj(&container) {
+                Some(intermediate) => {
                     match cont(intermediate).await {
-                        ControlFlow::Continue(container) => {
-                            ControlFlow::Continue(container.replace(inp).0)
-                        }
+                        ControlFlow::Continue(_) => ControlFlow::Continue(container),
                         ControlFlow::Break(result) => ControlFlow::Break(result),
                     }
                 }
@@ -79,17 +69,6 @@ where
             }
         }
     })
-}
-
-/// The trait is used to replace value of one type to a value with another type.
-///
-/// Used only in `dptree::parser` method when parsing one type to another. You
-/// can implement it for your DI container to allow users use your container in
-/// `dptree::parser`.
-pub trait Replace<From, To> {
-    /// An output when type `From` is replaced by type `To`.
-    type Out;
-    fn replace(self, to: Arc<To>) -> (Self::Out, Arc<From>);
 }
 
 #[cfg(test)]
@@ -102,9 +81,9 @@ mod tests {
         let input = 123;
         let output = "abc";
 
-        let result = parser(move |&event| {
-            assert_eq!(event, input);
-            Some(output)
+        let result = middleware(move |value: &Value<i32>| {
+            assert_eq!(*value.0, input);
+            Some(Value::new(output))
         })
         .endpoint(move |event: Arc<&'static str>| async move {
             assert_eq!(*event, output);
@@ -120,9 +99,9 @@ mod tests {
     async fn test_none() {
         let input = 123;
 
-        let result = parser(|&event| {
-            assert_eq!(event, input);
-            None::<String>
+        let result = middleware(|event: &Value<i32>| {
+            assert_eq!(*event.0, input);
+            None::<Value<i32>>
         })
         .endpoint(|| async move { unreachable!() })
         .dispatch(Value::new(input))
@@ -136,14 +115,14 @@ mod tests {
         let input = 123;
         let output = "abc";
 
-        let result = parser(|&event| {
-            assert_eq!(event, input);
-            Some(event)
+        let result = middleware(|event: &Value<i32>| {
+            assert_eq!(*event.0, input);
+            Some(event.clone())
         })
         .chain(
-            parser(|&event| {
-                assert_eq!(event, input);
-                Some(output)
+            middleware(|event: &Value<i32>| {
+                assert_eq!(*event.0, input);
+                Some(Value::new(output))
             })
             .endpoint(move |event: Arc<&'static str>| async move {
                 assert_eq!(*event, output);
@@ -160,14 +139,14 @@ mod tests {
     async fn test_chain_none() {
         let input = 123;
 
-        let result = parser(|&event| {
-            assert_eq!(event, input);
-            Some(event)
+        let result = middleware(|event: &Value<i32>| {
+            assert_eq!(*event.0, input);
+            Some(event.clone())
         })
         .chain(
-            parser(|&event| {
-                assert_eq!(event, input);
-                None::<&'static str>
+            middleware(|event: &Value<i32>| {
+                assert_eq!(*event.0, input);
+                None::<Value<&'static str>>
             })
             .endpoint(|| async move { unreachable!() }),
         )

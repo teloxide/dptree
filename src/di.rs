@@ -23,7 +23,6 @@
 //! [this discussion on StackOverflow]: https://stackoverflow.com/questions/130794/what-is-dependency-injection
 use futures::future::BoxFuture;
 
-use crate::Replace;
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
@@ -81,14 +80,6 @@ impl<T> Value<T> {
 impl<T> DependencySupplier<T> for Value<T> {
     fn get(&self) -> Arc<T> {
         self.0.clone()
-    }
-}
-
-impl<From, To> Replace<From, To> for Value<From> {
-    type Out = Value<To>;
-
-    fn replace(self, to: Arc<To>) -> (Value<To>, Arc<From>) {
-        (Value(to), self.0)
     }
 }
 
@@ -173,6 +164,10 @@ impl DependencyMap {
             .remove(&TypeId::of::<T>())
             .map(|arc| arc.downcast().expect("Values are stored by TypeId"))
     }
+
+    pub fn get<T: Send + Sync + 'static>(&self) -> Arc<T> {
+        DependencySupplier::get(self)
+    }
 }
 
 impl Debug for DependencyMap {
@@ -191,22 +186,6 @@ impl<V: Send + Sync + 'static> DependencySupplier<V> for DependencyMap {
             .clone()
             .downcast::<V>()
             .expect("we already checks that line before")
-    }
-}
-
-impl<From, To> Replace<From, To> for DependencyMap
-where
-    From: Send + Sync + 'static,
-    To: Send + Sync + 'static,
-{
-    type Out = DependencyMap;
-
-    fn replace(mut self, to: Arc<To>) -> (DependencyMap, Arc<From>) {
-        let from = self.remove::<From>().unwrap_or_else(|| {
-            panic!("Requested type {} does not provided.", std::any::type_name::<From>())
-        });
-        self.map.insert(TypeId::of::<To>(), to);
-        (self, from)
     }
 }
 
