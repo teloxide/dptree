@@ -2,11 +2,11 @@
 mod core;
 mod endpoint;
 mod filter;
-mod middleware;
 mod inserter;
+mod middleware;
 
 pub use self::core::*;
 pub use endpoint::*;
 pub use filter::*;
-pub use middleware::*;
 pub use inserter::*;
+pub use middleware::*;

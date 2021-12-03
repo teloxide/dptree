@@ -4,17 +4,21 @@ use crate::{from_fn, Handler};
 
 /// Create handler that has direct access to the container.
 ///
-/// If a function returns `Some(new_container)` then next handler will be called with `new_container`.
+/// If a function returns `Some(new_container)` then next handler will be called
+/// with `new_container`.
 ///
-/// If a function returns `None` then handler will return `ControlFlow::Continue(old_container)`.
+/// If a function returns `None` then handler will return
+/// `ControlFlow::Continue(old_container)`.
 ///
 /// Example:
 /// ```
 /// # #[tokio::main]
 /// # async fn main() {
-/// use dptree::{di::Value, prelude::*};
+/// use dptree::{
+///     di::{DependencyMap, Value},
+///     prelude::*,
+/// };
 /// use std::ops::ControlFlow;
-/// use dptree::di::DependencyMap;
 ///
 /// #[derive(Debug, PartialEq)]
 /// enum StringOrInt {
@@ -59,12 +63,10 @@ where
 
         async move {
             match proj(&container) {
-                Some(intermediate) => {
-                    match cont(intermediate).await {
-                        ControlFlow::Continue(_) => ControlFlow::Continue(container),
-                        ControlFlow::Break(result) => ControlFlow::Break(result),
-                    }
-                }
+                Some(intermediate) => match cont(intermediate).await {
+                    ControlFlow::Continue(_) => ControlFlow::Continue(container),
+                    ControlFlow::Break(result) => ControlFlow::Break(result),
+                },
                 None => ControlFlow::Continue(container),
             }
         }

@@ -101,7 +101,7 @@ fn set_value_handler() -> CommandHandler {
                 let mut store = store.clone();
                 store.insert(value);
                 Some(store)
-            },
+            }
             _ => None,
         }
     })

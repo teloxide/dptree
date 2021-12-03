@@ -1,7 +1,8 @@
-use crate::di::{DependencyMap, Injector};
-use std::sync::Arc;
-use crate::{Handler, from_fn};
-use std::ops::ControlFlow;
+use crate::{
+    di::{DependencyMap, Injector},
+    from_fn, Handler,
+};
+use std::{ops::ControlFlow, sync::Arc};
 
 pub trait Insert<Value> {
     fn insert(&mut self, value: Value) -> Option<Arc<Value>>;
@@ -15,17 +16,21 @@ impl<T: Send + Sync + 'static> Insert<T> for DependencyMap {
 
 /// Create middleware that add new type to the container.
 ///
-/// If a function returns `Some(new_type)` then `new_type` will be added to the container.
+/// If a function returns `Some(new_type)` then `new_type` will be added to the
+/// container.
 ///
-/// If a function returns `None` then handler will return `ControlFlow::Continue(old_container)`.
+/// If a function returns `None` then handler will return
+/// `ControlFlow::Continue(old_container)`.
 ///
 /// Example:
 /// ```
 /// # #[tokio::main]
 /// # async fn main() {
-/// use dptree::{di::Value, prelude::*};
+/// use dptree::{
+///     di::{DependencyMap, Value},
+///     prelude::*,
+/// };
 /// use std::ops::ControlFlow;
-/// use dptree::di::DependencyMap;
 ///
 /// #[derive(Debug, PartialEq)]
 /// enum StringOrInt {
@@ -64,7 +69,7 @@ pub fn inserter<'a, Projection, Input, Output, NewType, Args>(
 ) -> Handler<'a, Input, Output, Input>
 where
     Input: Clone,
-    Projection: Injector<Input, Option<NewType>, Args>+ Send + Sync + 'a,
+    Projection: Injector<Input, Option<NewType>, Args> + Send + Sync + 'a,
     Input: Insert<NewType> + Send + Sync + 'a,
     Output: Send + Sync + 'a,
     NewType: Send,
@@ -103,9 +108,7 @@ mod tests {
         let value = 123;
         let map = DependencyMap::new();
 
-        let result = inserter(move || async move {
-            Some(value)
-        })
+        let result = inserter(move || async move { Some(value) })
             .endpoint(move |event: Arc<i32>| async move {
                 assert_eq!(*event, value);
                 value
@@ -118,9 +121,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_none() {
-        let result = inserter(|| async move {
-            None::<i32>
-        })
+        let result = inserter(|| async move { None::<i32> })
             .endpoint(|| async move { unreachable!() })
             .dispatch(DependencyMap::new())
             .await;
