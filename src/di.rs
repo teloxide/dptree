@@ -122,6 +122,14 @@ pub struct DependencyMap {
     map: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
 }
 
+impl PartialEq for DependencyMap {
+    fn eq(&self, other: &Self) -> bool {
+        let keys1 = self.map.keys();
+        let keys2 = other.map.keys();
+        keys1.zip(keys2).map(|(k1, k2)| k1 == k2).all(|x| x)
+    }
+}
+
 impl DependencyMap {
     pub fn new() -> Self {
         Self::default()
