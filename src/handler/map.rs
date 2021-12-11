@@ -14,7 +14,7 @@ impl<T: Send + Sync + 'static> Insert<T> for DependencyMap {
     }
 }
 
-/// Create middleware that add new type to the container.
+/// Create handler that add new type to the container.
 ///
 /// If a function returns `Some(new_type)` then `new_type` will be added to the
 /// container.
@@ -38,7 +38,7 @@ impl<T: Send + Sync + 'static> Insert<T> for DependencyMap {
 ///     Int(i32),
 /// }
 ///
-/// let handler = dptree::inserter(|val: Arc<StringOrInt>| async move {
+/// let handler = dptree::map(|val: Arc<StringOrInt>| async move {
 ///     match val.as_ref() {
 ///         StringOrInt::String(s) => s.parse().ok(),
 ///         StringOrInt::Int(int) => Some(*int),
@@ -64,7 +64,7 @@ impl<T: Send + Sync + 'static> Insert<T> for DependencyMap {
 ///
 /// # }
 /// ```
-pub fn inserter<'a, Projection, Input, Output, NewType, Args>(
+pub fn map<'a, Projection, Input, Output, NewType, Args>(
     proj: Projection,
 ) -> Handler<'a, Input, Output, Input>
 where
@@ -106,14 +106,14 @@ mod tests {
     #[tokio::test]
     async fn test_some() {
         let value = 123;
-        let map = DependencyMap::new();
+        let deps = DependencyMap::new();
 
-        let result = inserter(move || async move { Some(value) })
+        let result = map(move || async move { Some(value) })
             .endpoint(move |event: Arc<i32>| async move {
                 assert_eq!(*event, value);
                 value
             })
-            .dispatch(map)
+            .dispatch(deps)
             .await;
 
         assert!(result == ControlFlow::Break(value));
@@ -121,7 +121,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_none() {
-        let result = inserter(|| async move { None::<i32> })
+        let result = map(|| async move { None::<i32> })
             .endpoint(|| async move { unreachable!() })
             .dispatch(DependencyMap::new())
             .await;

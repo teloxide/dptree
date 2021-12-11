@@ -1,3 +1,5 @@
+//! *NB*: this guide is not actual.
+//!
 //! Let's create a dispatcher with an explanation of each step.
 //!
 //! # Do I need a dispatcher?

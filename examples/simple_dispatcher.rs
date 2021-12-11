@@ -94,14 +94,9 @@ fn ping_handler() -> CommandHandler {
 }
 
 fn set_value_handler() -> CommandHandler {
-    dptree::middleware(|store: &DependencyMap| {
-        let event: Arc<Event> = store.get();
+    dptree::map(|event: Arc<Event>| async move {
         match *event {
-            Event::SetValue(value) => {
-                let mut store = store.clone();
-                store.insert(value);
-                Some(store)
-            }
+            Event::SetValue(value) => Some(value),
             _ => None,
         }
     })
