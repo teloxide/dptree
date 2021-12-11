@@ -94,9 +94,11 @@ fn ping_handler() -> CommandHandler {
 }
 
 fn set_value_handler() -> CommandHandler {
-    dptree::parser(|event: &Event| match event {
-        Event::SetValue(value) => Some(*value),
-        _ => None,
+    dptree::filter_map(|event: Arc<Event>| async move {
+        match *event {
+            Event::SetValue(value) => Some(value),
+            _ => None,
+        }
     })
     .endpoint(move |value: Arc<i32>, store: Arc<AtomicI32>| async move {
         store.store(*value, Ordering::SeqCst);
