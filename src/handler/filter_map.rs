@@ -38,7 +38,7 @@ impl<T: Send + Sync + 'static> Insert<T> for DependencyMap {
 ///     Int(i32),
 /// }
 ///
-/// let handler = dptree::map(|val: Arc<StringOrInt>| async move {
+/// let handler = dptree::filter_map(|val: Arc<StringOrInt>| async move {
 ///     match val.as_ref() {
 ///         StringOrInt::String(s) => s.parse().ok(),
 ///         StringOrInt::Int(int) => Some(*int),
@@ -64,7 +64,7 @@ impl<T: Send + Sync + 'static> Insert<T> for DependencyMap {
 ///
 /// # }
 /// ```
-pub fn map<'a, Projection, Input, Output, NewType, Args>(
+pub fn filter_map<'a, Projection, Input, Output, NewType, Args>(
     proj: Projection,
 ) -> Handler<'a, Input, Output, Input>
 where
@@ -108,7 +108,7 @@ mod tests {
         let value = 123;
         let deps = DependencyMap::new();
 
-        let result = map(move || async move { Some(value) })
+        let result = filter_map(move || async move { Some(value) })
             .endpoint(move |event: Arc<i32>| async move {
                 assert_eq!(*event, value);
                 value
@@ -121,7 +121,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_none() {
-        let result = map(|| async move { None::<i32> })
+        let result = filter_map(|| async move { None::<i32> })
             .endpoint(|| async move { unreachable!() })
             .dispatch(DependencyMap::new())
             .await;
