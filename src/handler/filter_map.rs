@@ -29,6 +29,7 @@ impl<T: Send + Sync + 'static> Insert<T> for DependencyMap {
 /// # #[tokio::main]
 /// # async fn main() {
 /// use dptree::{
+///     deps,
 ///     di::{DependencyMap, Value},
 ///     prelude::*,
 /// };
@@ -48,19 +49,13 @@ impl<T: Send + Sync + 'static> Insert<T> for DependencyMap {
 /// })
 /// .endpoint(|value: Arc<i32>| async move { *value });
 ///
-/// let make_map = |value: StringOrInt| {
-///     let mut map = DependencyMap::new();
-///     map.insert(value);
-///     map
-/// };
-///
-/// assert_eq!(handler.dispatch(make_map(StringOrInt::Int(10))).await, ControlFlow::Break(10));
+/// assert_eq!(handler.dispatch(deps! { StringOrInt::Int(10) }).await, ControlFlow::Break(10));
 /// assert_eq!(
-///     handler.dispatch(make_map(StringOrInt::String("10".into()))).await,
+///     handler.dispatch(deps! { StringOrInt::String("10".into()) }).await,
 ///     ControlFlow::Break(10)
 /// );
 /// assert!(matches!(
-///     handler.dispatch(make_map(StringOrInt::String("NaN".into()))).await,
+///     handler.dispatch(deps! { StringOrInt::String("NaN".into()) }).await,
 ///     ControlFlow::Continue(_)
 /// ));
 ///

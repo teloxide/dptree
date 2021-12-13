@@ -242,3 +242,31 @@ impl_into_di!(A, B, C, D, E, F);
 impl_into_di!(A, B, C, D, E, F, G);
 impl_into_di!(A, B, C, D, E, F, G, H);
 impl_into_di!(A, B, C, D, E, F, G, H, I);
+
+/// Constructs [`DependencyMap`] with a list of dependencies.
+///
+/// # Examples
+///
+/// ```
+/// use dptree::{di::DependencyMap, prelude::*};
+///
+/// let map = dptree::deps! { 123, "abc", true };
+///
+/// let i: i32 = *map.get();
+/// let str: &str = *map.get();
+/// let b: bool = *map.get();
+///
+/// assert!(i == 123);
+/// assert!(str == "abc");
+/// assert!(b == true);
+/// ```
+#[macro_export]
+macro_rules! deps {
+    ($($dep:expr),*) => {
+        {
+            let mut map = DependencyMap::new();
+            $(map.insert($dep);)*
+            map
+        }
+    }
+}
