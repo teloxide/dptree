@@ -1,25 +1,22 @@
-//! Traits and implementations of [Dependency Injection pattern].
+//! An implementation of [dependency injection].
 //!
-//! If you do not know what is DI (dependency injection), please, read [this
-//! discussion on StackOverflow], then come back. Only difference that in
-//! `dptree` we inject objects into functions-handlers, not in objects.
+//! If you do not know what is dependency injection (DI), please read [this
+//! discussion on StackOverflow], then come back. The only difference is that in
+//! `dptree`, we inject objects into function-handlers, not into objects.
 //!
-//! Most important trait here is `DiContainer`. It must be implemented for all
-//! DI containers. It specify types that can be obtained from DI container.
+//! The most important trait here is [`DependencySupplier`]. It must be
+//! implemented for all DI containers. It specifies types that can be obtained
+//! from a DI container.
 //!
 //! There are two implementations in `dptree` of this trait:
 //!
-//! 1. `Value`. It always contain only one value. Use it where you want to pass
-//! only one value to the handlers.
-//! 2. `DependencyMap`. It implements DI pattern fully, but be careful: it can
-//! panic when you do not provide necessary types. See more in its
-//! documentation.
+//! 1. [`Value`]. It always contains only one value. Use it everywhere you want
+//! to pass only one value to the handlers.
+//! 2. [`DependencyMap`]. It implements the DI pattern completely, but be
+//! careful: it can panic when you do not provide necessary types. See more in
+//! its documentation.
 //!
-//! We strongly not recommend to use these implementations in production code,
-//! because of its inefficient. You can use them for testing or prototyping, but
-//! we recommend to switch on implementations of foreign `DI` libraries.
-//!
-//! [Dependency Injection pattern]: https://en.wikipedia.org/wiki/Dependency_injection
+//! [dependency injection]: https://en.wikipedia.org/wiki/Dependency_injection
 //! [this discussion on StackOverflow]: https://stackoverflow.com/questions/130794/what-is-dependency-injection
 use futures::future::BoxFuture;
 
@@ -32,29 +29,30 @@ use std::{
     sync::Arc,
 };
 
-/// The trait is used to specify container that can return value of specified
-/// type.
+/// A DI container from which we can extract a value of a given type.
 ///
-/// There are two possible ways to handle situation when container cannot return
-/// value of specified type:
+/// There are two possible ways to handle the situation when your container
+/// cannot return a value of specified type:
 ///
-/// 1. Container may not implement `DiContainer` for the type.
-/// It often requires some type-level manipulations.
-/// 2. Container can panic in the runtime. Be careful in this case,
-/// and check whether you add you type to container.
+/// 1. Do not implement [`DependencySupplier`] for the type. It often requires
+/// some type-level manipulations.
+/// 2. Runtime panic. Be careful in this case: check whether you add your type
+/// to the container.
 ///
-/// Concrete solution is chosen by implementation.
+/// A concrete solution is left to a particular implementation.
 pub trait DependencySupplier<Value> {
-    /// Get value.
+    /// Get the value.
     ///
     /// We assume that all values are stored in `Arc<_>`.
     fn get(&self) -> Arc<Value>;
 }
 
-/// Container that store only one value.
+/// A DI container that store only one value.
 ///
-/// Primarily used in tests, but can be also used in the handlers which require
-/// only one input value.
+/// Primarily used in tests, but can also be used for handlers that require only
+/// one input value.
+///
+/// # Examples
 ///
 /// ```
 /// # #[tokio::main]
@@ -83,13 +81,15 @@ impl<T> DependencySupplier<T> for Value<T> {
     }
 }
 
-/// DI container using DependencyMap pattern.
+/// A DI container with multiple dependencies.
 ///
-/// This DI container stores types by its `TypeId`. It cannot prove in
-/// compile-time what types are contained inside, so if you do not provide
-/// necessary types but they were requested, panic will cause.
+/// This DI container stores types by their corresponding type identifiers. It
+/// cannot prove at compile-time that a type of a requested value exists within
+/// the container, so if you do not provide necessary types but they were
+/// requested, it will panic.
 ///
-/// Example of right usage:
+/// # Examples
+///
 /// ```
 /// # use std::sync::Arc;
 /// use dptree::di::{DependencyMap, DependencySupplier};
@@ -101,14 +101,15 @@ impl<T> DependencySupplier<T> for Value<T> {
 /// assert_eq!(container.get(), Arc::new(5_i32));
 /// assert_eq!(container.get(), Arc::new("abc"));
 ///
-/// // if we add a type that already stored, it will be replaced
+/// // If a type of a value already exists within the container, it will be replaced.
 /// let old_value = container.insert(10_i32).unwrap();
 ///
 /// assert_eq!(old_value, Arc::new(5_i32));
 /// assert_eq!(container.get(), Arc::new(10_i32));
 /// ```
 ///
-/// When type is not provided, panic will cause:
+/// When a value is not found within the container, it will panic:
+///
 /// ```should_panic
 /// # use std::sync::Arc;
 /// use dptree::di::{DependencyMap, DependencySupplier};
@@ -135,38 +136,25 @@ impl DependencyMap {
         Self::default()
     }
 
-    /// Inserts a value into container.
+    /// Inserts a value into the container.
     ///
-    /// If the container did not have this type present, `None` is returned.
-    ///
-    /// If the container did have this type present, the value is updated, and
-    /// the old value is returned.
-    ///
-    /// For examples see `DependencyMap` docs.
+    /// If the container do not has this type present, `None` is returned.
+    /// Otherwise, the value is updated, and the old value is returned.
     pub fn insert<T: Send + Sync + 'static>(&mut self, item: T) -> Option<Arc<T>> {
         self.insert_arc(Arc::new(item))
     }
 
-    /// Inserts a value into container.
-    ///
-    /// If the container did not have this type present, `None` is returned.
-    ///
-    /// If the container did have this type present, the value is updated, and
-    /// the old value is returned.
-    ///
-    /// For examples see `DependencyMap` docs.
+    /// Inserts an `Arc<_>` value into the container.
     pub fn insert_arc<T: Send + Sync + 'static>(&mut self, item: Arc<T>) -> Option<Arc<T>> {
         self.map
             .insert(TypeId::of::<T>(), item)
             .map(|arc| arc.downcast().expect("Values are stored by TypeId"))
     }
 
-    /// Remove value from container.
+    /// Removes a value from the container.
     ///
-    /// If the container did not have this type present, `None` is returned.
-    ///
-    /// If the map did have this type present, the value is removed and
-    /// returned.
+    /// If the container do not has this type present, `None` is returned.
+    /// Otherwise, the value is removed and returned.
     pub fn remove<T: Send + Sync + 'static>(&mut self) -> Option<Arc<T>> {
         self.map
             .remove(&TypeId::of::<T>())
@@ -206,20 +194,19 @@ where
     }
 }
 
-#[rustfmt::skip] // rustfmt too bad in formatting lists
-/// The trait is used to convert functions into `DiFn`.
+/// Converts functions into [`CompiledFn`].
 ///
 /// The function must follow some rules, to be usable with DI:
 ///
-/// 1. All input values must be wrapped around `Arc`. It is requirement of the
-/// `DiContainer` trait.
-/// 2. Function must have 0-9 arguments.
-/// 3. Function must return `Future`.
+/// 1. All input values must be wrapped into `Arc`. It is a requirement of the
+/// [`DependencySupplier`] trait.
+/// 2. The function must be of 0-9 arguments.
+/// 3. The function must return [`Future`].
 pub trait Injector<Input, Output, FnArgs> {
     fn inject<'a>(&'a self, container: &'a Input) -> CompiledFn<'a, Output>;
 }
 
-/// The function to which the reference to the container is passed.
+/// A function with all dependencies satisfied.
 pub type CompiledFn<'a, Output> = Arc<dyn Fn() -> BoxFuture<'a, Output> + Send + Sync + 'a>;
 
 macro_rules! impl_into_di {
