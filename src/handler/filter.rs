@@ -4,13 +4,14 @@ use crate::{
 };
 use std::{ops::ControlFlow, sync::Arc};
 
-/// Create a handler that filter input by some condition.
+/// Constructs a handler that filters input with the predicate `pred`.
 ///
-/// Condition can access to all values that are stored in the input container,
-/// and must return `bool` value. If it returns `true`, continuation of the
-/// handler will be called, otherwise handler returns `ControlFlow::Continue`.
+/// `pred` has an access to all values that are stored in the input container.
+/// If it returns `true`, a continuation of the handler will be called,
+/// otherwise the handler returns [`ControlFlow::Continue`].
 ///
-/// Example:
+/// # Examples
+///
 /// ```
 /// # #[tokio::main]
 /// # async fn main() {

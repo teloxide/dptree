@@ -8,7 +8,7 @@ where
     Output: Send + Sync + 'a,
     Intermediate: Send + Sync + 'a,
 {
-    /// Chain self handler with `endpoint` handler.
+    /// Chain this handler with the endpoint handler `endp`.
     pub fn endpoint<F, FnArgs>(self, endp: F) -> Endpoint<'a, Input, Output>
     where
         F: Injector<Intermediate, Output, FnArgs> + Send + Sync + 'a,
@@ -17,13 +17,14 @@ where
     }
 }
 
-/// Create endpoint handler.
+/// Constructs a handler that has no further handlers in a chain.
 ///
-/// Endpoint is a handler that _always_ break handler execution after its
+/// An endpoint is a handler that _always_ breaks handler execution after its
 /// completion. So, you can use it when your chain of responsibility must end
-/// up, and handle incoming event.
+/// up, and handle an incoming event.
 ///
-/// Examples:
+/// # Examples
+///
 /// ```
 /// # #[tokio::main]
 /// # async fn main() {
@@ -55,10 +56,7 @@ where
     })
 }
 
-/// Endpoint handler type.
-///
-/// Infallible in position of intermediate type means that continuation never
-/// will be called.
+/// A handler with no further handlers in a chain.
 pub type Endpoint<'a, Input, Output> = Handler<'a, Input, Output, Infallible>;
 
 #[cfg(test)]

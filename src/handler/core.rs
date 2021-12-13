@@ -2,11 +2,11 @@ use std::{future::Future, ops::ControlFlow, sync::Arc};
 
 use futures::future::BoxFuture;
 
-/// Struct that handles input values and returns some output. You can think of
-/// it as a function that do some calculations.
+/// An instance that receives an input and decides whether to break a chain or
+/// pass the value further.
 ///
-/// You must not create it directly by yourself. Instead, you can use predefined
-/// functions from `dptree::handler` mod.
+/// In order to create this structure, you can use the predefined functions from
+/// [`crate`].
 pub struct Handler<'a, Input, Output, Intermediate = Input>(
     #[allow(clippy::type_complexity)]
     Arc<
@@ -17,11 +17,11 @@ pub struct Handler<'a, Input, Output, Intermediate = Input>(
     >,
 );
 
-/// Continuation of the handler, which will be called if handler want it.
+/// A continuation representing the rest of a handler chain.
 pub type Cont<'a, Intermediate, Output> =
     Box<dyn Fn(Intermediate) -> HandlerResult<'a, Intermediate, Output> + Send + Sync + 'a>;
 
-/// Output of the `Handler`.
+/// An output type produced by a handler.
 pub type HandlerResult<'a, Input, Output> = BoxFuture<'a, ControlFlow<Output, Input>>;
 
 // `#[derive(Clone)]` obligates all type parameters to satisfy `Clone` as well,
@@ -38,13 +38,13 @@ where
     Output: Send + Sync + 'a,
     Intermediate: Send + Sync + 'a,
 {
-    /// Chain two handlers to form a [Chain of responsibility].
+    /// Chain two handlers to form a [chain of responsibility].
     ///
-    /// When executed, first will be executed `self` handler, and then, if
-    /// `self` has been executed successfully, `next` handler will be
-    /// executed.
+    /// First, `self` will be executed, and then, if `self` decides to continue
+    /// execution, `next` will be executed.
     ///
-    /// Example:
+    /// # Examples
+    ///
     /// ```
     /// # #[tokio::main]
     /// # async fn main() {
@@ -60,7 +60,7 @@ where
     /// # }
     /// ```
     ///
-    /// [Chain of responsibility]: https://en.wikipedia.org/wiki/Chain-of-responsibility_pattern
+    /// [chain of responsibility]: https://en.wikipedia.org/wiki/Chain-of-responsibility_pattern
     pub fn chain<Intermediate2>(
         self,
         next: Handler<'a, Intermediate, Output, Intermediate2>,
@@ -83,15 +83,13 @@ where
         })
     }
 
-    /// Chain two handlers to make a tree.
+    /// Chain two handlers to make a tree of responsibility.
     ///
-    /// When executed, first will be executed `self` handler, and then, if
-    /// `self` has been executed successfully, `next` handler will be
-    /// executed. If `next` handler returns `ControlFlow::Break`, execution will
-    /// stop, otherwise next handler added by `Handler::branch` will be
-    /// executed.
+    /// This function is the same as [`Handler::chain`] but instead of expanding
+    /// a chain, it adds a new branch, thereby forming a tree.
     ///
-    /// Example:
+    /// # Examples
+    ///
     /// ```
     /// use dptree::{di::Value, prelude::*};
     /// use std::ops::ControlFlow;
@@ -152,13 +150,14 @@ where
         })
     }
 
-    /// Execute handler with specified continuation.
+    /// Executes this handler with a continuation.
     ///
     /// Usually, you do not want to call this method by yourself, if you do not
-    /// write your own handler. If you wish to execute handler without
-    /// continuation, take a look at the `Handler::dispatch` method.
+    /// write your own handler implementation. If you wish to execute handler
+    /// without a continuation, take a look at the [`Handler::dispatch`] method.
     ///
-    /// Example:
+    /// # Examples
+    ///
     /// ```
     /// # #[tokio::main]
     /// # async fn main() {
@@ -185,19 +184,20 @@ where
         (self.0)(container, Box::new(move |event| Box::pin(cont(event)))).await
     }
 
-    /// Execute handler with specified container.
+    /// Executes this handler.
     ///
-    /// Returns `ControlFlow::Break` when executed successfully,
-    /// `ControlFlow::Continue` otherwise.
+    /// Returns [`ControlFlow::Break`] when executed successfully,
+    /// [`ControlFlow::Continue`] otherwise.
     pub async fn dispatch(&self, container: Input) -> ControlFlow<Output, Input> {
         self.clone().execute(container, |event| async move { ControlFlow::Continue(event) }).await
     }
 }
 
-/// Constructor for the `Handler` struct.
+/// Constructs a handler from a function.
 ///
-/// Usually you do not want to use this func. Take a look at the functions
-/// available in the root of the crate.
+/// Most of the time, you do not want to use this function. Take a look at more
+/// specialised functions: [`crate::endpoint`], [`crate::filter`],
+/// [`crate::filter_map`], etc.
 pub fn from_fn<'a, F, Fut, Input, Output, Intermediate>(
     f: F,
 ) -> Handler<'a, Input, Output, Intermediate>
@@ -208,7 +208,10 @@ where
     Handler(Arc::new(move |event, cont| Box::pin(f(event, cont))))
 }
 
-/// Create empty handler, that do nothing.
+/// Constructs an entry point handler.
+///
+/// This function is only used to specify other handlers upon it (see the root
+/// examples).
 pub fn entry<'a, Input, Output>() -> Handler<'a, Input, Output, Input>
 where
     Input: Send + Sync + 'a,

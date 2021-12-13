@@ -4,7 +4,9 @@ use crate::{
 };
 use std::{ops::ControlFlow, sync::Arc};
 
+/// Insert some value to a container.
 pub trait Insert<Value> {
+    /// Inserts `value` into itself, returning the previous value, if exists.
     fn insert(&mut self, value: Value) -> Option<Arc<Value>>;
 }
 
@@ -14,15 +16,15 @@ impl<T: Send + Sync + 'static> Insert<T> for DependencyMap {
     }
 }
 
-/// Create handler that add new type to the container.
+/// Constructs a handler that optionally passes a value of a new type further.
 ///
-/// If a function returns `Some(new_type)` then `new_type` will be added to the
+/// If the `proj` function returns `Some(v)` then `v` will be added to the
+/// container and passed further in a handler chain. If the function returns
+/// `None`, then the handler will return [`ControlFlow::Continue`] with the old
 /// container.
 ///
-/// If a function returns `None` then handler will return
-/// `ControlFlow::Continue(old_container)`.
+/// # Examples
 ///
-/// Example:
 /// ```
 /// # #[tokio::main]
 /// # async fn main() {
