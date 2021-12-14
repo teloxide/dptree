@@ -16,4 +16,3 @@ futures = "0.3"
 sqlx = { version = "0.5.9", features = ["sqlite", "runtime-tokio-native-tls"] }
 thiserror = "1.0.30"
 enum-as-inner = "0.3.3"
-regex = "1.5"
