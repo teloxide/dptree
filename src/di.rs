@@ -248,7 +248,7 @@ impl_into_di!(A, B, C, D, E, F, G, H, I);
 /// # Examples
 ///
 /// ```
-/// use dptree::{di::DependencyMap, prelude::*};
+/// use dptree::di::DependencyMap;
 ///
 /// let map = dptree::deps! { 123, "abc", true };
 ///
