@@ -168,7 +168,7 @@ impl DependencyMap {
 
 impl Debug for DependencyMap {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        f.debug_struct("DependencyMapPanickableStore").finish()
+        f.debug_struct("DependencyMap").finish()
     }
 }
 
