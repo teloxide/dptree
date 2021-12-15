@@ -160,10 +160,6 @@ impl DependencyMap {
             .remove(&TypeId::of::<T>())
             .map(|arc| arc.downcast().expect("Values are stored by TypeId"))
     }
-
-    pub fn get<T: Send + Sync + 'static>(&self) -> Arc<T> {
-        DependencySupplier::get(self)
-    }
 }
 
 impl Debug for DependencyMap {
@@ -248,7 +244,7 @@ impl_into_di!(A, B, C, D, E, F, G, H, I);
 /// # Examples
 ///
 /// ```
-/// use dptree::di::DependencyMap;
+/// use dptree::di::{DependencyMap, DependencySupplier};
 ///
 /// let map = dptree::deps! { 123, "abc", true };
 ///
