@@ -28,11 +28,7 @@ impl<T: Send + Sync + 'static> Insert<T> for DependencyMap {
 /// ```
 /// # #[tokio::main]
 /// # async fn main() {
-/// use dptree::{
-///     deps,
-///     di::{DependencyMap, Value},
-///     prelude::*,
-/// };
+/// use dptree::{deps, di::DependencyMap, prelude::*};
 /// use std::ops::ControlFlow;
 ///
 /// #[derive(Debug, PartialEq)]
@@ -49,13 +45,13 @@ impl<T: Send + Sync + 'static> Insert<T> for DependencyMap {
 /// })
 /// .endpoint(|value: Arc<i32>| async move { *value });
 ///
-/// assert_eq!(handler.dispatch(deps! { StringOrInt::Int(10) }).await, ControlFlow::Break(10));
+/// assert_eq!(handler.dispatch(deps!(StringOrInt::Int(10))).await, ControlFlow::Break(10));
 /// assert_eq!(
-///     handler.dispatch(deps! { StringOrInt::String("10".into()) }).await,
+///     handler.dispatch(deps!(StringOrInt::String("10".into()))).await,
 ///     ControlFlow::Break(10)
 /// );
 /// assert!(matches!(
-///     handler.dispatch(deps! { StringOrInt::String("NaN".into()) }).await,
+///     handler.dispatch(deps!(StringOrInt::String("NaN".into()))).await,
 ///     ControlFlow::Continue(_)
 /// ));
 ///

@@ -36,19 +36,13 @@ async fn repl(mut state: CommandState, dispatcher: Handler<'static, Store, Comma
         let event = Event::parse(str);
 
         let new_state = match event {
-            Some(event) => {
-                let mut container = DependencyMap::new();
-                container.insert(event);
-                container.insert(state.clone());
-
-                match dispatcher.dispatch(container).await {
-                    ControlFlow::Break(new_state) => new_state,
-                    ControlFlow::Continue(_) => {
-                        println!("There is no transition for the event");
-                        continue;
-                    }
+            Some(event) => match dispatcher.dispatch(dptree::deps!(event, state.clone())).await {
+                ControlFlow::Break(new_state) => new_state,
+                ControlFlow::Continue(_) => {
+                    println!("There is no transition for the event");
+                    continue;
                 }
-            }
+            },
             _ => {
                 println!("Unknown event");
                 continue;

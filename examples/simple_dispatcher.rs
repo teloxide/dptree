@@ -50,16 +50,10 @@ async fn repl(dispatcher: Handler<'static, Store, String>, store: Arc<AtomicI32>
         let event = Event::parse(strs.as_slice());
 
         let out = match event {
-            Some(event) => {
-                let mut container = DependencyMap::new();
-                container.insert(event);
-                container.insert(store.clone());
-
-                match dispatcher.dispatch(container).await {
-                    ControlFlow::Continue(event) => panic!("Unhandled event {:?}", event),
-                    ControlFlow::Break(result) => result,
-                }
-            }
+            Some(event) => match dispatcher.dispatch(dptree::deps!(event, store.clone())).await {
+                ControlFlow::Continue(event) => panic!("Unhandled event {:?}", event),
+                ControlFlow::Break(result) => result,
+            },
             _ => "Unknown command".to_string(),
         };
 

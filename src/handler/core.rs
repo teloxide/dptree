@@ -48,14 +48,14 @@ where
     /// ```
     /// # #[tokio::main]
     /// # async fn main() {
-    /// use dptree::{di::Value, prelude::*};
+    /// use dptree::{deps, di::DependencyMap, prelude::*};
     /// use std::ops::ControlFlow;
     ///
     /// let handler = dptree::filter(|x: Arc<i32>| async move { *x > 0 })
     ///     .chain(dptree::endpoint(|| async { "done" }));
     ///
-    /// assert_eq!(handler.dispatch(Value::new(10)).await, ControlFlow::Break("done"));
-    /// assert_eq!(handler.dispatch(Value::new(-10)).await, ControlFlow::Continue(Value::new(-10)));
+    /// assert_eq!(handler.dispatch(deps!(10)).await, ControlFlow::Break("done"));
+    /// assert_eq!(handler.dispatch(deps!(-10)).await, ControlFlow::Continue(deps!(-10)));
     ///
     /// # }
     /// ```
@@ -91,7 +91,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use dptree::{di::Value, prelude::*};
+    /// use dptree::{deps, di::DependencyMap, prelude::*};
     /// use std::ops::ControlFlow;
     ///
     /// # #[tokio::main]
@@ -118,10 +118,10 @@ where
     ///             .endpoint(|| async move { Output::GT }),
     ///     );
     ///
-    /// assert_eq!(dispatcher.dispatch(Value::new(5)).await, ControlFlow::Break(Output::Five));
-    /// assert_eq!(dispatcher.dispatch(Value::new(1)).await, ControlFlow::Break(Output::One));
-    /// assert_eq!(dispatcher.dispatch(Value::new(3)).await, ControlFlow::Break(Output::GT));
-    /// assert_eq!(dispatcher.dispatch(Value::new(0)).await, ControlFlow::Continue(Value::new(0)));
+    /// assert_eq!(dispatcher.dispatch(deps!(5)).await, ControlFlow::Break(Output::Five));
+    /// assert_eq!(dispatcher.dispatch(deps!(1)).await, ControlFlow::Break(Output::One));
+    /// assert_eq!(dispatcher.dispatch(deps!(3)).await, ControlFlow::Break(Output::GT));
+    /// assert_eq!(dispatcher.dispatch(deps!(0)).await, ControlFlow::Continue(deps!(0)));
     /// # }
     /// ```
     pub fn branch<Intermediate2>(
@@ -161,12 +161,12 @@ where
     /// ```
     /// # #[tokio::main]
     /// # async fn main() {
-    /// use dptree::{di::Value, prelude::*};
+    /// use dptree::{deps, di::DependencyMap, prelude::*};
     /// use std::ops::ControlFlow;
     ///
     /// let handler = dptree::filter(|x: Arc<i32>| async move { *x > 0 });
     ///
-    /// let output = handler.execute(Value::new(10), |_| async { ControlFlow::Break("done") }).await;
+    /// let output = handler.execute(deps!(10), |_| async { ControlFlow::Break("done") }).await;
     /// assert_eq!(output, ControlFlow::Break("done"));
     ///
     /// # }
@@ -222,10 +222,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::handler::{endpoint, filter};
+    use crate::{
+        deps,
+        di::DependencyMap,
+        handler::{endpoint, filter},
+    };
 
     use super::*;
-    use crate::di::Value;
 
     #[tokio::test]
     async fn test_from_fn_break() {
@@ -316,10 +319,10 @@ mod tests {
         let dispatcher =
             entry().branch(negative_handler).branch(zero_handler).branch(positive_handler);
 
-        assert_eq!(dispatcher.dispatch(Value::new(2)).await, ControlFlow::Break(Output::GT));
-        assert_eq!(dispatcher.dispatch(Value::new(1)).await, ControlFlow::Break(Output::One));
-        assert_eq!(dispatcher.dispatch(Value::new(0)).await, ControlFlow::Break(Output::Zero));
-        assert_eq!(dispatcher.dispatch(Value::new(-1)).await, ControlFlow::Break(Output::MinusOne));
-        assert_eq!(dispatcher.dispatch(Value::new(-2)).await, ControlFlow::Break(Output::LT));
+        assert_eq!(dispatcher.dispatch(deps!(2)).await, ControlFlow::Break(Output::GT));
+        assert_eq!(dispatcher.dispatch(deps!(1)).await, ControlFlow::Break(Output::One));
+        assert_eq!(dispatcher.dispatch(deps!(0)).await, ControlFlow::Break(Output::Zero));
+        assert_eq!(dispatcher.dispatch(deps!(-1)).await, ControlFlow::Break(Output::MinusOne));
+        assert_eq!(dispatcher.dispatch(deps!(-2)).await, ControlFlow::Break(Output::LT));
     }
 }

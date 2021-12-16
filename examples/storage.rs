@@ -17,7 +17,7 @@ async fn main() {
     }
 
     // Init storage with string and num
-    let store = init_store();
+    let store = Arc::new(dptree::deps!(10u32, "Hello".to_owned()));
 
     let str_num_handler = assert_num_string_handler(10u32, "Hello");
 
@@ -32,13 +32,4 @@ async fn main() {
     });
     let result = handle.await;
     assert!(result.is_err())
-}
-
-fn init_store() -> Store {
-    let mut store = DependencyMap::new();
-
-    store.insert(10u32);
-    store.insert("Hello".to_string());
-
-    Arc::new(store)
 }

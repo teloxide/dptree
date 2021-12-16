@@ -28,14 +28,14 @@ where
 /// ```
 /// # #[tokio::main]
 /// # async fn main() {
-/// use dptree::{di::Value, prelude::*};
+/// use dptree::{deps, di::DependencyMap, prelude::*};
 /// use std::ops::ControlFlow;
 ///
 /// let hello_world = dptree::endpoint(|| async { "Hello, World!" });
-/// assert_eq!(hello_world.dispatch(Value::new(0)).await, ControlFlow::Break("Hello, World!"));
+/// assert_eq!(hello_world.dispatch(deps!(0)).await, ControlFlow::Break("Hello, World!"));
 ///
 /// let multiply = dptree::endpoint(|x: Arc<i32>| async move { *x * 10 });
-/// assert_eq!(multiply.dispatch(Value::new(5)).await, ControlFlow::Break(50));
+/// assert_eq!(multiply.dispatch(deps!(5)).await, ControlFlow::Break(50));
 ///
 /// # }
 /// ```

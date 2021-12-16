@@ -8,13 +8,9 @@
 //! implemented for all DI containers. It specifies types that can be obtained
 //! from a DI container.
 //!
-//! There are two implementations in `dptree` of this trait:
-//!
-//! 1. [`Value`]. It always contains only one value. Use it everywhere you want
-//! to pass only one value to the handlers.
-//! 2. [`DependencyMap`]. It implements the DI pattern completely, but be
-//! careful: it can panic when you do not provide necessary types. See more in
-//! its documentation.
+//! There is one implementation in `dptree` of this trait, [`DependencyMap`]. It
+//! implements the DI pattern completely, but be careful: it can panic when you
+//! do not provide necessary types. See more in its documentation.
 //!
 //! [dependency injection]: https://en.wikipedia.org/wiki/Dependency_injection
 //! [this discussion on StackOverflow]: https://stackoverflow.com/questions/130794/what-is-dependency-injection
@@ -45,40 +41,6 @@ pub trait DependencySupplier<Value> {
     ///
     /// We assume that all values are stored in `Arc<_>`.
     fn get(&self) -> Arc<Value>;
-}
-
-/// A DI container that store only one value.
-///
-/// Primarily used in tests, but can also be used for handlers that require only
-/// one input value.
-///
-/// # Examples
-///
-/// ```
-/// # #[tokio::main]
-/// # async fn main() {
-/// use dptree::{di::Value, prelude::*};
-/// use std::ops::ControlFlow;
-///
-/// let handler = dptree::endpoint(|x: Arc<i32>| async move { *x });
-///
-/// assert_eq!(handler.dispatch(Value::new(10)).await, ControlFlow::Break(10));
-///
-/// # }
-/// ```
-#[derive(Debug, Clone, PartialEq)]
-pub struct Value<T>(pub Arc<T>);
-
-impl<T> Value<T> {
-    pub fn new(value: T) -> Self {
-        Value(Arc::new(value))
-    }
-}
-
-impl<T> DependencySupplier<T> for Value<T> {
-    fn get(&self) -> Arc<T> {
-        self.0.clone()
-    }
 }
 
 /// A DI container with multiple dependencies.
@@ -246,7 +208,7 @@ impl_into_di!(A, B, C, D, E, F, G, H, I);
 /// ```
 /// use dptree::di::{DependencyMap, DependencySupplier};
 ///
-/// let map = dptree::deps! { 123, "abc", true };
+/// let map = dptree::deps!(123, "abc", true);
 ///
 /// let i: i32 = *map.get();
 /// let str: &str = *map.get();

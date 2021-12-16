@@ -15,13 +15,13 @@ use std::{ops::ControlFlow, sync::Arc};
 /// ```
 /// # #[tokio::main]
 /// # async fn main() {
-/// use dptree::{di::Value, prelude::*};
+/// use dptree::{deps, di::DependencyMap, prelude::*};
 /// use std::ops::ControlFlow;
 ///
 /// let handler = dptree::filter(|x: Arc<i32>| async move { *x > 0 }).endpoint(|| async { "done" });
 ///
-/// assert_eq!(handler.dispatch(Value::new(10)).await, ControlFlow::Break("done"));
-/// assert_eq!(handler.dispatch(Value::new(-10)).await, ControlFlow::Continue(Value::new(-10)));
+/// assert_eq!(handler.dispatch(deps!(10)).await, ControlFlow::Break("done"));
+/// assert_eq!(handler.dispatch(deps!(-10)).await, ControlFlow::Continue(deps!(-10)));
 ///
 /// # }
 /// ```
@@ -53,12 +53,12 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::di::Value;
+    use crate::{deps, di::DependencyMap};
 
     #[tokio::test]
     async fn test_filter() {
         let input_value = 123;
-        let input = Value::new(input_value);
+        let input = deps!(input_value);
         let output = 7;
 
         let result = filter(move |event: Arc<i32>| async move {
@@ -94,7 +94,7 @@ mod tests {
                 output
             }),
         )
-        .dispatch(Value::new(input))
+        .dispatch(deps!(input))
         .await;
 
         assert!(result == ControlFlow::Break(output));
