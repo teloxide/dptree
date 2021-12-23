@@ -48,14 +48,17 @@ where
     /// ```
     /// # #[tokio::main]
     /// # async fn main() {
-    /// use dptree::{deps, di::DependencyMap, prelude::*};
+    /// use dptree::prelude::*;
     /// use std::ops::ControlFlow;
     ///
     /// let handler =
     ///     dptree::filter(|x: i32| async move { x > 0 }).chain(dptree::endpoint(|| async { "done" }));
     ///
-    /// assert_eq!(handler.dispatch(deps!(10)).await, ControlFlow::Break("done"));
-    /// assert_eq!(handler.dispatch(deps!(-10)).await, ControlFlow::Continue(deps!(-10)));
+    /// assert_eq!(handler.dispatch(dptree::deps!(10)).await, ControlFlow::Break("done"));
+    /// assert_eq!(
+    ///     handler.dispatch(dptree::deps!(-10)).await,
+    ///     ControlFlow::Continue(dptree::deps!(-10))
+    /// );
     ///
     /// # }
     /// ```
@@ -91,7 +94,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use dptree::{deps, di::DependencyMap, prelude::*};
+    /// use dptree::prelude::*;
     /// use std::ops::ControlFlow;
     ///
     /// # #[tokio::main]
@@ -118,10 +121,13 @@ where
     ///             .endpoint(|| async move { Output::GT }),
     ///     );
     ///
-    /// assert_eq!(dispatcher.dispatch(deps!(5)).await, ControlFlow::Break(Output::Five));
-    /// assert_eq!(dispatcher.dispatch(deps!(1)).await, ControlFlow::Break(Output::One));
-    /// assert_eq!(dispatcher.dispatch(deps!(3)).await, ControlFlow::Break(Output::GT));
-    /// assert_eq!(dispatcher.dispatch(deps!(0)).await, ControlFlow::Continue(deps!(0)));
+    /// assert_eq!(dispatcher.dispatch(dptree::deps!(5)).await, ControlFlow::Break(Output::Five));
+    /// assert_eq!(dispatcher.dispatch(dptree::deps!(1)).await, ControlFlow::Break(Output::One));
+    /// assert_eq!(dispatcher.dispatch(dptree::deps!(3)).await, ControlFlow::Break(Output::GT));
+    /// assert_eq!(
+    ///     dispatcher.dispatch(dptree::deps!(0)).await,
+    ///     ControlFlow::Continue(dptree::deps!(0))
+    /// );
     /// # }
     /// ```
     pub fn branch<Intermediate2>(
@@ -161,12 +167,12 @@ where
     /// ```
     /// # #[tokio::main]
     /// # async fn main() {
-    /// use dptree::{deps, di::DependencyMap, prelude::*};
+    /// use dptree::prelude::*;
     /// use std::ops::ControlFlow;
     ///
     /// let handler = dptree::filter(|x: i32| async move { x > 0 });
     ///
-    /// let output = handler.execute(deps!(10), |_| async { ControlFlow::Break("done") }).await;
+    /// let output = handler.execute(dptree::deps!(10), |_| async { ControlFlow::Break("done") }).await;
     /// assert_eq!(output, ControlFlow::Break("done"));
     ///
     /// # }

@@ -24,7 +24,7 @@ use std::{
     },
 };
 
-use dptree::{di::DependencyMap, prelude::*};
+use dptree::prelude::*;
 
 #[tokio::main]
 async fn main() {

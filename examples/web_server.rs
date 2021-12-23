@@ -1,4 +1,4 @@
-use dptree::{deps, di::DependencyMap, prelude::*};
+use dptree::prelude::*;
 
 type WebHandler = Endpoint<'static, DependencyMap, String>;
 
@@ -11,15 +11,15 @@ async fn main() {
         .branch(not_found_handler());
 
     assert_eq!(
-        web_server.dispatch(deps!("/smile")).await,
+        web_server.dispatch(dptree::deps!("/smile")).await,
         ControlFlow::Break("🙃".to_owned())
     );
     assert_eq!(
-        web_server.dispatch(deps!("/sqrt 16")).await,
+        web_server.dispatch(dptree::deps!("/sqrt 16")).await,
         ControlFlow::Break("4".to_owned())
     );
     assert_eq!(
-        web_server.dispatch(deps!("/lol")).await,
+        web_server.dispatch(dptree::deps!("/lol")).await,
         ControlFlow::Break("404 Not Found".to_owned())
     );
 }

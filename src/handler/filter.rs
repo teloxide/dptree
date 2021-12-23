@@ -15,13 +15,16 @@ use std::{ops::ControlFlow, sync::Arc};
 /// ```
 /// # #[tokio::main]
 /// # async fn main() {
-/// use dptree::{deps, di::DependencyMap, prelude::*};
+/// use dptree::prelude::*;
 /// use std::ops::ControlFlow;
 ///
 /// let handler = dptree::filter(|x: i32| async move { x > 0 }).endpoint(|| async { "done" });
 ///
-/// assert_eq!(handler.dispatch(deps!(10)).await, ControlFlow::Break("done"));
-/// assert_eq!(handler.dispatch(deps!(-10)).await, ControlFlow::Continue(deps!(-10)));
+/// assert_eq!(handler.dispatch(dptree::deps!(10)).await, ControlFlow::Break("done"));
+/// assert_eq!(
+///     handler.dispatch(dptree::deps!(-10)).await,
+///     ControlFlow::Continue(dptree::deps!(-10))
+/// );
 ///
 /// # }
 /// ```

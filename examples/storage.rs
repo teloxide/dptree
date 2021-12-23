@@ -1,4 +1,4 @@
-use dptree::{di::DependencyMap, prelude::*};
+use dptree::prelude::*;
 use std::{net::Ipv4Addr, sync::Arc};
 
 type Store = Arc<DependencyMap>;

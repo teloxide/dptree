@@ -8,7 +8,7 @@ use std::{
 
 use futures::future;
 
-use dptree::{di::DependencyMap, prelude::*};
+use dptree::prelude::*;
 
 #[tokio::main]
 async fn main() {
