@@ -4,13 +4,9 @@
 //! discussion on StackOverflow], then come back. The only difference is that in
 //! `dptree`, we inject objects into function-handlers, not into objects.
 //!
-//! The most important trait here is [`DependencySupplier`]. It must be
-//! implemented for all DI containers. It specifies types that can be obtained
-//! from a DI container.
-//!
-//! There is one implementation in `dptree` of this trait, [`DependencyMap`]. It
-//! implements the DI pattern completely, but be careful: it can panic when you
-//! do not provide necessary types. See more in its documentation.
+//! Currently, the only container is [`DependencyMap`]. It implements the DI
+//! pattern completely, but be careful: it can panic when you do not provide
+//! necessary types. See more in its documentation.
 //!
 //! [dependency injection]: https://en.wikipedia.org/wiki/Dependency_injection
 //! [this discussion on StackOverflow]: https://stackoverflow.com/questions/130794/what-is-dependency-injection
