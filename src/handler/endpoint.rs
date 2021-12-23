@@ -1,4 +1,4 @@
-use crate::{di::Injector, from_fn, Handler};
+use crate::{di::Injectable, from_fn, Handler};
 use futures::FutureExt;
 use std::{convert::Infallible, ops::ControlFlow, sync::Arc};
 
@@ -11,7 +11,7 @@ where
     /// Chain this handler with the endpoint handler `endp`.
     pub fn endpoint<F, FnArgs>(self, endp: F) -> Endpoint<'a, Input, Output>
     where
-        F: Injector<Intermediate, Output, FnArgs> + Send + Sync + 'a,
+        F: Injectable<Intermediate, Output, FnArgs> + Send + Sync + 'a,
     {
         self.chain(endpoint(endp))
     }
@@ -43,7 +43,7 @@ pub fn endpoint<'a, F, Input, Output, FnArgs>(f: F) -> Endpoint<'a, Input, Outpu
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
-    F: Injector<Input, Output, FnArgs> + Send + Sync + 'a,
+    F: Injectable<Input, Output, FnArgs> + Send + Sync + 'a,
 {
     let f = Arc::new(f);
 

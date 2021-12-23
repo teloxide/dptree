@@ -155,7 +155,7 @@ where
 /// [`DependencySupplier`] trait.
 /// 2. The function must be of 0-9 arguments.
 /// 3. The function must return [`Future`].
-pub trait Injector<Input, Output, FnArgs> {
+pub trait Injectable<Input, Output, FnArgs> {
     fn inject<'a>(&'a self, container: &'a Input) -> CompiledFn<'a, Output>;
 }
 
@@ -164,7 +164,7 @@ pub type CompiledFn<'a, Output> = Arc<dyn Fn() -> BoxFuture<'a, Output> + Send +
 
 macro_rules! impl_into_di {
     ($($generic:ident),*) => {
-        impl<Func, Input, Output, Fut, $($generic),*>  Injector<Input, Output, (Fut, $($generic),*)> for Func
+        impl<Func, Input, Output, Fut, $($generic),*>  Injectable<Input, Output, (Fut, $($generic),*)> for Func
         where
             Input: $(DependencySupplier<$generic> +)*,
             Input: Send + Sync,

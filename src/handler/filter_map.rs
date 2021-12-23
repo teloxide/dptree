@@ -1,5 +1,5 @@
 use crate::{
-    di::{DependencyMap, Injector},
+    di::{DependencyMap, Injectable},
     from_fn, Handler,
 };
 use std::{ops::ControlFlow, sync::Arc};
@@ -62,7 +62,7 @@ pub fn filter_map<'a, Projection, Input, Output, NewType, Args>(
 ) -> Handler<'a, Input, Output, Input>
 where
     Input: Clone,
-    Projection: Injector<Input, Option<NewType>, Args> + Send + Sync + 'a,
+    Projection: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
     Input: Insert<NewType> + Send + Sync + 'a,
     Output: Send + Sync + 'a,
     NewType: Send,

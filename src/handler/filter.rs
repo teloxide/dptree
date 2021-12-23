@@ -1,5 +1,5 @@
 use crate::{
-    di::Injector,
+    di::Injectable,
     handler::core::{from_fn, Handler},
 };
 use std::{ops::ControlFlow, sync::Arc};
@@ -27,7 +27,7 @@ use std::{ops::ControlFlow, sync::Arc};
 /// ```
 pub fn filter<'a, Pred, Input, Output, FnArgs>(pred: Pred) -> Handler<'a, Input, Output>
 where
-    Pred: Injector<Input, bool, FnArgs> + Send + Sync + 'a,
+    Pred: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
 {
