@@ -103,13 +103,8 @@ impl DependencyMap {
     /// If the container do not has this type present, `None` is returned.
     /// Otherwise, the value is updated, and the old value is returned.
     pub fn insert<T: Send + Sync + 'static>(&mut self, item: T) -> Option<Arc<T>> {
-        self.insert_arc(Arc::new(item))
-    }
-
-    /// Inserts an `Arc<_>` value into the container.
-    pub fn insert_arc<T: Send + Sync + 'static>(&mut self, item: Arc<T>) -> Option<Arc<T>> {
         self.map
-            .insert(TypeId::of::<T>(), item)
+            .insert(TypeId::of::<T>(), Arc::new(item))
             .map(|arc| arc.downcast().expect("Values are stored by TypeId"))
     }
 
