@@ -18,7 +18,7 @@ use std::{ops::ControlFlow, sync::Arc};
 /// use dptree::{deps, di::DependencyMap, prelude::*};
 /// use std::ops::ControlFlow;
 ///
-/// let handler = dptree::filter(|x: Arc<i32>| async move { *x > 0 }).endpoint(|| async { "done" });
+/// let handler = dptree::filter(|x: i32| async move { x > 0 }).endpoint(|| async { "done" });
 ///
 /// assert_eq!(handler.dispatch(deps!(10)).await, ControlFlow::Break("done"));
 /// assert_eq!(handler.dispatch(deps!(-10)).await, ControlFlow::Continue(deps!(-10)));
@@ -61,12 +61,12 @@ mod tests {
         let input = deps!(input_value);
         let output = 7;
 
-        let result = filter(move |event: Arc<i32>| async move {
-            assert_eq!(*event, input_value);
+        let result = filter(move |event: i32| async move {
+            assert_eq!(event, input_value);
             true
         })
-        .endpoint(move |event: Arc<i32>| async move {
-            assert_eq!(*event, input_value);
+        .endpoint(move |event: i32| async move {
+            assert_eq!(event, input_value);
             output
         })
         .dispatch(input)
@@ -80,17 +80,17 @@ mod tests {
         let input = 123;
         let output = 7;
 
-        let result = filter(move |event: Arc<i32>| async move {
-            assert_eq!(*event, input);
+        let result = filter(move |event: i32| async move {
+            assert_eq!(event, input);
             true
         })
         .chain(
-            filter(move |event: Arc<i32>| async move {
-                assert_eq!(*event, input);
+            filter(move |event: i32| async move {
+                assert_eq!(event, input);
                 true
             })
-            .endpoint(move |event: Arc<i32>| async move {
-                assert_eq!(*event, input);
+            .endpoint(move |event: i32| async move {
+                assert_eq!(event, input);
                 output
             }),
         )
