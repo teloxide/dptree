@@ -2,11 +2,13 @@ use dptree::{deps, di::DependencyMap, prelude::*};
 
 type WebHandler = Endpoint<'static, DependencyMap, String>;
 
-#[tokio::main]
 #[rustfmt::skip]
+#[tokio::main]
 async fn main() {
-    let web_server =
-        dptree::entry().branch(smiles_handler()).branch(sqrt_handler()).branch(not_found_handler());
+    let web_server = dptree::entry()
+        .branch(smiles_handler())
+        .branch(sqrt_handler())
+        .branch(not_found_handler());
 
     assert_eq!(
         web_server.dispatch(deps!("/smile")).await,
