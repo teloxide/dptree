@@ -30,7 +30,7 @@ fn sqrt_handler() -> WebHandler {
             None
         }
     })
-    .endpoint(|n: Arc<f64>| async move { format!("{}", n.sqrt()) })
+    .endpoint(|n: f64| async move { format!("{}", n.sqrt()) })
 }
 
 fn not_found_handler() -> WebHandler {
