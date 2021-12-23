@@ -3,17 +3,23 @@ use dptree::{deps, di::DependencyMap, prelude::*};
 type WebHandler = Endpoint<'static, DependencyMap, String>;
 
 #[tokio::main]
+#[rustfmt::skip]
 async fn main() {
     let web_server =
         dptree::entry().branch(smiles_handler()).branch(sqrt_handler()).branch(not_found_handler());
 
-    let smile = web_server.dispatch(deps!("/smile")).await;
-    let sqrt_16 = web_server.dispatch(deps!("/sqrt 16")).await;
-    let not_found = web_server.dispatch(deps!("/lol")).await;
-
-    assert_eq!(smile, ControlFlow::Break("🙃".to_owned()));
-    assert_eq!(sqrt_16, ControlFlow::Break("4".to_owned()));
-    assert_eq!(not_found, ControlFlow::Break("404 Not Found".to_owned()));
+    assert_eq!(
+        web_server.dispatch(deps!("/smile")).await,
+        ControlFlow::Break("🙃".to_owned())
+    );
+    assert_eq!(
+        web_server.dispatch(deps!("/sqrt 16")).await,
+        ControlFlow::Break("4".to_owned())
+    );
+    assert_eq!(
+        web_server.dispatch(deps!("/lol")).await,
+        ControlFlow::Break("404 Not Found".to_owned())
+    );
 }
 
 fn smiles_handler() -> WebHandler {
