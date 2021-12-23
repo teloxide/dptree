@@ -1,8 +1,6 @@
 use dptree::{deps, di::DependencyMap, prelude::*};
 
-type Request = Arc<&'static str>;
-type Response = String;
-type WebHandler = Endpoint<'static, DependencyMap, Response>;
+type WebHandler = Endpoint<'static, DependencyMap, String>;
 
 #[tokio::main]
 async fn main() {
@@ -19,12 +17,12 @@ async fn main() {
 }
 
 fn smiles_handler() -> WebHandler {
-    dptree::filter(|req: Request| async move { req.starts_with("/smile") })
+    dptree::filter(|req: &'static str| async move { req.starts_with("/smile") })
         .endpoint(|| async { "🙃".to_owned() })
 }
 
 fn sqrt_handler() -> WebHandler {
-    dptree::filter_map(|req: Request| async move {
+    dptree::filter_map(|req: &'static str| async move {
         if req.starts_with("/sqrt") {
             let (_, n) = req.split_once(" ")?;
             n.parse::<f64>().ok()
@@ -32,7 +30,7 @@ fn sqrt_handler() -> WebHandler {
             None
         }
     })
-    .endpoint(|n: Arc<f64>| async move { format!("{}", n.sqrt()) })
+    .endpoint(|n: f64| async move { format!("{}", n.sqrt()) })
 }
 
 fn not_found_handler() -> WebHandler {

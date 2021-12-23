@@ -31,19 +31,19 @@ impl<T: Send + Sync + 'static> Insert<T> for DependencyMap {
 /// use dptree::{deps, di::DependencyMap, prelude::*};
 /// use std::ops::ControlFlow;
 ///
-/// #[derive(Debug, PartialEq)]
+/// #[derive(Debug, Clone, PartialEq)]
 /// enum StringOrInt {
 ///     String(String),
 ///     Int(i32),
 /// }
 ///
-/// let handler = dptree::filter_map(|val: Arc<StringOrInt>| async move {
-///     match val.as_ref() {
+/// let handler = dptree::filter_map(|val: StringOrInt| async move {
+///     match val {
 ///         StringOrInt::String(s) => s.parse().ok(),
-///         StringOrInt::Int(int) => Some(*int),
+///         StringOrInt::Int(int) => Some(int),
 ///     }
 /// })
-/// .endpoint(|value: Arc<i32>| async move { *value });
+/// .endpoint(|value: i32| async move { value });
 ///
 /// assert_eq!(handler.dispatch(deps!(StringOrInt::Int(10))).await, ControlFlow::Break(10));
 /// assert_eq!(
@@ -102,8 +102,8 @@ mod tests {
         let deps = DependencyMap::new();
 
         let result = filter_map(move || async move { Some(value) })
-            .endpoint(move |event: Arc<i32>| async move {
-                assert_eq!(*event, value);
+            .endpoint(move |event: i32| async move {
+                assert_eq!(event, value);
                 value
             })
             .dispatch(deps)

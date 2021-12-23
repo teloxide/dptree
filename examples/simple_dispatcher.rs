@@ -38,7 +38,7 @@ async fn main() {
     repl(dispatcher, store).await
 }
 
-async fn repl(dispatcher: Handler<'static, Store, String>, store: Arc<AtomicI32>) -> ! {
+async fn repl(dispatcher: Handler<'static, DependencyMap, String>, store: Arc<AtomicI32>) -> ! {
     loop {
         print!(">> ");
         std::io::stdout().flush().unwrap();
@@ -79,34 +79,31 @@ impl Event {
     }
 }
 
-type Store = DependencyMap;
-type CommandHandler = Endpoint<'static, Store, String>;
+type CommandHandler = Endpoint<'static, DependencyMap, String>;
 
 fn ping_handler() -> CommandHandler {
-    dptree::filter(|event: Arc<Event>| async move { matches!(*event, Event::Ping) })
+    dptree::filter(|event: Event| async move { matches!(event, Event::Ping) })
         .endpoint(|| async { "Pong".to_string() })
 }
 
 fn set_value_handler() -> CommandHandler {
-    dptree::filter_map(|event: Arc<Event>| async move {
-        match *event {
+    dptree::filter_map(|event: Event| async move {
+        match event {
             Event::SetValue(value) => Some(value),
             _ => None,
         }
     })
-    .endpoint(move |value: Arc<i32>, store: Arc<AtomicI32>| async move {
-        store.store(*value, Ordering::SeqCst);
+    .endpoint(move |value: i32, store: Arc<AtomicI32>| async move {
+        store.store(value, Ordering::SeqCst);
         format!("{} stored", value)
     })
 }
 
 fn print_value_handler() -> CommandHandler {
-    dptree::filter(|event: Arc<Event>| async move { matches!(event.as_ref(), Event::PrintValue) })
-        .endpoint(move |store: Arc<AtomicI32>| {
-            async move {
-                let value = store.load(Ordering::SeqCst);
-                // Return value.
-                format!("{}", value)
-            }
-        })
+    dptree::filter(|event: Event| async move { matches!(event, Event::PrintValue) }).endpoint(
+        move |store: Arc<AtomicI32>| async move {
+            let value = store.load(Ordering::SeqCst);
+            format!("{}", value)
+        },
+    )
 }

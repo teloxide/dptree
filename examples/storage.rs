@@ -10,9 +10,9 @@ async fn main() {
         expected_string: &'static str,
     ) -> Endpoint<'static, Store, ()> {
         // The handler requires `u32` and `String` types from the input storage.
-        dptree::endpoint(move |num: Arc<u32>, string: Arc<String>| async move {
-            assert_eq!(*num, expected_num);
-            assert_eq!(&*string, expected_string);
+        dptree::endpoint(move |num: u32, string: String| async move {
+            assert_eq!(num, expected_num);
+            assert_eq!(string, expected_string);
         })
     }
 
@@ -25,8 +25,8 @@ async fn main() {
 
     // This will cause a panic because we do not store `Ipv4Addr` in out store.
     let handle = tokio::spawn(async move {
-        let ip_handler = dptree::endpoint(|ip: Arc<Ipv4Addr>| async move {
-            assert_eq!(*ip, Ipv4Addr::new(0, 0, 0, 0));
+        let ip_handler = dptree::endpoint(|ip: Ipv4Addr| async move {
+            assert_eq!(ip, Ipv4Addr::new(0, 0, 0, 0));
         });
         ip_handler.dispatch(store.clone()).await;
     });

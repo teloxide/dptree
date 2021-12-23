@@ -173,15 +173,15 @@ macro_rules! impl_into_di {
         where
             Input: $(DependencySupplier<$generic> +)*,
             Input: Send + Sync,
-            Func: Fn($(Arc<$generic>),*) -> Fut + Send + Sync + 'static,
+            Func: Fn($($generic),*) -> Fut + Send + Sync + 'static,
             Fut: Future<Output = Output> + Send + 'static,
-            $($generic: Send + Sync),*
+            $($generic: Clone + Send + Sync),*
         {
             #[allow(non_snake_case)]
             #[allow(unused_variables)]
             fn inject<'a>(&'a self, container: &'a Input) -> CompiledFn<'a, Output> {
                 Arc::new(move || {
-                    $(let $generic = container.get();)*
+                    $(let $generic = std::borrow::Borrow::<$generic>::borrow(&container.get()).clone();)*
                     let fut = self( $( $generic ),* );
                     Box::pin(fut)
                 })

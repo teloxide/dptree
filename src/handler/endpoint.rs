@@ -34,7 +34,7 @@ where
 /// let hello_world = dptree::endpoint(|| async { "Hello, World!" });
 /// assert_eq!(hello_world.dispatch(deps!(0)).await, ControlFlow::Break("Hello, World!"));
 ///
-/// let multiply = dptree::endpoint(|x: Arc<i32>| async move { *x * 10 });
+/// let multiply = dptree::endpoint(|x: i32| async move { x * 10 });
 /// assert_eq!(multiply.dispatch(deps!(5)).await, ControlFlow::Break(50));
 ///
 /// # }
@@ -63,7 +63,6 @@ pub type Endpoint<'a, Input, Output> = Handler<'a, Input, Output, Infallible>;
 mod tests {
     use super::*;
     use crate::di::DependencyMap;
-    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_endpoint() {
@@ -73,8 +72,8 @@ mod tests {
         let mut store = DependencyMap::new();
         store.insert(input);
 
-        let result = endpoint(move |num: Arc<i32>| async move {
-            assert_eq!(*num, input);
+        let result = endpoint(move |num: i32| async move {
+            assert_eq!(num, input);
             output
         })
         .dispatch(store)

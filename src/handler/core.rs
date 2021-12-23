@@ -51,8 +51,8 @@ where
     /// use dptree::{deps, di::DependencyMap, prelude::*};
     /// use std::ops::ControlFlow;
     ///
-    /// let handler = dptree::filter(|x: Arc<i32>| async move { *x > 0 })
-    ///     .chain(dptree::endpoint(|| async { "done" }));
+    /// let handler =
+    ///     dptree::filter(|x: i32| async move { x > 0 }).chain(dptree::endpoint(|| async { "done" }));
     ///
     /// assert_eq!(handler.dispatch(deps!(10)).await, ControlFlow::Break("done"));
     /// assert_eq!(handler.dispatch(deps!(-10)).await, ControlFlow::Continue(deps!(-10)));
@@ -106,15 +106,15 @@ where
     ///
     /// let dispatcher = dptree::entry()
     ///     .branch(
-    ///         dptree::filter(|num: Arc<i32>| async move { *num == 5 })
+    ///         dptree::filter(|num: i32| async move { num == 5 })
     ///             .endpoint(|| async move { Output::Five }),
     ///     )
     ///     .branch(
-    ///         dptree::filter(|num: Arc<i32>| async move { *num == 1 })
+    ///         dptree::filter(|num: i32| async move { num == 1 })
     ///             .endpoint(|| async move { Output::One }),
     ///     )
     ///     .branch(
-    ///         dptree::filter(|num: Arc<i32>| async move { *num > 2 })
+    ///         dptree::filter(|num: i32| async move { num > 2 })
     ///             .endpoint(|| async move { Output::GT }),
     ///     );
     ///
@@ -164,7 +164,7 @@ where
     /// use dptree::{deps, di::DependencyMap, prelude::*};
     /// use std::ops::ControlFlow;
     ///
-    /// let handler = dptree::filter(|x: Arc<i32>| async move { *x > 0 });
+    /// let handler = dptree::filter(|x: i32| async move { x > 0 });
     ///
     /// let output = handler.execute(deps!(10), |_| async { ControlFlow::Break("done") }).await;
     /// assert_eq!(output, ControlFlow::Break("done"));
@@ -299,20 +299,19 @@ mod tests {
             GT,
         }
 
-        let negative_handler = filter(|num: Arc<i32>| async move { *num < 0 })
+        let negative_handler = filter(|num: i32| async move { num < 0 })
             .branch(
-                filter(|num: Arc<i32>| async move { *num == -1 })
+                filter(|num: i32| async move { num == -1 })
                     .endpoint(|| async move { Output::MinusOne }),
             )
             .branch(endpoint(|| async move { Output::LT }));
 
-        let zero_handler = filter(|num: Arc<i32>| async move { *num == 0 })
-            .endpoint(|| async move { Output::Zero });
+        let zero_handler =
+            filter(|num: i32| async move { num == 0 }).endpoint(|| async move { Output::Zero });
 
-        let positive_handler = filter(|num: Arc<i32>| async move { *num > 0 })
+        let positive_handler = filter(|num: i32| async move { num > 0 })
             .branch(
-                filter(|num: Arc<i32>| async move { *num == 1 })
-                    .endpoint(|| async move { Output::One }),
+                filter(|num: i32| async move { num == 1 }).endpoint(|| async move { Output::One }),
             )
             .branch(endpoint(|| async move { Output::GT }));
 
