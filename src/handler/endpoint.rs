@@ -29,10 +29,6 @@ where
 /// # #[tokio::main]
 /// # async fn main() {
 /// use dptree::prelude::*;
-/// use std::ops::ControlFlow;
-///
-/// let hello_world = dptree::endpoint(|| async { "Hello, World!" });
-/// assert_eq!(hello_world.dispatch(dptree::deps!(0)).await, ControlFlow::Break("Hello, World!"));
 ///
 /// let multiply = dptree::endpoint(|x: i32| async move { x * 10 });
 /// assert_eq!(multiply.dispatch(dptree::deps!(5)).await, ControlFlow::Break(50));

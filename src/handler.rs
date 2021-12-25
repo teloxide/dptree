@@ -1,4 +1,3 @@
-/// TODO: overview of the handlers.
 mod core;
 mod endpoint;
 mod filter;

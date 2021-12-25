@@ -16,7 +16,6 @@ use std::{ops::ControlFlow, sync::Arc};
 /// # #[tokio::main]
 /// # async fn main() {
 /// use dptree::prelude::*;
-/// use std::ops::ControlFlow;
 ///
 /// let handler = dptree::filter(|x: i32| async move { x > 0 }).endpoint(|| async { "done" });
 ///

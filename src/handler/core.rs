@@ -49,7 +49,6 @@ where
     /// # #[tokio::main]
     /// # async fn main() {
     /// use dptree::prelude::*;
-    /// use std::ops::ControlFlow;
     ///
     /// let handler =
     ///     dptree::filter(|x: i32| async move { x > 0 }).chain(dptree::endpoint(|| async { "done" }));
@@ -95,7 +94,6 @@ where
     ///
     /// ```
     /// use dptree::prelude::*;
-    /// use std::ops::ControlFlow;
     ///
     /// # #[tokio::main]
     /// # async fn main() {
@@ -168,7 +166,6 @@ where
     /// # #[tokio::main]
     /// # async fn main() {
     /// use dptree::prelude::*;
-    /// use std::ops::ControlFlow;
     ///
     /// let handler = dptree::filter(|x: i32| async move { x > 0 });
     ///

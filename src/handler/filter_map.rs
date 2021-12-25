@@ -29,7 +29,6 @@ impl<T: Send + Sync + 'static> Insert<T> for DependencyMap {
 /// # #[tokio::main]
 /// # async fn main() {
 /// use dptree::prelude::*;
-/// use std::ops::ControlFlow;
 ///
 /// #[derive(Debug, Clone, PartialEq)]
 /// enum StringOrInt {
