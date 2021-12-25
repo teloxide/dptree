@@ -94,3 +94,9 @@ In Rust, it is possible to have a type-safe DI container instead of `DependencyM
 [frunk]: https://github.com/lloydmeta/frunk
 [@p0lunin]: https://github.com/p0lunin
 [@Hirrolot]: https://github.com/Hirrolot
+
+## Troubleshooting
+
+### `the trait bound [closure@examples/state_machine.rs:150:20: 150:92]: Injectable<_, bool, _> is not satisfied`
+
+This error means that your handler does not implement the `Injectable` trait. Ensure that your update type implements `Clone`. If it is too expensive to clone every single update, you can wrap it into `Arc`.
