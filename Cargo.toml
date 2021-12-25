@@ -3,6 +3,12 @@ name = "dptree"
 version = "0.1.0"
 authors = ["p0lunin <dmytro.polunin@gmail.com>", "Hirrolot <hirrolot@gmail.com>"]
 edition = "2018"
+description = "An asynchronous dispatch mechanism for Rust"
+repository = "https://github.com/p0lunin/dptree"
+documentation = "https://docs.rs/dptree/"
+readme = "README.md"
+categories = ["asynchronous", "rust-patterns"]
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
