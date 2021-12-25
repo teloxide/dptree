@@ -87,7 +87,7 @@ We decided to use a [continuation-passing style (CPS)] internally and expose nea
 
 ### DI
 
-In Rust, it is possible to have a type-safe DI container instead of `DependencyMap` that panics at run-time. However, this would require complex type-level manipulations (like those in the [frunk] library). [@p0lunin] and I ([@Hirrolot]) decided not to trade comprehensible error messages for compile-time safety, since we had a plenty of experience that the uninitiated users simply cannot understand what is wrong with their code, owing to monstrous diagnostic messages from rustc.
+In Rust, it is possible to have a type-safe DI container instead of `DependencyMap` that panics at run-time. However, this would require complex type-level manipulations (like those in the [frunk] library). [@p0lunin] and I ([@Hirrolot]) decided not to trade comprehensible error messages for compile-time safety, since we had a plenty of experience that the uninitiated users simply cannot understand what is wrong with their code, owing to the utterly inadequate diagnostic messages from rustc.
 
 [frunk]: https://github.com/lloydmeta/frunk
 [@p0lunin]: https://github.com/p0lunin
