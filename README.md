@@ -52,6 +52,20 @@ fn not_found_handler() -> WebHandler {
 }
 ```
 
+## Features
+
+ - ✔️ Declarative handlers: `dptree::{endpoint, filter, filter_map, ...}`.
+ - ✔️ A lightweight functional design using a form of [continuation-passing style (CPS)] internally.
+ - ✔️ [Dependency injection (DI)] out-of-the-box.
+ - ✔️ Supports both handler _chaining_ and _branching_ operations.
+ - ✔️ Battle-tested: dptree is used in [teloxide] as a framework for Telegram update dispatching.
+
+[continuation-passing style (CPS)]: https://en.wikipedia.org/wiki/Continuation-passing_style
+[Dependency injection (DI)]: https://en.wikipedia.org/wiki/Dependency_injection
+[teloxide]: https://github.com/teloxide/teloxide
+
+## Explanation
+
 The above code is a simple web server dispatching tree. In pseudocode, it would look like this:
 
  - `dptree::entry()`: dispatch an update to the following branch handlers:
@@ -66,18 +80,6 @@ The above code is a simple web server dispatching tree. In pseudocode, it would 
 Using dptree, you can specify arbitrary complex dispatching schemes using the same recurring patterns you have seen above.
 
 [chain (tree) of responsibility]: https://en.wikipedia.org/wiki/Chain-of-responsibility_pattern
-
-## Features
-
- - ✔️ Declarative handlers: `dptree::{endpoint, filter, filter_map, ...}`.
- - ✔️ A lightweight functional design using a form of [continuation-passing style (CPS)] internally.
- - ✔️ [Dependency injection (DI)] out-of-the-box.
- - ✔️ Supports both handler _chaining_ and _branching_ operations.
- - ✔️ Battle-tested: dptree is used in [teloxide] as a framework for Telegram update dispatching.
-
-[continuation-passing style (CPS)]: https://en.wikipedia.org/wiki/Continuation-passing_style
-[Dependency injection (DI)]: https://en.wikipedia.org/wiki/Dependency_injection
-[teloxide]: https://github.com/teloxide/teloxide
 
 ## Design choices
 
