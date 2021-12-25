@@ -1,17 +1,18 @@
-// In this example, we crate a simple dispatcher with 3 possible event:
-// 1. `ping`. This command simply returns "pong" answer.
-// 2. `print_value`. This command prints the value stored in the program.
-// 3. `set_value`. This command set the value that is stored in the program.
+// In this example, we create a simple dispatcher with 3 possible event types:
+//  1. `ping`. This command simply returns "pong".
+//  2. `print`. This command prints the value stored in the program.
+//  3. `set_value`. This command sets the value that is stored in the program.
 //
 // Usage:
+//
 // ```
 // >> ping
 // Pong
-// >> print_value
+// >> print
 // 0
 // >> set_value 123
 // 123 stored
-// >> print_value
+// >> print
 // 123
 // ```
 
