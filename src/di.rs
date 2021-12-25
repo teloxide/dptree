@@ -219,3 +219,15 @@ macro_rules! deps {
         }
     }
 }
+
+/// Insert some value to a container.
+pub trait Insert<Value> {
+    /// Inserts `value` into itself, returning the previous value, if exists.
+    fn insert(&mut self, value: Value) -> Option<Arc<Value>>;
+}
+
+impl<T: Send + Sync + 'static> Insert<T> for DependencyMap {
+    fn insert(&mut self, value: T) -> Option<Arc<T>> {
+        DependencyMap::insert(self, value)
+    }
+}

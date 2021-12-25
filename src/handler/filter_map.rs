@@ -1,20 +1,8 @@
 use crate::{
-    di::{DependencyMap, Injectable},
+    di::{Injectable, Insert},
     from_fn, Handler,
 };
 use std::{ops::ControlFlow, sync::Arc};
-
-/// Insert some value to a container.
-pub trait Insert<Value> {
-    /// Inserts `value` into itself, returning the previous value, if exists.
-    fn insert(&mut self, value: Value) -> Option<Arc<Value>>;
-}
-
-impl<T: Send + Sync + 'static> Insert<T> for DependencyMap {
-    fn insert(&mut self, value: T) -> Option<Arc<T>> {
-        DependencyMap::insert(self, value)
-    }
-}
 
 /// Constructs a handler that optionally passes a value of a new type further.
 ///
@@ -94,6 +82,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prelude::DependencyMap;
 
     #[tokio::test]
     async fn test_some() {
