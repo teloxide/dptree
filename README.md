@@ -52,14 +52,16 @@ fn not_found_handler() -> WebHandler {
 }
 ```
 
-The above code is a simple web server dispatching scheme. In pseudocode, it would look like this:
+The above code is a simple web server dispatching tree. In pseudocode, it would look like this:
 
  - `dptree::entry()`: dispatch an update to the following branch handlers:
    - `.branch(smiles_handler())`: if the update satisfies the condition (`dptree::filter`), return a smile (`.endpoint`). Otherwise, pass the update forwards.
    - `.branch(sqrt_handler())`: if the update is a number (`dptree::filter_map`), return the square of it. Otherwise, pass the update forwards.
    - `.branch(not_found_handler())`: return `404 Not Found` immediately.
 
-As you can see, we have just described a dispatching scheme consisting of three branches. First, dptree enters the first handler `smiles_handler`, then, if it fails to process an update, it passes the update to `sqrt_handler` and so on. If nobody have succeeded in handling an update, the control flow enters `not_found_handler` that returns the error. In other words, the result of the whole `.dispatch` call would be the result of the first handler that succeeded to handle an incoming update.
+**Control flow:** as you can see, we have just described a dispatching scheme consisting of three branches. First, dptree enters the first handler `smiles_handler`, then, if it fails to process an update, it passes the update to `sqrt_handler` and so on. If nobody have succeeded in handling an update, the control flow enters `not_found_handler` that returns the error. In other words, the result of the whole `.dispatch` call would be the result of the first handler that succeeded to handle an incoming update.
+
+**Dependency injection:** instead of passing straightforward values to `.dispatch`, we use the `dptree::deps!` macro. It accepts a sequence of values and constructs `DependencyMap` out of them. The handlers request values of certain types in their signatures (such as `|req: &'static str|`), and dptree automatically _injects_ the values from `dptree::deps!` into these functions. If it fails to obtain values of requested types, it will panic at run-time, so be careful and always test your code before pushing to production.
 
 Using dptree, you can specify arbitrary complex dispatching schemes using the same recurring patterns you have seen above.
 
