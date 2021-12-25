@@ -23,7 +23,7 @@ async fn main() {
     repl(state, dispatcher).await
 }
 
-async fn repl(mut state: CommandState, dispatcher: Handler<'static, Store, CommandState>) -> ! {
+async fn repl(mut state: CommandState, dispatcher: Handler<'static, Store, CommandState>) {
     loop {
         println!("|| Current state is {}", state);
         print!(">> ");
@@ -48,11 +48,16 @@ async fn repl(mut state: CommandState, dispatcher: Handler<'static, Store, Comma
                 continue;
             }
         };
+
+        if new_state == CommandState::Exit {
+            return;
+        }
+
         state = new_state;
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CommandState {
     Active,
     Paused,
