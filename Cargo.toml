@@ -7,12 +7,10 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = "1"
-futures = "0.3"
+futures = { version = "0.3", default-features = false }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync"] }
-futures = "0.3"
 sqlx = { version = "0.5.9", features = ["sqlite", "runtime-tokio-native-tls"] }
 thiserror = "1.0.30"
 enum-as-inner = "0.3.3"

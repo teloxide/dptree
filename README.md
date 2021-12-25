@@ -59,10 +59,12 @@ fn not_found_handler() -> WebHandler {
  - ✔️ [Dependency injection (DI)] out-of-the-box.
  - ✔️ Supports both handler _chaining_ and _branching_ operations.
  - ✔️ Battle-tested: dptree is used in [teloxide] as a framework for Telegram update dispatching.
+ - ✔️ Runtime-agnostic: uses only the [futures] crate.
 
 [continuation-passing style (CPS)]: https://en.wikipedia.org/wiki/Continuation-passing_style
 [Dependency injection (DI)]: https://en.wikipedia.org/wiki/Dependency_injection
 [teloxide]: https://github.com/teloxide/teloxide
+[futures]: https://github.com/rust-lang/futures-rs
 
 ## Explanation
 
