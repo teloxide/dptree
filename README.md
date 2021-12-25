@@ -61,7 +61,7 @@ The above code is a simple web server dispatching tree. In pseudocode, it would 
 
 **Control flow:** as you can see, we have just described a dispatching scheme consisting of three branches. First, dptree enters the first handler `smiles_handler`, then, if it fails to process an update, it passes the update to `sqrt_handler` and so on. If nobody have succeeded in handling an update, the control flow enters `not_found_handler` that returns the error. In other words, the result of the whole `.dispatch` call would be the result of the first handler that succeeded to handle an incoming update.
 
-**Dependency injection:** instead of passing straightforward values to `.dispatch`, we use the `dptree::deps!` macro. It accepts a sequence of values and constructs `DependencyMap` out of them. The handlers request values of certain types in their signatures (such as `|req: &'static str|`), and dptree automatically _injects_ the values from `dptree::deps!` into these functions. If it fails to obtain values of requested types, it will panic at run-time, so be careful and always test your code before pushing to production.
+**Dependency injection:** instead of passing straightforward values to `.dispatch`, we use the `dptree::deps!` macro. It accepts a sequence of values and constructs `DependencyMap` out of them. The handlers request values of certain types in their signatures (such as `|req: &'static str|`), and dptree automatically _injects_ the values from `dptree::deps!` into these functions. If it fails to obtain values of requested types, it will [panic at run-time](#di), so be careful and always test your code before pushing to production.
 
 Using dptree, you can specify arbitrary complex dispatching schemes using the same recurring patterns you have seen above.
 
@@ -78,3 +78,17 @@ Using dptree, you can specify arbitrary complex dispatching schemes using the sa
 [continuation-passing style (CPS)]: https://en.wikipedia.org/wiki/Continuation-passing_style
 [Dependency injection (DI)]: https://en.wikipedia.org/wiki/Dependency_injection
 [teloxide]: https://github.com/teloxide/teloxide
+
+## Design choices
+
+### Functional
+
+We decided to use a [continuation-passing style (CPS)] internally and expose neat handler patterns to library users. This is contrary to what you might have seen in typical object-oriented models of the chain of responsibility pattern. In fact, we have first tried to make a typical OO design, but then resorted to FP because of its simplicity. With this design, each handler accepts a continuation representing the rest of the handlers in the chain; the handler can either call this continuation or not. Using this simple model, we can express pretty much any handler pattern like `filter` and `filter_map`, using only functions and nothing else. You do not need complex programming machinery such as abstract factories, builders, etc.
+
+### DI
+
+In Rust, it is possible to have a type-safe DI container instead of `DependencyMap` that panics at run-time. However, this would require complex type-level manipulations (like those in the [frunk] library). [@p0lunin] and I ([@Hirrolot]) decided not to trade comprehensible error messages for compile-time safety, since we had a plenty of experience that the uninitiated users simply cannot understand what is wrong with their code, owing to monstrous diagnostic messages from rustc.
+
+[frunk]: https://github.com/lloydmeta/frunk
+[@p0lunin]: https://github.com/p0lunin
+[@Hirrolot]: https://github.com/Hirrolot
