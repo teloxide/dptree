@@ -52,6 +52,17 @@ fn not_found_handler() -> WebHandler {
 }
 ```
 
+The above code is a simple web server dispatching scheme. In pseudocode, it would look like this:
+
+ - `dptree::entry()`: dispatch an update to the following branch handlers:
+   - `.branch(smiles_handler())`: if the update satisfies the condition (`dptree::filter`), return a smile (`.endpoint`). Otherwise, pass the update forwards.
+   - `.branch(sqrt_handler())`: if the update is a number (`dptree::filter_map`), return the square of it. Otherwise, pass the update forwards.
+   - `.branch(not_found_handler())`: return `404 Not Found` immediately.
+
+As you can see, we have just described a dispatching scheme consisting of three branches. First, dptree enters the first handler `smiles_handler`, then, if it fails to process an update, it passes the update to `sqrt_handler` and so on. If nobody have succeeded in handling an update, the control flow enters `not_found_handler` that returns the error.
+
+Using dptree, you can specify arbitrary complex dispatching schemes using the same recurring patterns you have seen above.
+
 [chain (tree) of responsibility]: https://en.wikipedia.org/wiki/Chain-of-responsibility_pattern
 
 ## Features
