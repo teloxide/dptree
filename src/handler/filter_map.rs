@@ -32,18 +32,19 @@ use std::{ops::ControlFlow, sync::Arc};
 /// })
 /// .endpoint(|value: i32| async move { value });
 ///
-/// assert_eq!(handler.dispatch(dptree::deps!(StringOrInt::Int(10))).await, ControlFlow::Break(10));
+/// assert_eq!(handler.dispatch(dptree::deps![StringOrInt::Int(10)]).await, ControlFlow::Break(10));
 /// assert_eq!(
-///     handler.dispatch(dptree::deps!(StringOrInt::String("10".into()))).await,
+///     handler.dispatch(dptree::deps![StringOrInt::String("10".into())]).await,
 ///     ControlFlow::Break(10)
 /// );
 /// assert!(matches!(
-///     handler.dispatch(dptree::deps!(StringOrInt::String("NaN".into()))).await,
+///     handler.dispatch(dptree::deps![StringOrInt::String("NaN".into())]).await,
 ///     ControlFlow::Continue(_)
 /// ));
 ///
 /// # }
 /// ```
+#[must_use]
 pub fn filter_map<'a, Projection, Input, Output, NewType, Args>(
     proj: Projection,
 ) -> Handler<'a, Input, Output, Input>
@@ -82,19 +83,18 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::prelude::DependencyMap;
+    use crate::deps;
 
     #[tokio::test]
     async fn test_some() {
         let value = 123;
-        let deps = DependencyMap::new();
 
         let result = filter_map(move || async move { Some(value) })
             .endpoint(move |event: i32| async move {
                 assert_eq!(event, value);
                 value
             })
-            .dispatch(deps)
+            .dispatch(deps![])
             .await;
 
         assert!(result == ControlFlow::Break(value));
@@ -104,9 +104,9 @@ mod tests {
     async fn test_none() {
         let result = filter_map(|| async move { None::<i32> })
             .endpoint(|| async move { unreachable!() })
-            .dispatch(DependencyMap::new())
+            .dispatch(deps![])
             .await;
 
-        assert!(result == ControlFlow::Continue(DependencyMap::new()));
+        assert!(result == ControlFlow::Continue(crate::deps![]));
     }
 }

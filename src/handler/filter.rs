@@ -19,14 +19,15 @@ use std::{ops::ControlFlow, sync::Arc};
 ///
 /// let handler = dptree::filter(|x: i32| async move { x > 0 }).endpoint(|| async { "done" });
 ///
-/// assert_eq!(handler.dispatch(dptree::deps!(10)).await, ControlFlow::Break("done"));
+/// assert_eq!(handler.dispatch(dptree::deps![10]).await, ControlFlow::Break("done"));
 /// assert_eq!(
-///     handler.dispatch(dptree::deps!(-10)).await,
-///     ControlFlow::Continue(dptree::deps!(-10))
+///     handler.dispatch(dptree::deps![-10]).await,
+///     ControlFlow::Continue(dptree::deps![-10])
 /// );
 ///
 /// # }
 /// ```
+#[must_use]
 pub fn filter<'a, Pred, Input, Output, FnArgs>(pred: Pred) -> Handler<'a, Input, Output>
 where
     Pred: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
@@ -55,12 +56,12 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{deps, di::DependencyMap};
+    use crate::deps;
 
     #[tokio::test]
     async fn test_filter() {
         let input_value = 123;
-        let input = deps!(input_value);
+        let input = deps![input_value];
         let output = 7;
 
         let result = filter(move |event: i32| async move {
@@ -96,7 +97,7 @@ mod tests {
                 output
             }),
         )
-        .dispatch(deps!(input))
+        .dispatch(deps![input])
         .await;
 
         assert!(result == ControlFlow::Break(output));

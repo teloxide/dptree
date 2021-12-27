@@ -9,6 +9,7 @@ where
     Intermediate: Send + Sync + 'a,
 {
     /// Chain this handler with the endpoint handler `endp`.
+    #[must_use]
     pub fn endpoint<F, FnArgs>(self, endp: F) -> Endpoint<'a, Input, Output>
     where
         F: Injectable<Intermediate, Output, FnArgs> + Send + Sync + 'a,
@@ -31,10 +32,11 @@ where
 /// use dptree::prelude::*;
 ///
 /// let multiply = dptree::endpoint(|x: i32| async move { x * 10 });
-/// assert_eq!(multiply.dispatch(dptree::deps!(5)).await, ControlFlow::Break(50));
+/// assert_eq!(multiply.dispatch(dptree::deps![5]).await, ControlFlow::Break(50));
 ///
 /// # }
 /// ```
+#[must_use]
 pub fn endpoint<'a, F, Input, Output, FnArgs>(f: F) -> Endpoint<'a, Input, Output>
 where
     Input: Send + Sync + 'a,
@@ -58,21 +60,18 @@ pub type Endpoint<'a, Input, Output> = Handler<'a, Input, Output, Infallible>;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::di::DependencyMap;
+    use crate::deps;
 
     #[tokio::test]
     async fn test_endpoint() {
         let input = 123;
         let output = 7;
 
-        let mut store = DependencyMap::new();
-        store.insert(input);
-
         let result = endpoint(move |num: i32| async move {
             assert_eq!(num, input);
             output
         })
-        .dispatch(store)
+        .dispatch(deps![input])
         .await;
 
         let result = match result {

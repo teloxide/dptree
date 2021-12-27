@@ -51,7 +51,7 @@ async fn repl(dispatcher: Handler<'static, DependencyMap, String>, store: Arc<At
         let event = Event::parse(strs.as_slice());
 
         let out = match event {
-            Some(event) => match dispatcher.dispatch(dptree::deps!(event, store.clone())).await {
+            Some(event) => match dispatcher.dispatch(dptree::deps![event, store.clone()]).await {
                 ControlFlow::Continue(event) => panic!("Unhandled event {:?}", event),
                 ControlFlow::Break(result) => result,
             },

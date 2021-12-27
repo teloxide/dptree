@@ -17,15 +17,15 @@ async fn main() {
         .branch(not_found_handler());
 
     assert_eq!(
-        web_server.dispatch(dptree::deps!("/smile")).await,
+        web_server.dispatch(dptree::deps!["/smile"]).await,
         ControlFlow::Break("🙃".to_owned())
     );
     assert_eq!(
-        web_server.dispatch(dptree::deps!("/sqrt 16")).await,
+        web_server.dispatch(dptree::deps!["/sqrt 16"]).await,
         ControlFlow::Break("4".to_owned())
     );
     assert_eq!(
-        web_server.dispatch(dptree::deps!("/lol")).await,
+        web_server.dispatch(dptree::deps!["/lol"]).await,
         ControlFlow::Break("404 Not Found".to_owned())
     );
 }
@@ -38,7 +38,7 @@ fn smiles_handler() -> WebHandler {
 fn sqrt_handler() -> WebHandler {
     dptree::filter_map(|req: &'static str| async move {
         if req.starts_with("/sqrt") {
-            let (_, n) = req.split_once(" ")?;
+            let (_, n) = req.split_once(' ')?;
             n.parse::<f64>().ok()
         } else {
             None

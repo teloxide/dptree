@@ -199,7 +199,7 @@ impl_into_di!(A, B, C, D, E, F, G, H, I);
 /// ```
 /// use dptree::di::{DependencyMap, DependencySupplier};
 ///
-/// let map = dptree::deps!(123, "abc", true);
+/// let map = dptree::deps![123, "abc", true];
 ///
 /// let i: i32 = *map.get();
 /// let str: &str = *map.get();
@@ -213,7 +213,9 @@ impl_into_di!(A, B, C, D, E, F, G, H, I);
 macro_rules! deps {
     ($($dep:expr),*) => {
         {
-            let mut map = DependencyMap::new();
+            // In the case if this macro receives zero arguments.
+            #[allow(unused_mut)]
+            let mut map = $crate::di::DependencyMap::new();
             $(map.insert($dep);)*
             map
         }

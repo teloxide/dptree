@@ -53,16 +53,17 @@ where
     /// let handler =
     ///     dptree::filter(|x: i32| async move { x > 0 }).chain(dptree::endpoint(|| async { "done" }));
     ///
-    /// assert_eq!(handler.dispatch(dptree::deps!(10)).await, ControlFlow::Break("done"));
+    /// assert_eq!(handler.dispatch(dptree::deps![10]).await, ControlFlow::Break("done"));
     /// assert_eq!(
-    ///     handler.dispatch(dptree::deps!(-10)).await,
-    ///     ControlFlow::Continue(dptree::deps!(-10))
+    ///     handler.dispatch(dptree::deps![-10]).await,
+    ///     ControlFlow::Continue(dptree::deps![-10])
     /// );
     ///
     /// # }
     /// ```
     ///
     /// [chain of responsibility]: https://en.wikipedia.org/wiki/Chain-of-responsibility_pattern
+    #[must_use]
     pub fn chain<Intermediate2>(
         self,
         next: Handler<'a, Intermediate, Output, Intermediate2>,
@@ -119,15 +120,16 @@ where
     ///             .endpoint(|| async move { Output::GT }),
     ///     );
     ///
-    /// assert_eq!(dispatcher.dispatch(dptree::deps!(5)).await, ControlFlow::Break(Output::Five));
-    /// assert_eq!(dispatcher.dispatch(dptree::deps!(1)).await, ControlFlow::Break(Output::One));
-    /// assert_eq!(dispatcher.dispatch(dptree::deps!(3)).await, ControlFlow::Break(Output::GT));
+    /// assert_eq!(dispatcher.dispatch(dptree::deps![5]).await, ControlFlow::Break(Output::Five));
+    /// assert_eq!(dispatcher.dispatch(dptree::deps![1]).await, ControlFlow::Break(Output::One));
+    /// assert_eq!(dispatcher.dispatch(dptree::deps![3]).await, ControlFlow::Break(Output::GT));
     /// assert_eq!(
-    ///     dispatcher.dispatch(dptree::deps!(0)).await,
-    ///     ControlFlow::Continue(dptree::deps!(0))
+    ///     dispatcher.dispatch(dptree::deps![0]).await,
+    ///     ControlFlow::Continue(dptree::deps![0])
     /// );
     /// # }
     /// ```
+    #[must_use]
     pub fn branch<Intermediate2>(
         self,
         next: Handler<'a, Intermediate, Output, Intermediate2>,
@@ -169,7 +171,7 @@ where
     ///
     /// let handler = dptree::filter(|x: i32| async move { x > 0 });
     ///
-    /// let output = handler.execute(dptree::deps!(10), |_| async { ControlFlow::Break("done") }).await;
+    /// let output = handler.execute(dptree::deps![10], |_| async { ControlFlow::Break("done") }).await;
     /// assert_eq!(output, ControlFlow::Break("done"));
     ///
     /// # }
@@ -201,6 +203,7 @@ where
 /// Most of the time, you do not want to use this function. Take a look at more
 /// specialised functions: [`crate::endpoint`], [`crate::filter`],
 /// [`crate::filter_map`], etc.
+#[must_use]
 pub fn from_fn<'a, F, Fut, Input, Output, Intermediate>(
     f: F,
 ) -> Handler<'a, Input, Output, Intermediate>
@@ -215,6 +218,7 @@ where
 ///
 /// This function is only used to specify other handlers upon it (see the root
 /// examples).
+#[must_use]
 pub fn entry<'a, Input, Output>() -> Handler<'a, Input, Output, Input>
 where
     Input: Send + Sync + 'a,
@@ -227,7 +231,6 @@ where
 mod tests {
     use crate::{
         deps,
-        di::DependencyMap,
         handler::{endpoint, filter},
     };
 
@@ -321,10 +324,10 @@ mod tests {
         let dispatcher =
             entry().branch(negative_handler).branch(zero_handler).branch(positive_handler);
 
-        assert_eq!(dispatcher.dispatch(deps!(2)).await, ControlFlow::Break(Output::GT));
-        assert_eq!(dispatcher.dispatch(deps!(1)).await, ControlFlow::Break(Output::One));
-        assert_eq!(dispatcher.dispatch(deps!(0)).await, ControlFlow::Break(Output::Zero));
-        assert_eq!(dispatcher.dispatch(deps!(-1)).await, ControlFlow::Break(Output::MinusOne));
-        assert_eq!(dispatcher.dispatch(deps!(-2)).await, ControlFlow::Break(Output::LT));
+        assert_eq!(dispatcher.dispatch(deps![2]).await, ControlFlow::Break(Output::GT));
+        assert_eq!(dispatcher.dispatch(deps![1]).await, ControlFlow::Break(Output::One));
+        assert_eq!(dispatcher.dispatch(deps![0]).await, ControlFlow::Break(Output::Zero));
+        assert_eq!(dispatcher.dispatch(deps![-1]).await, ControlFlow::Break(Output::MinusOne));
+        assert_eq!(dispatcher.dispatch(deps![-2]).await, ControlFlow::Break(Output::LT));
     }
 }

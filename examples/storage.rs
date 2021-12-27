@@ -17,7 +17,7 @@ async fn main() {
     }
 
     // Init storage with string and num
-    let store = Arc::new(dptree::deps!(10u32, "Hello".to_owned()));
+    let store = Arc::new(dptree::deps![10u32, "Hello".to_owned()]);
 
     let str_num_handler = assert_num_string_handler(10u32, "Hello");
 
