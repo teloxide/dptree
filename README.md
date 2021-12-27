@@ -1,4 +1,5 @@
 # dptree
+[![Rust](https://github.com/p0lunin/dptree/actions/workflows/rust.yml/badge.svg)](https://github.com/p0lunin/dptree/actions/workflows/rust.yml)
 
 An implementation of the [chain (tree) of responsibility] pattern.
 
