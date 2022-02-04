@@ -19,11 +19,7 @@ where
     filter_async(Asyncify(pred))
 }
 
-/// Constructs a handler that filters input with the predicate `pred`.
-///
-/// `pred` has an access to all values that are stored in the input container.
-/// If it returns `true`, a continuation of the handler will be called,
-/// otherwise the handler returns [`ControlFlow::Continue`].
+/// The asynchronous version of [`filter`].
 #[must_use]
 pub fn filter_async<'a, Pred, Input, Output, FnArgs>(pred: Pred) -> Handler<'a, Input, Output>
 where

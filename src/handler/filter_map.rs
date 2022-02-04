@@ -24,12 +24,7 @@ where
     filter_map_async(Asyncify(proj))
 }
 
-/// Constructs a handler that optionally passes a value of a new type further.
-///
-/// If the `proj` function returns `Some(v)` then `v` will be added to the
-/// container and passed further in a handler chain. If the function returns
-/// `None`, then the handler will return [`ControlFlow::Continue`] with the old
-/// container.
+/// The asynchronous version of [`filter_map`].
 #[must_use]
 pub fn filter_map_async<'a, Projection, Input, Output, NewType, Args>(
     proj: Projection,

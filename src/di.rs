@@ -158,7 +158,7 @@ pub trait Injectable<Input, Output, FnArgs> {
 /// A function with all dependencies satisfied.
 pub type CompiledFn<'a, Output> = Arc<dyn Fn() -> BoxFuture<'a, Output> + Send + Sync + 'a>;
 
-/// Turns synchronous function into a type that implements [`Injectable`].
+/// Turns a synchronous function into a type that implements [`Injectable`].
 pub struct Asyncify<F>(pub F);
 
 macro_rules! impl_into_di {
