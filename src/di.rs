@@ -147,8 +147,8 @@ where
 ///
 /// The function must follow some rules, to be usable with DI:
 ///
-/// 1. All input values must be wrapped into `Arc`. It is a requirement of the
-/// [`DependencySupplier`] trait.
+/// 1. For each function parameter of type `T`, `Input` must satisfy
+/// `DependencySupplier<T>`.
 /// 2. The function must be of 0-9 arguments.
 /// 3. The function must return [`Future`].
 pub trait Injectable<Input, Output, FnArgs> {

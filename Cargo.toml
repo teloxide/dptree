@@ -20,3 +20,9 @@ tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync"] 
 sqlx = { version = "0.5.9", features = ["sqlite", "runtime-tokio-native-tls"] }
 thiserror = "1.0.30"
 enum-as-inner = "0.3.3"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs", "-Znormalize-docs"]
+rustc-args = ["--cfg", "dep_docsrs"]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples=examples"]
