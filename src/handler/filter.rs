@@ -16,23 +16,7 @@ where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
 {
-    let pred = Arc::new(Asyncify(pred));
-
-    from_fn(move |event, cont| {
-        let pred = Arc::clone(&pred);
-
-        async move {
-            let pred = pred.inject(&event);
-            let cond = pred().await;
-            drop(pred);
-
-            if cond {
-                cont(event).await
-            } else {
-                ControlFlow::Continue(event)
-            }
-        }
-    })
+    filter_async(Asyncify(pred))
 }
 
 /// Constructs a handler that filters input with the predicate `pred`.
