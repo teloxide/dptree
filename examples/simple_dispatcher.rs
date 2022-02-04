@@ -83,7 +83,7 @@ impl Event {
 type CommandHandler = Endpoint<'static, DependencyMap, String>;
 
 fn ping_handler() -> CommandHandler {
-    dptree::filter(|event: Event| async move { matches!(event, Event::Ping) })
+    dptree::filter_async(|event: Event| async move { matches!(event, Event::Ping) })
         .endpoint(|| async { "Pong".to_string() })
 }
 
@@ -101,7 +101,7 @@ fn set_value_handler() -> CommandHandler {
 }
 
 fn print_value_handler() -> CommandHandler {
-    dptree::filter(|event: Event| async move { matches!(event, Event::PrintValue) }).endpoint(
+    dptree::filter_async(|event: Event| async move { matches!(event, Event::PrintValue) }).endpoint(
         move |store: Arc<AtomicI32>| async move {
             let value = store.load(Ordering::SeqCst);
             format!("{}", value)

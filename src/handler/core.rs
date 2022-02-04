@@ -50,8 +50,7 @@ where
     /// # async fn main() {
     /// use dptree::prelude::*;
     ///
-    /// let handler =
-    ///     dptree::filter(|x: i32| async move { x > 0 }).chain(dptree::endpoint(|| async { "done" }));
+    /// let handler = dptree::filter(|x: i32| x > 0).chain(dptree::endpoint(|| async { "done" }));
     ///
     /// assert_eq!(handler.dispatch(dptree::deps![10]).await, ControlFlow::Break("done"));
     /// assert_eq!(
@@ -107,18 +106,9 @@ where
     /// }
     ///
     /// let dispatcher = dptree::entry()
-    ///     .branch(
-    ///         dptree::filter(|num: i32| async move { num == 5 })
-    ///             .endpoint(|| async move { Output::Five }),
-    ///     )
-    ///     .branch(
-    ///         dptree::filter(|num: i32| async move { num == 1 })
-    ///             .endpoint(|| async move { Output::One }),
-    ///     )
-    ///     .branch(
-    ///         dptree::filter(|num: i32| async move { num > 2 })
-    ///             .endpoint(|| async move { Output::GT }),
-    ///     );
+    ///     .branch(dptree::filter(|num: i32| num == 5).endpoint(|| async move { Output::Five }))
+    ///     .branch(dptree::filter(|num: i32| num == 1).endpoint(|| async move { Output::One }))
+    ///     .branch(dptree::filter(|num: i32| num > 2).endpoint(|| async move { Output::GT }));
     ///
     /// assert_eq!(dispatcher.dispatch(dptree::deps![5]).await, ControlFlow::Break(Output::Five));
     /// assert_eq!(dispatcher.dispatch(dptree::deps![1]).await, ControlFlow::Break(Output::One));
@@ -169,7 +159,7 @@ where
     /// # async fn main() {
     /// use dptree::prelude::*;
     ///
-    /// let handler = dptree::filter(|x: i32| async move { x > 0 });
+    /// let handler = dptree::filter(|x: i32| x > 0);
     ///
     /// let output = handler.execute(dptree::deps![10], |_| async { ControlFlow::Break("done") }).await;
     /// assert_eq!(output, ControlFlow::Break("done"));
@@ -231,7 +221,7 @@ where
 mod tests {
     use crate::{
         deps,
-        handler::{endpoint, filter},
+        handler::{endpoint, filter, filter_async},
     };
 
     use super::*;
@@ -305,19 +295,20 @@ mod tests {
             GT,
         }
 
-        let negative_handler = filter(|num: i32| async move { num < 0 })
+        let negative_handler = filter(|num: i32| num < 0)
             .branch(
-                filter(|num: i32| async move { num == -1 })
+                filter_async(|num: i32| async move { num == -1 })
                     .endpoint(|| async move { Output::MinusOne }),
             )
             .branch(endpoint(|| async move { Output::LT }));
 
-        let zero_handler =
-            filter(|num: i32| async move { num == 0 }).endpoint(|| async move { Output::Zero });
+        let zero_handler = filter_async(|num: i32| async move { num == 0 })
+            .endpoint(|| async move { Output::Zero });
 
-        let positive_handler = filter(|num: i32| async move { num > 0 })
+        let positive_handler = filter_async(|num: i32| async move { num > 0 })
             .branch(
-                filter(|num: i32| async move { num == 1 }).endpoint(|| async move { Output::One }),
+                filter_async(|num: i32| async move { num == 1 })
+                    .endpoint(|| async move { Output::One }),
             )
             .branch(endpoint(|| async move { Output::GT }));
 

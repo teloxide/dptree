@@ -25,7 +25,7 @@ async fn main() {
 }
 
 fn smiles_handler() -> WebHandler {
-    dptree::filter(|req: &'static str| async move { req.starts_with("/smile") })
+    dptree::filter_async(|req: &'static str| async move { req.starts_with("/smile") })
         .endpoint(|| async { "🙃".to_owned() })
 }
 

@@ -1,5 +1,5 @@
 use crate::{
-    di::Injectable,
+    di::{Asyncify, Injectable},
     handler::core::{from_fn, Handler},
 };
 use std::{ops::ControlFlow, sync::Arc};
@@ -11,6 +11,37 @@ use std::{ops::ControlFlow, sync::Arc};
 /// otherwise the handler returns [`ControlFlow::Continue`].
 #[must_use]
 pub fn filter<'a, Pred, Input, Output, FnArgs>(pred: Pred) -> Handler<'a, Input, Output>
+where
+    Asyncify<Pred>: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
+    Input: Send + Sync + 'a,
+    Output: Send + Sync + 'a,
+{
+    let pred = Arc::new(Asyncify(pred));
+
+    from_fn(move |event, cont| {
+        let pred = Arc::clone(&pred);
+
+        async move {
+            let pred = pred.inject(&event);
+            let cond = pred().await;
+            drop(pred);
+
+            if cond {
+                cont(event).await
+            } else {
+                ControlFlow::Continue(event)
+            }
+        }
+    })
+}
+
+/// Constructs a handler that filters input with the predicate `pred`.
+///
+/// `pred` has an access to all values that are stored in the input container.
+/// If it returns `true`, a continuation of the handler will be called,
+/// otherwise the handler returns [`ControlFlow::Continue`].
+#[must_use]
+pub fn filter_async<'a, Pred, Input, Output, FnArgs>(pred: Pred) -> Handler<'a, Input, Output>
 where
     Pred: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
     Input: Send + Sync + 'a,
@@ -46,7 +77,7 @@ mod tests {
         let input = deps![input_value];
         let output = 7;
 
-        let result = filter(move |event: i32| async move {
+        let result = filter_async(move |event: i32| async move {
             assert_eq!(event, input_value);
             true
         })
@@ -65,12 +96,12 @@ mod tests {
         let input = 123;
         let output = 7;
 
-        let result = filter(move |event: i32| async move {
+        let result = filter(move |event: i32| {
             assert_eq!(event, input);
             true
         })
         .chain(
-            filter(move |event: i32| async move {
+            filter_async(move |event: i32| async move {
                 assert_eq!(event, input);
                 true
             })
