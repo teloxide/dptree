@@ -10,40 +10,6 @@ use std::{ops::ControlFlow, sync::Arc};
 /// container and passed further in a handler chain. If the function returns
 /// `None`, then the handler will return [`ControlFlow::Continue`] with the old
 /// container.
-///
-/// # Examples
-///
-/// ```
-/// # #[tokio::main]
-/// # async fn main() {
-/// use dptree::prelude::*;
-///
-/// #[derive(Debug, Clone, PartialEq)]
-/// enum StringOrInt {
-///     String(String),
-///     Int(i32),
-/// }
-///
-/// let handler = dptree::filter_map(|val: StringOrInt| async move {
-///     match val {
-///         StringOrInt::String(s) => s.parse().ok(),
-///         StringOrInt::Int(int) => Some(int),
-///     }
-/// })
-/// .endpoint(|value: i32| async move { value });
-///
-/// assert_eq!(handler.dispatch(dptree::deps![StringOrInt::Int(10)]).await, ControlFlow::Break(10));
-/// assert_eq!(
-///     handler.dispatch(dptree::deps![StringOrInt::String("10".into())]).await,
-///     ControlFlow::Break(10)
-/// );
-/// assert!(matches!(
-///     handler.dispatch(dptree::deps![StringOrInt::String("NaN".into())]).await,
-///     ControlFlow::Continue(_)
-/// ));
-///
-/// # }
-/// ```
 #[must_use]
 pub fn filter_map<'a, Projection, Input, Output, NewType, Args>(
     proj: Projection,

@@ -23,19 +23,6 @@ where
 /// An endpoint is a handler that _always_ breaks handler execution after its
 /// completion. So, you can use it when your chain of responsibility must end
 /// up, and handle an incoming event.
-///
-/// # Examples
-///
-/// ```
-/// # #[tokio::main]
-/// # async fn main() {
-/// use dptree::prelude::*;
-///
-/// let multiply = dptree::endpoint(|x: i32| async move { x * 10 });
-/// assert_eq!(multiply.dispatch(dptree::deps![5]).await, ControlFlow::Break(50));
-///
-/// # }
-/// ```
 #[must_use]
 pub fn endpoint<'a, F, Input, Output, FnArgs>(f: F) -> Endpoint<'a, Input, Output>
 where

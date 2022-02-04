@@ -9,24 +9,6 @@ use std::{ops::ControlFlow, sync::Arc};
 /// `pred` has an access to all values that are stored in the input container.
 /// If it returns `true`, a continuation of the handler will be called,
 /// otherwise the handler returns [`ControlFlow::Continue`].
-///
-/// # Examples
-///
-/// ```
-/// # #[tokio::main]
-/// # async fn main() {
-/// use dptree::prelude::*;
-///
-/// let handler = dptree::filter(|x: i32| async move { x > 0 }).endpoint(|| async { "done" });
-///
-/// assert_eq!(handler.dispatch(dptree::deps![10]).await, ControlFlow::Break("done"));
-/// assert_eq!(
-///     handler.dispatch(dptree::deps![-10]).await,
-///     ControlFlow::Continue(dptree::deps![-10])
-/// );
-///
-/// # }
-/// ```
 #[must_use]
 pub fn filter<'a, Pred, Input, Output, FnArgs>(pred: Pred) -> Handler<'a, Input, Output>
 where
