@@ -33,7 +33,7 @@
 //! }
 //!
 //! fn sqrt_handler() -> WebHandler {
-//!     dptree::filter_map(|req: &'static str| async move {
+//!     dptree::filter_map(|req: &'static str| {
 //!         if req.starts_with("/sqrt") {
 //!             let (_, n) = req.split_once(' ')?;
 //!             n.parse::<f64>().ok()

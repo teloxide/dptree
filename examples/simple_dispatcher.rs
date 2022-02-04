@@ -88,7 +88,7 @@ fn ping_handler() -> CommandHandler {
 }
 
 fn set_value_handler() -> CommandHandler {
-    dptree::filter_map(|event: Event| async move {
+    dptree::filter_map_async(|event: Event| async move {
         match event {
             Event::SetValue(value) => Some(value),
             _ => None,
