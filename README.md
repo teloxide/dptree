@@ -3,7 +3,7 @@
 
 An implementation of the [chain (tree) of responsibility] pattern.
 
-[[`examples/web_server.rs`](https://github.com/p0lunin/dptree/blob/master/examples/web_server.rs)]
+[[`examples/web_server.rs`](examples/web_server.rs)]
 ```rust
 use dptree::prelude::*;
 
@@ -32,12 +32,12 @@ async fn main() {
 }
 
 fn smiles_handler() -> WebHandler {
-    dptree::filter(|req: &'static str| async move { req.starts_with("/smile") })
+    dptree::filter(|req: &'static str| req.starts_with("/smile"))
         .endpoint(|| async { "🙃".to_owned() })
 }
 
 fn sqrt_handler() -> WebHandler {
-    dptree::filter_map(|req: &'static str| async move {
+    dptree::filter_map(|req: &'static str| {
         if req.starts_with("/sqrt") {
             let (_, n) = req.split_once(' ')?;
             n.parse::<f64>().ok()
