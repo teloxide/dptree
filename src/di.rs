@@ -160,7 +160,7 @@ pub type CompiledFn<'a, Output> = Arc<dyn Fn() -> BoxFuture<'a, Output> + Send +
 
 macro_rules! impl_into_di {
     ($($generic:ident),*) => {
-        impl<Func, Input, Output, Fut, $($generic),*>  Injectable<Input, Output, (Fut, $($generic),*)> for Func
+        impl<Func, Input, Output, Fut, $($generic),*>  Injectable<Input, Output, ($($generic,)*)> for Func
         where
             Input: $(DependencySupplier<$generic> +)*,
             Input: Send + Sync,
