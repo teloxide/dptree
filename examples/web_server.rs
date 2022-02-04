@@ -25,12 +25,12 @@ async fn main() {
 }
 
 fn smiles_handler() -> WebHandler {
-    dptree::filter(|req: &'static str| async move { req.starts_with("/smile") })
+    dptree::filter(|req: &'static str| req.starts_with("/smile"))
         .endpoint(|| async { "🙃".to_owned() })
 }
 
 fn sqrt_handler() -> WebHandler {
-    dptree::filter_map(|req: &'static str| async move {
+    dptree::filter_map(|req: &'static str| {
         if req.starts_with("/sqrt") {
             let (_, n) = req.split_once(' ')?;
             n.parse::<f64>().ok()

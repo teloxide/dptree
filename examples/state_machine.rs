@@ -6,8 +6,6 @@ use std::{
     ops::ControlFlow,
 };
 
-use futures::future;
-
 use dptree::prelude::*;
 
 #[tokio::main]
@@ -106,27 +104,27 @@ mod transitions {
     use super::*;
 
     pub fn begin() -> Transition {
-        dptree::filter(|event: Event| future::ready(matches!(event, Event::Begin)))
+        dptree::filter(|event: Event| matches!(event, Event::Begin))
             .endpoint(|| async { CommandState::Active })
     }
 
     pub fn pause() -> Transition {
-        dptree::filter(|event: Event| future::ready(matches!(event, Event::Pause)))
+        dptree::filter(|event: Event| matches!(event, Event::Pause))
             .endpoint(|| async { CommandState::Paused })
     }
 
     pub fn end() -> Transition {
-        dptree::filter(|event: Event| future::ready(matches!(event, Event::End)))
+        dptree::filter(|event: Event| matches!(event, Event::End))
             .endpoint(|| async { CommandState::Inactive })
     }
 
     pub fn resume() -> Transition {
-        dptree::filter(|event: Event| future::ready(matches!(event, Event::Resume)))
+        dptree::filter(|event: Event| matches!(event, Event::Resume))
             .endpoint(|| async { CommandState::Active })
     }
 
     pub fn exit() -> Transition {
-        dptree::filter(|event: Event| future::ready(matches!(event, Event::Exit)))
+        dptree::filter(|event: Event| matches!(event, Event::Exit))
             .endpoint(|| async { CommandState::Exit })
     }
 }
@@ -134,24 +132,24 @@ mod transitions {
 type FsmHandler = Handler<'static, Store, TransitionOut>;
 
 fn active_handler() -> FsmHandler {
-    dptree::filter(|state: CommandState| future::ready(matches!(state, CommandState::Active)))
+    dptree::filter(|state: CommandState| matches!(state, CommandState::Active))
         .branch(transitions::pause())
         .branch(transitions::end())
 }
 
 fn paused_handler() -> FsmHandler {
-    dptree::filter(|state: CommandState| future::ready(matches!(state, CommandState::Paused)))
+    dptree::filter(|state: CommandState| matches!(state, CommandState::Paused))
         .branch(transitions::resume())
         .branch(transitions::end())
 }
 
 fn inactive_handler() -> FsmHandler {
-    dptree::filter(|state: CommandState| future::ready(matches!(state, CommandState::Inactive)))
+    dptree::filter(|state: CommandState| matches!(state, CommandState::Inactive))
         .branch(transitions::begin())
         .branch(transitions::exit())
 }
 
 fn exit_handler() -> FsmHandler {
-    dptree::filter(|state: CommandState| future::ready(matches!(state, CommandState::Exit)))
+    dptree::filter(|state: CommandState| matches!(state, CommandState::Exit))
         .branch(transitions::exit())
 }

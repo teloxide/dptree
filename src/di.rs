@@ -10,7 +10,7 @@
 //!
 //! [dependency injection]: https://en.wikipedia.org/wiki/Dependency_injection
 //! [this discussion on StackOverflow]: https://stackoverflow.com/questions/130794/what-is-dependency-injection
-use futures::future::BoxFuture;
+use futures::future::{ready, BoxFuture};
 
 use std::{
     any::{Any, TypeId},
@@ -158,9 +158,12 @@ pub trait Injectable<Input, Output, FnArgs> {
 /// A function with all dependencies satisfied.
 pub type CompiledFn<'a, Output> = Arc<dyn Fn() -> BoxFuture<'a, Output> + Send + Sync + 'a>;
 
+/// Turns synchronous function into a type that implements [`Injectable`].
+pub struct Asyncify<F>(pub F);
+
 macro_rules! impl_into_di {
     ($($generic:ident),*) => {
-        impl<Func, Input, Output, Fut, $($generic),*>  Injectable<Input, Output, ($($generic,)*)> for Func
+        impl<Func, Input, Output, Fut, $($generic),*> Injectable<Input, Output, ($($generic,)*)> for Func
         where
             Input: $(DependencySupplier<$generic> +)*,
             Input: Send + Sync,
@@ -175,6 +178,26 @@ macro_rules! impl_into_di {
                     $(let $generic = std::borrow::Borrow::<$generic>::borrow(&container.get()).clone();)*
                     let fut = self( $( $generic ),* );
                     Box::pin(fut)
+                })
+            }
+        }
+
+        impl<Func, Input, Output, $($generic),*> Injectable<Input, Output, ($($generic,)*)> for Asyncify<Func>
+        where
+            Input: $(DependencySupplier<$generic> +)*,
+            Input: Send + Sync,
+            Func: Fn($($generic),*) -> Output + Send + Sync + 'static,
+            Output: Send + 'static,
+            $($generic: Clone + Send + Sync),*
+        {
+            #[allow(non_snake_case)]
+            #[allow(unused_variables)]
+            fn inject<'a>(&'a self, container: &'a Input) -> CompiledFn<'a, Output> {
+                let Asyncify(this) = self;
+                Arc::new(move || {
+                    $(let $generic = std::borrow::Borrow::<$generic>::borrow(&container.get()).clone();)*
+                    let out = this( $( $generic ),* );
+                    Box::pin(ready(out))
                 })
             }
         }

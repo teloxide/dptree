@@ -1,5 +1,5 @@
 use crate::{
-    di::{Injectable, Insert},
+    di::{Asyncify, Injectable, Insert},
     from_fn, Handler,
 };
 use std::{ops::ControlFlow, sync::Arc};
@@ -12,6 +12,26 @@ use std::{ops::ControlFlow, sync::Arc};
 /// container.
 #[must_use]
 pub fn filter_map<'a, Projection, Input, Output, NewType, Args>(
+    proj: Projection,
+) -> Handler<'a, Input, Output, Input>
+where
+    Input: Clone,
+    Asyncify<Projection>: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
+    Input: Insert<NewType> + Send + Sync + 'a,
+    Output: Send + Sync + 'a,
+    NewType: Send,
+{
+    filter_map_async(Asyncify(proj))
+}
+
+/// Constructs a handler that optionally passes a value of a new type further.
+///
+/// If the `proj` function returns `Some(v)` then `v` will be added to the
+/// container and passed further in a handler chain. If the function returns
+/// `None`, then the handler will return [`ControlFlow::Continue`] with the old
+/// container.
+#[must_use]
+pub fn filter_map_async<'a, Projection, Input, Output, NewType, Args>(
     proj: Projection,
 ) -> Handler<'a, Input, Output, Input>
 where
@@ -55,7 +75,7 @@ mod tests {
     async fn test_some() {
         let value = 123;
 
-        let result = filter_map(move || async move { Some(value) })
+        let result = filter_map(move || Some(value))
             .endpoint(move |event: i32| async move {
                 assert_eq!(event, value);
                 value
@@ -68,7 +88,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_none() {
-        let result = filter_map(|| async move { None::<i32> })
+        let result = filter_map(|| None::<i32>)
             .endpoint(|| async move { unreachable!() })
             .dispatch(deps![])
             .await;
