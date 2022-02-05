@@ -13,13 +13,10 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-futures = { version = "0.3", default-features = false }
+futures = { version = "0.3", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync"] }
-sqlx = { version = "0.5.9", features = ["sqlite", "runtime-tokio-native-tls"] }
-thiserror = "1.0.30"
-enum-as-inner = "0.3.3"
 
 [package.metadata.docs.rs]
 all-features = true
