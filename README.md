@@ -1,5 +1,7 @@
 # dptree
 [![Rust](https://github.com/p0lunin/dptree/actions/workflows/rust.yml/badge.svg)](https://github.com/p0lunin/dptree/actions/workflows/rust.yml)
+[![Crates.io](https://img.shields.io/crates/v/dptree.svg)](https://crates.io/crates/dptree)
+[![Docs.rs](https://docs.rs/dptree/badge.svg)](https://docs.rs/dptree)
 
 An implementation of the [chain (tree) of responsibility] pattern.
 
