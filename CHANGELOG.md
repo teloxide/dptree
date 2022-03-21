@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## unreleased
 
+## 0.1.1 - 2022-03-21
+
 ### Fixed
 
  - Emit a full list of available types on `DependencyMap::get` panic ([PR #6](https://github.com/p0lunin/dptree/pull/6)).
