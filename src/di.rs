@@ -15,7 +15,7 @@ use futures::future::{ready, BoxFuture};
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
-    fmt::{Debug, Formatter},
+    fmt::{Debug, Formatter, Write},
     future::Future,
     ops::Deref,
     sync::Arc,
@@ -73,12 +73,26 @@ pub trait DependencySupplier<Value> {
 /// use dptree::di::{DependencyMap, DependencySupplier};
 /// let mut container = DependencyMap::new();
 /// container.insert(10i32);
+/// container.insert(true);
+/// container.insert("static str");
 ///
+/// // thread 'main' panicked at 'alloc::string::String was requested, but not provided. Available types:
+/// //    &str
+/// //    bool
+/// //    i32
+/// // ', /media/hirrolot/772CF8924BEBB279/Documents/Rust/dptree/src/di.rs:150:17
+/// // note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 /// let string: Arc<String> = container.get();
 /// ```
 #[derive(Default, Clone)]
 pub struct DependencyMap {
-    map: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
+    map: HashMap<TypeId, Dependency>,
+}
+
+#[derive(Clone)]
+struct Dependency {
+    type_name: &'static str,
+    inner: Arc<dyn Any + Send + Sync>,
 }
 
 impl PartialEq for DependencyMap {
@@ -100,8 +114,11 @@ impl DependencyMap {
     /// Otherwise, the value is updated, and the old value is returned.
     pub fn insert<T: Send + Sync + 'static>(&mut self, item: T) -> Option<Arc<T>> {
         self.map
-            .insert(TypeId::of::<T>(), Arc::new(item))
-            .map(|arc| arc.downcast().expect("Values are stored by TypeId"))
+            .insert(
+                TypeId::of::<T>(),
+                Dependency { type_name: std::any::type_name::<T>(), inner: Arc::new(item) },
+            )
+            .map(|dep| dep.inner.downcast().expect("Values are stored by TypeId"))
     }
 
     /// Removes a value from the container.
@@ -111,7 +128,17 @@ impl DependencyMap {
     pub fn remove<T: Send + Sync + 'static>(&mut self) -> Option<Arc<T>> {
         self.map
             .remove(&TypeId::of::<T>())
-            .map(|arc| arc.downcast().expect("Values are stored by TypeId"))
+            .map(|dep| dep.inner.downcast().expect("Values are stored by TypeId"))
+    }
+
+    fn available_types(&self) -> String {
+        let mut list = String::new();
+
+        for (_type_id, dep) in &self.map {
+            write!(list, "    {}\n", dep.type_name).unwrap();
+        }
+
+        list
     }
 }
 
@@ -126,11 +153,16 @@ impl<V: Send + Sync + 'static> DependencySupplier<V> for DependencyMap {
         self.map
             .get(&TypeId::of::<V>())
             .unwrap_or_else(|| {
-                panic!("{} was requested, but not provided.", std::any::type_name::<V>())
+                panic!(
+                    "{} was requested, but not provided. Available types:\n{}",
+                    std::any::type_name::<V>(),
+                    self.available_types()
+                )
             })
             .clone()
+            .inner
             .downcast::<V>()
-            .expect("we already checks that line before")
+            .expect("Checked by .unwrap_or_else()")
     }
 }
 
