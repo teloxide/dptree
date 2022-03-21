@@ -73,7 +73,15 @@ pub trait DependencySupplier<Value> {
 /// use dptree::di::{DependencyMap, DependencySupplier};
 /// let mut container = DependencyMap::new();
 /// container.insert(10i32);
+/// container.insert(true);
+/// container.insert("static str");
 ///
+/// // thread 'main' panicked at 'alloc::string::String was requested, but not provided. Available types:
+/// //    &str
+/// //    bool
+/// //    i32
+/// // ', /media/hirrolot/772CF8924BEBB279/Documents/Rust/dptree/src/di.rs:150:17
+/// // note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 /// let string: Arc<String> = container.get();
 /// ```
 #[derive(Default, Clone)]
