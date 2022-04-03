@@ -46,6 +46,19 @@ pub trait DependencySupplier<Value> {
 /// the container, so if you do not provide necessary types but they were
 /// requested, it will panic.
 ///
+/// There are two ways you can insert values into [`DependencyMap`]:
+///  1. [`DependencyMap::insert`] inserts a single value.
+///  2. [`DependencyMap::insert_container`] inserts another [`DependencyMap`]
+/// into itself.
+///
+/// When you request a value of some type through `.get()`, the following steps
+/// apply:
+///
+///  1. Look into values inserted by [`DependencyMap::insert`].
+///  2. If a value is not found, examine downstream containers inserted by
+/// [`DependencyMap::insert_container`].
+///  3. Otherwise, panic and show the list of available types.
+///
 /// # Examples
 ///
 /// ```
@@ -87,6 +100,7 @@ pub trait DependencySupplier<Value> {
 #[derive(Default, Clone)]
 pub struct DependencyMap {
     map: HashMap<TypeId, Dependency>,
+    downstream: Vec<DependencyMap>,
 }
 
 #[derive(Clone)]
@@ -121,6 +135,11 @@ impl DependencyMap {
             .map(|dep| dep.inner.downcast().expect("Values are stored by TypeId"))
     }
 
+    /// Inserts another container into itself.
+    pub fn insert_container(&mut self, container: Self) {
+        self.downstream.push(container);
+    }
+
     /// Removes a value from the container.
     ///
     /// If the container do not has this type present, `None` is returned.
@@ -134,11 +153,34 @@ impl DependencyMap {
     fn available_types(&self) -> String {
         let mut list = String::new();
 
-        for (_type_id, dep) in &self.map {
-            write!(list, "    {}\n", dep.type_name).unwrap();
+        for dep in self.map.values() {
+            writeln!(list, "    {}", dep.type_name).unwrap();
+        }
+        for container in &self.downstream {
+            write!(list, "{}", container.available_types()).unwrap();
         }
 
         list
+    }
+
+    fn get_checked<V>(&self) -> Option<Arc<V>>
+    where
+        V: Send + Sync + 'static,
+    {
+        if let Some(value) =
+            self.downstream.iter().find_map(|container| container.get_checked::<V>())
+        {
+            return Some(value);
+        }
+
+        Some(
+            self.map
+                .get(&TypeId::of::<V>())?
+                .clone()
+                .inner
+                .downcast::<V>()
+                .expect("Checked by .unwrap_or_else()"),
+        )
     }
 }
 
@@ -148,21 +190,18 @@ impl Debug for DependencyMap {
     }
 }
 
-impl<V: Send + Sync + 'static> DependencySupplier<V> for DependencyMap {
+impl<V> DependencySupplier<V> for DependencyMap
+where
+    V: Send + Sync + 'static,
+{
     fn get(&self) -> Arc<V> {
-        self.map
-            .get(&TypeId::of::<V>())
-            .unwrap_or_else(|| {
-                panic!(
-                    "{} was requested, but not provided. Available types:\n{}",
-                    std::any::type_name::<V>(),
-                    self.available_types()
-                )
-            })
-            .clone()
-            .inner
-            .downcast::<V>()
-            .expect("Checked by .unwrap_or_else()")
+        self.get_checked().unwrap_or_else(|| {
+            panic!(
+                "{} was requested, but not provided. Available types:\n{}",
+                std::any::type_name::<V>(),
+                self.available_types()
+            )
+        })
     }
 }
 
@@ -286,5 +325,30 @@ pub trait Insert<Value> {
 impl<T: Send + Sync + 'static> Insert<T> for DependencyMap {
     fn insert(&mut self, value: T) -> Option<Arc<T>> {
         DependencyMap::insert(self, value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get() {
+        let mut map = DependencyMap::new();
+        map.insert(42i32);
+        map.insert("hello world");
+
+        assert_eq!(map.get(), Arc::new(42i32));
+        assert_eq!(map.get(), Arc::new("hello world"));
+    }
+
+    #[test]
+    fn get_from_downstream() {
+        let mut map = DependencyMap::new();
+        map.insert(42i32);
+        map.insert("hello world");
+        map.insert_container(deps![true]);
+
+        assert_eq!(map.get(), Arc::new(String::new()));
     }
 }
