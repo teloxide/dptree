@@ -46,19 +46,6 @@ pub trait DependencySupplier<Value> {
 /// the container, so if you do not provide necessary types but they were
 /// requested, it will panic.
 ///
-/// There are two ways you can insert values into [`DependencyMap`]:
-///  1. [`DependencyMap::insert`] inserts a single value.
-///  2. [`DependencyMap::insert_container`] inserts another [`DependencyMap`]
-/// into itself.
-///
-/// When you request a value of some type through `.get()`, the following steps
-/// apply:
-///
-///  1. Look into values inserted by [`DependencyMap::insert`].
-///  2. If a value is not found, examine downstream containers inserted by
-/// [`DependencyMap::insert_container`].
-///  3. Otherwise, panic and show the list of available types.
-///
 /// # Examples
 ///
 /// ```
@@ -100,7 +87,6 @@ pub trait DependencySupplier<Value> {
 #[derive(Default, Clone)]
 pub struct DependencyMap {
     map: HashMap<TypeId, Dependency>,
-    downstream: Vec<DependencyMap>,
 }
 
 #[derive(Clone)]
@@ -135,9 +121,9 @@ impl DependencyMap {
             .map(|dep| dep.inner.downcast().expect("Values are stored by TypeId"))
     }
 
-    /// Inserts another container into itself.
+    /// Inserts all dependencies from another container into itself.
     pub fn insert_container(&mut self, container: Self) {
-        self.downstream.push(container);
+        self.map.extend(container.map);
     }
 
     /// Removes a value from the container.
@@ -156,31 +142,8 @@ impl DependencyMap {
         for dep in self.map.values() {
             writeln!(list, "    {}", dep.type_name).unwrap();
         }
-        for container in &self.downstream {
-            write!(list, "{}", container.available_types()).unwrap();
-        }
 
         list
-    }
-
-    fn get_checked<V>(&self) -> Option<Arc<V>>
-    where
-        V: Send + Sync + 'static,
-    {
-        if let Some(value) =
-            self.downstream.iter().find_map(|container| container.get_checked::<V>())
-        {
-            return Some(value);
-        }
-
-        Some(
-            self.map
-                .get(&TypeId::of::<V>())?
-                .clone()
-                .inner
-                .downcast::<V>()
-                .expect("Checked by .unwrap_or_else()"),
-        )
     }
 }
 
@@ -195,13 +158,19 @@ where
     V: Send + Sync + 'static,
 {
     fn get(&self) -> Arc<V> {
-        self.get_checked().unwrap_or_else(|| {
-            panic!(
-                "{} was requested, but not provided. Available types:\n{}",
-                std::any::type_name::<V>(),
-                self.available_types()
-            )
-        })
+        self.map
+            .get(&TypeId::of::<V>())
+            .unwrap_or_else(|| {
+                panic!(
+                    "{} was requested, but not provided. Available types:\n{}",
+                    std::any::type_name::<V>(),
+                    self.available_types()
+                )
+            })
+            .clone()
+            .inner
+            .downcast::<V>()
+            .expect("Checked by .unwrap_or_else()")
     }
 }
 
@@ -337,18 +306,10 @@ mod tests {
         let mut map = DependencyMap::new();
         map.insert(42i32);
         map.insert("hello world");
+        map.insert_container(deps![true]);
 
         assert_eq!(map.get(), Arc::new(42i32));
         assert_eq!(map.get(), Arc::new("hello world"));
-    }
-
-    #[test]
-    fn get_from_downstream() {
-        let mut map = DependencyMap::new();
-        map.insert(42i32);
-        map.insert("hello world");
-        map.insert_container(deps![true]);
-
         assert_eq!(map.get(), Arc::new(true));
     }
 }
