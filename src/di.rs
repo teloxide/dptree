@@ -349,6 +349,6 @@ mod tests {
         map.insert("hello world");
         map.insert_container(deps![true]);
 
-        assert_eq!(map.get(), Arc::new(String::new()));
+        assert_eq!(map.get(), Arc::new(true));
     }
 }
