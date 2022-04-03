@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## unreleased
 
+### Added
+
+ - `map` and `map_async` ([PR #8](https://github.com/p0lunin/dptree/pull/8)).
+
 ## 0.1.1 - 2022-03-21
 
 ### Fixed
