@@ -121,6 +121,11 @@ impl DependencyMap {
             .map(|dep| dep.inner.downcast().expect("Values are stored by TypeId"))
     }
 
+    /// Inserts all dependencies from another container into itself.
+    pub fn insert_container(&mut self, container: Self) {
+        self.map.extend(container.map);
+    }
+
     /// Removes a value from the container.
     ///
     /// If the container do not has this type present, `None` is returned.
@@ -134,8 +139,8 @@ impl DependencyMap {
     fn available_types(&self) -> String {
         let mut list = String::new();
 
-        for (_type_id, dep) in &self.map {
-            write!(list, "    {}\n", dep.type_name).unwrap();
+        for dep in self.map.values() {
+            writeln!(list, "    {}", dep.type_name).unwrap();
         }
 
         list
@@ -148,7 +153,10 @@ impl Debug for DependencyMap {
     }
 }
 
-impl<V: Send + Sync + 'static> DependencySupplier<V> for DependencyMap {
+impl<V> DependencySupplier<V> for DependencyMap
+where
+    V: Send + Sync + 'static,
+{
     fn get(&self) -> Arc<V> {
         self.map
             .get(&TypeId::of::<V>())
@@ -286,5 +294,22 @@ pub trait Insert<Value> {
 impl<T: Send + Sync + 'static> Insert<T> for DependencyMap {
     fn insert(&mut self, value: T) -> Option<Arc<T>> {
         DependencyMap::insert(self, value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get() {
+        let mut map = DependencyMap::new();
+        map.insert(42i32);
+        map.insert("hello world");
+        map.insert_container(deps![true]);
+
+        assert_eq!(map.get(), Arc::new(42i32));
+        assert_eq!(map.get(), Arc::new("hello world"));
+        assert_eq!(map.get(), Arc::new(true));
     }
 }
