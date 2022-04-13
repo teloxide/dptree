@@ -13,7 +13,7 @@ use std::{ops::ControlFlow, sync::Arc};
 #[must_use]
 pub fn map<'a, Projection, Input, Output, NewType, Args>(
     proj: Projection,
-) -> Handler<'a, Input, Output, Input>
+) -> Handler<'a, Input, Output>
 where
     Input: Clone,
     Asyncify<Projection>: Injectable<Input, NewType, Args> + Send + Sync + 'a,
@@ -28,7 +28,7 @@ where
 #[must_use]
 pub fn map_async<'a, Projection, Input, Output, NewType, Args>(
     proj: Projection,
-) -> Handler<'a, Input, Output, Input>
+) -> Handler<'a, Input, Output>
 where
     Input: Clone,
     Projection: Injectable<Input, NewType, Args> + Send + Sync + 'a,

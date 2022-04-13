@@ -7,10 +7,10 @@ use futures::future::BoxFuture;
 ///
 /// In order to create this structure, you can use the predefined functions from
 /// [`crate`].
-pub struct Handler<'a, Input, Output, Intermediate = Input>(
+pub struct Handler<'a, Input, Output>(
     #[allow(clippy::type_complexity)]
     Arc<
-        dyn Fn(Input, Cont<'a, Intermediate, Output>) -> HandlerResult<'a, Input, Output>
+        dyn Fn(Input, Cont<'a, Input, Output>) -> HandlerResult<'a, Input, Output>
             + Send
             + Sync
             + 'a,
@@ -18,25 +18,24 @@ pub struct Handler<'a, Input, Output, Intermediate = Input>(
 );
 
 /// A continuation representing the rest of a handler chain.
-pub type Cont<'a, Intermediate, Output> =
-    Box<dyn Fn(Intermediate) -> HandlerResult<'a, Intermediate, Output> + Send + Sync + 'a>;
+pub type Cont<'a, Input, Output> =
+    Box<dyn Fn(Input) -> HandlerResult<'a, Input, Output> + Send + Sync + 'a>;
 
 /// An output type produced by a handler.
 pub type HandlerResult<'a, Input, Output> = BoxFuture<'a, ControlFlow<Output, Input>>;
 
 // `#[derive(Clone)]` obligates all type parameters to satisfy `Clone` as well,
 // but we do not need it here because of `Arc`.
-impl<'a, Input, Output, Cont> Clone for Handler<'a, Input, Output, Cont> {
+impl<'a, Input, Output> Clone for Handler<'a, Input, Output> {
     fn clone(&self) -> Self {
-        Handler(self.0.clone())
+        Handler(Arc::clone(&self.0))
     }
 }
 
-impl<'a, Input, Output, Intermediate> Handler<'a, Input, Output, Intermediate>
+impl<'a, Input, Output> Handler<'a, Input, Output>
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
-    Intermediate: Send + Sync + 'a,
 {
     /// Chain two handlers to form a [chain of responsibility].
     ///
@@ -63,13 +62,7 @@ where
     ///
     /// [chain of responsibility]: https://en.wikipedia.org/wiki/Chain-of-responsibility_pattern
     #[must_use]
-    pub fn chain<Intermediate2>(
-        self,
-        next: Handler<'a, Intermediate, Output, Intermediate2>,
-    ) -> Handler<'a, Input, Output, Intermediate2>
-    where
-        Intermediate2: Send + Sync + 'a,
-    {
+    pub fn chain(self, next: Self) -> Self {
         from_fn(move |event, cont| {
             let this = self.clone();
             let next = next.clone();
@@ -120,13 +113,7 @@ where
     /// # }
     /// ```
     #[must_use]
-    pub fn branch<Intermediate2>(
-        self,
-        next: Handler<'a, Intermediate, Output, Intermediate2>,
-    ) -> Handler<'a, Input, Output, Intermediate>
-    where
-        Intermediate2: Send + Sync + 'a,
-    {
+    pub fn branch(self, next: Self) -> Self {
         from_fn(move |event, cont| {
             let this = self.clone();
             let next = next.clone();
@@ -172,9 +159,9 @@ where
         cont: Cont,
     ) -> ControlFlow<Output, Input>
     where
-        Input: Send + Sync + 'a,
-        Cont: Fn(Intermediate) -> ContFut + Send + Sync + 'a,
-        ContFut: Future<Output = ControlFlow<Output, Intermediate>> + Send + 'a,
+        Cont: Fn(Input) -> ContFut,
+        Cont: Send + Sync + 'a,
+        ContFut: Future<Output = ControlFlow<Output, Input>> + Send + 'a,
     {
         (self.0)(container, Box::new(move |event| Box::pin(cont(event)))).await
     }
@@ -194,11 +181,10 @@ where
 /// specialised functions: [`crate::endpoint`], [`crate::filter`],
 /// [`crate::filter_map`], etc.
 #[must_use]
-pub fn from_fn<'a, F, Fut, Input, Output, Intermediate>(
-    f: F,
-) -> Handler<'a, Input, Output, Intermediate>
+pub fn from_fn<'a, F, Fut, Input, Output>(f: F) -> Handler<'a, Input, Output>
 where
-    F: Fn(Input, Cont<'a, Intermediate, Output>) -> Fut + Send + Sync + 'a,
+    F: Fn(Input, Cont<'a, Input, Output>) -> Fut,
+    F: Send + Sync + 'a,
     Fut: Future<Output = ControlFlow<Output, Input>> + Send + 'a,
 {
     Handler(Arc::new(move |event, cont| Box::pin(f(event, cont))))
@@ -209,7 +195,7 @@ where
 /// This function is only used to specify other handlers upon it (see the root
 /// examples).
 #[must_use]
-pub fn entry<'a, Input, Output>() -> Handler<'a, Input, Output, Input>
+pub fn entry<'a, Input, Output>() -> Handler<'a, Input, Output>
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
