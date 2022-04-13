@@ -1,6 +1,7 @@
 use crate::{
     di::{Asyncify, Injectable},
     handler::core::{from_fn, Handler},
+    UpdateSet,
 };
 use std::{ops::ControlFlow, sync::Arc};
 
@@ -10,22 +11,28 @@ use std::{ops::ControlFlow, sync::Arc};
 /// If it returns `true`, a continuation of the handler will be called,
 /// otherwise the handler returns [`ControlFlow::Continue`].
 #[must_use]
-pub fn filter<'a, Pred, Input, Output, FnArgs>(pred: Pred) -> Handler<'a, Input, Output>
+pub fn filter<'a, Pred, Input, Output, FnArgs, UpdSet>(
+    pred: Pred,
+) -> Handler<'a, Input, Output, UpdSet>
 where
     Asyncify<Pred>: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
+    UpdSet: UpdateSet,
 {
     filter_async(Asyncify(pred))
 }
 
 /// The asynchronous version of [`filter`].
 #[must_use]
-pub fn filter_async<'a, Pred, Input, Output, FnArgs>(pred: Pred) -> Handler<'a, Input, Output>
+pub fn filter_async<'a, Pred, Input, Output, FnArgs, UpdSet>(
+    pred: Pred,
+) -> Handler<'a, Input, Output, UpdSet>
 where
     Pred: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
+    UpdSet: UpdateSet,
 {
     let pred = Arc::new(pred);
 
@@ -49,7 +56,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::deps;
+    use crate::{deps, help_inference};
 
     #[tokio::test]
     async fn test_filter() {
@@ -57,10 +64,10 @@ mod tests {
         let input = deps![input_value];
         let output = 7;
 
-        let result = filter_async(move |event: i32| async move {
+        let result = help_inference(filter_async(move |event: i32| async move {
             assert_eq!(event, input_value);
             true
-        })
+        }))
         .endpoint(move |event: i32| async move {
             assert_eq!(event, input_value);
             output
@@ -76,10 +83,10 @@ mod tests {
         let input = 123;
         let output = 7;
 
-        let result = filter(move |event: i32| {
+        let result = help_inference(filter(move |event: i32| {
             assert_eq!(event, input);
             true
-        })
+        }))
         .chain(
             filter_async(move |event: i32| async move {
                 assert_eq!(event, input);

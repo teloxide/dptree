@@ -1,6 +1,6 @@
 use crate::{
     di::{Asyncify, Injectable, Insert},
-    from_fn, Handler,
+    from_fn, Handler, UpdateSet,
 };
 use std::{ops::ControlFlow, sync::Arc};
 
@@ -11,14 +11,15 @@ use std::{ops::ControlFlow, sync::Arc};
 ///
 /// See also: [`crate::filter_map`].
 #[must_use]
-pub fn map<'a, Projection, Input, Output, NewType, Args>(
+pub fn map<'a, Projection, Input, Output, NewType, Args, UpdSet>(
     proj: Projection,
-) -> Handler<'a, Input, Output>
+) -> Handler<'a, Input, Output, UpdSet>
 where
     Input: Clone,
     Asyncify<Projection>: Injectable<Input, NewType, Args> + Send + Sync + 'a,
     Input: Insert<NewType> + Send + Sync + 'a,
     Output: Send + Sync + 'a,
+    UpdSet: UpdateSet,
     NewType: Send,
 {
     map_async(Asyncify(proj))
@@ -26,14 +27,15 @@ where
 
 /// The asynchronous version of [`map`].
 #[must_use]
-pub fn map_async<'a, Projection, Input, Output, NewType, Args>(
+pub fn map_async<'a, Projection, Input, Output, NewType, Args, UpdSet>(
     proj: Projection,
-) -> Handler<'a, Input, Output>
+) -> Handler<'a, Input, Output, UpdSet>
 where
     Input: Clone,
     Projection: Injectable<Input, NewType, Args> + Send + Sync + 'a,
     Input: Insert<NewType> + Send + Sync + 'a,
     Output: Send + Sync + 'a,
+    UpdSet: UpdateSet,
     NewType: Send,
 {
     let proj = Arc::new(proj);
@@ -59,13 +61,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::deps;
+    use crate::{deps, help_inference};
 
     #[tokio::test]
     async fn test_map() {
         let value = 123;
 
-        let result = map(move || value)
+        let result = help_inference(map(move || value))
             .endpoint(move |event: i32| async move {
                 assert_eq!(event, value);
                 value

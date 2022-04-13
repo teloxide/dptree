@@ -2,12 +2,15 @@ use std::{future::Future, ops::ControlFlow, sync::Arc};
 
 use futures::future::BoxFuture;
 
+use crate::{Unspecified, UpdateSet};
+
 /// An instance that receives an input and decides whether to break a chain or
 /// pass the value further.
 ///
 /// In order to create this structure, you can use the predefined functions from
 /// [`crate`].
-pub struct Handler<'a, Input, Output> {
+pub struct Handler<'a, Input, Output, UpdSet = Unspecified> {
+    // FIXME: this should use a single `Arc<_>`
     #[allow(clippy::type_complexity)]
     f: Arc<
         dyn Fn(Input, Cont<'a, Input, Output>) -> HandlerResult<'a, Input, Output>
@@ -15,6 +18,7 @@ pub struct Handler<'a, Input, Output> {
             + Sync
             + 'a,
     >,
+    required_update_kinds_set: Arc<UpdSet>,
 }
 
 /// A continuation representing the rest of a handler chain.
@@ -26,16 +30,20 @@ pub type HandlerResult<'a, Input, Output> = BoxFuture<'a, ControlFlow<Output, In
 
 // `#[derive(Clone)]` obligates all type parameters to satisfy `Clone` as well,
 // but we do not need it here because of `Arc`.
-impl<'a, Input, Output> Clone for Handler<'a, Input, Output> {
+impl<'a, Input, Output, UpdSet> Clone for Handler<'a, Input, Output, UpdSet> {
     fn clone(&self) -> Self {
-        Handler { f: Arc::clone(&self.f) }
+        Handler {
+            f: Arc::clone(&self.f),
+            required_update_kinds_set: Arc::clone(&self.required_update_kinds_set),
+        }
     }
 }
 
-impl<'a, Input, Output> Handler<'a, Input, Output>
+impl<'a, Input, Output, UpdSet> Handler<'a, Input, Output, UpdSet>
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
+    UpdSet: UpdateSet,
 {
     /// Chain two handlers to form a [chain of responsibility].
     ///
@@ -49,7 +57,8 @@ where
     /// # async fn main() {
     /// use dptree::prelude::*;
     ///
-    /// let handler = dptree::filter(|x: i32| x > 0).chain(dptree::endpoint(|| async { "done" }));
+    /// let handler: Handler<_, _> =
+    ///     dptree::filter(|x: i32| x > 0).chain(dptree::endpoint(|| async { "done" }));
     ///
     /// assert_eq!(handler.dispatch(dptree::deps![10]).await, ControlFlow::Break("done"));
     /// assert_eq!(
@@ -63,7 +72,10 @@ where
     /// [chain of responsibility]: https://en.wikipedia.org/wiki/Chain-of-responsibility_pattern
     #[must_use]
     pub fn chain(self, next: Self) -> Self {
-        from_fn(move |event, cont| {
+        let required_update_kinds_set =
+            self.required_update_kinds_set.intersection(&next.required_update_kinds_set);
+
+        from_fn_with_requirements(required_update_kinds_set, move |event, cont| {
             let this = self.clone();
             let next = next.clone();
             let cont = Arc::new(cont);
@@ -98,7 +110,7 @@ where
     ///     GT,
     /// }
     ///
-    /// let dispatcher = dptree::entry()
+    /// let dispatcher: Handler<_, _> = dptree::entry()
     ///     .branch(dptree::filter(|num: i32| num == 5).endpoint(|| async move { Output::Five }))
     ///     .branch(dptree::filter(|num: i32| num == 1).endpoint(|| async move { Output::One }))
     ///     .branch(dptree::filter(|num: i32| num > 2).endpoint(|| async move { Output::GT }));
@@ -114,7 +126,10 @@ where
     /// ```
     #[must_use]
     pub fn branch(self, next: Self) -> Self {
-        from_fn(move |event, cont| {
+        let required_update_kinds_set =
+            self.required_update_kinds_set.union(&next.required_update_kinds_set);
+
+        from_fn_with_requirements(required_update_kinds_set, move |event, cont| {
             let this = self.clone();
             let next = next.clone();
             let cont = Arc::new(cont);
@@ -146,7 +161,7 @@ where
     /// # async fn main() {
     /// use dptree::prelude::*;
     ///
-    /// let handler = dptree::filter(|x: i32| x > 0);
+    /// let handler: Handler<_, _> = dptree::filter(|x: i32| x > 0);
     ///
     /// let output = handler.execute(dptree::deps![10], |_| async { ControlFlow::Break("done") }).await;
     /// assert_eq!(output, ControlFlow::Break("done"));
@@ -173,6 +188,11 @@ where
     pub async fn dispatch(&self, container: Input) -> ControlFlow<Output, Input> {
         self.clone().execute(container, |event| async move { ControlFlow::Continue(event) }).await
     }
+
+    /// Returns the set of updates that can be processed by this handler.
+    pub fn required_update_kinds_set(&self) -> &UpdSet {
+        &self.required_update_kinds_set
+    }
 }
 
 /// Constructs a handler from a function.
@@ -181,13 +201,34 @@ where
 /// specialised functions: [`crate::endpoint`], [`crate::filter`],
 /// [`crate::filter_map`], etc.
 #[must_use]
-pub fn from_fn<'a, F, Fut, Input, Output>(f: F) -> Handler<'a, Input, Output>
+pub fn from_fn<'a, F, Fut, Input, Output, UpdSet>(f: F) -> Handler<'a, Input, Output, UpdSet>
+where
+    F: Fn(Input, Cont<'a, Input, Output>) -> Fut + Send + Sync + 'a,
+    Fut: Future<Output = ControlFlow<Output, Input>> + Send + 'a,
+    UpdSet: UpdateSet,
+{
+    from_fn_with_requirements(UpdSet::unknown(), f)
+}
+
+/// Constructs a handler from a function.
+///
+/// Most of the time, you do not want to use this function. Take a look at more
+/// specialised functions: [`crate::endpoint`], [`crate::filter`],
+/// [`crate::filter_map`], etc.
+#[must_use]
+pub fn from_fn_with_requirements<'a, F, Fut, Input, Output, UpdSet>(
+    required_update_kinds_set: UpdSet,
+    f: F,
+) -> Handler<'a, Input, Output, UpdSet>
 where
     F: Fn(Input, Cont<'a, Input, Output>) -> Fut,
     F: Send + Sync + 'a,
     Fut: Future<Output = ControlFlow<Output, Input>> + Send + 'a,
 {
-    Handler { f: Arc::new(move |event, cont| Box::pin(f(event, cont))) }
+    Handler {
+        f: Arc::new(move |event, cont| Box::pin(f(event, cont))),
+        required_update_kinds_set: Arc::new(required_update_kinds_set),
+    }
 }
 
 /// Constructs an entry point handler.
@@ -195,19 +236,31 @@ where
 /// This function is only used to specify other handlers upon it (see the root
 /// examples).
 #[must_use]
-pub fn entry<'a, Input, Output>() -> Handler<'a, Input, Output>
+pub fn entry<'a, Input, Output, UpdSet>() -> Handler<'a, Input, Output, UpdSet>
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
+    UpdSet: UpdateSet,
 {
     from_fn(|event, cont| cont(event))
 }
 
 #[cfg(test)]
+pub(crate) fn help_inference<I, O>(h: Handler<I, O>) -> Handler<I, O> {
+    h
+}
+
+#[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
+    use maplit::hashset;
+
     use crate::{
-        deps,
+        deps, filter_map_with_requirements,
         handler::{endpoint, filter, filter_async},
+        prelude::DependencyMap,
+        MaybeUnknown,
     };
 
     use super::*;
@@ -217,10 +270,10 @@ mod tests {
         let input = 123;
         let output = "ABC";
 
-        let result = from_fn(|event, _cont: Cont<i32, &'static str>| async move {
+        let result = help_inference(from_fn(|event, _cont: Cont<i32, &'static str>| async move {
             assert_eq!(event, input);
             ControlFlow::Break(output)
-        })
+        }))
         .dispatch(input)
         .await;
 
@@ -232,12 +285,13 @@ mod tests {
         let input = 123;
         type Output = &'static str;
 
-        let result = from_fn(|event: i32, _cont: Cont<i32, &'static str>| async move {
-            assert_eq!(event, input);
-            ControlFlow::<Output, _>::Continue(event)
-        })
-        .dispatch(input)
-        .await;
+        let result =
+            help_inference(from_fn(|event: i32, _cont: Cont<i32, &'static str>| async move {
+                assert_eq!(event, input);
+                ControlFlow::<Output, _>::Continue(event)
+            }))
+            .dispatch(input)
+            .await;
 
         assert!(result == ControlFlow::Continue(input));
     }
@@ -247,7 +301,7 @@ mod tests {
         let input = 123;
         type Output = &'static str;
 
-        let result = entry::<_, Output>().dispatch(input).await;
+        let result = help_inference(entry::<_, Output, _>()).dispatch(input).await;
 
         assert!(result == ControlFlow::Continue(input));
     }
@@ -257,10 +311,10 @@ mod tests {
         let input = 123;
         let output = "ABC";
 
-        let result = from_fn(|event, cont| {
+        let result = help_inference(from_fn(|event, cont| {
             assert!(event == input);
             cont(event)
-        })
+        }))
         .execute(input, |event| async move {
             assert!(event == input);
             ControlFlow::Break(output)
@@ -298,13 +352,94 @@ mod tests {
             )
             .branch(endpoint(|| async move { Output::GT }));
 
-        let dispatcher =
-            entry().branch(negative_handler).branch(zero_handler).branch(positive_handler);
+        let dispatcher = help_inference(entry())
+            .branch(negative_handler)
+            .branch(zero_handler)
+            .branch(positive_handler);
 
         assert_eq!(dispatcher.dispatch(deps![2]).await, ControlFlow::Break(Output::GT));
         assert_eq!(dispatcher.dispatch(deps![1]).await, ControlFlow::Break(Output::One));
         assert_eq!(dispatcher.dispatch(deps![0]).await, ControlFlow::Break(Output::Zero));
         assert_eq!(dispatcher.dispatch(deps![-1]).await, ControlFlow::Break(Output::MinusOne));
         assert_eq!(dispatcher.dispatch(deps![-2]).await, ControlFlow::Break(Output::LT));
+    }
+
+    #[tokio::test]
+    async fn allowed_updates() {
+        use MaybeUnknown::*;
+
+        #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+        enum UpdateKind {
+            A,
+            B,
+            C,
+        }
+
+        #[derive(Clone)]
+        #[allow(dead_code)]
+        enum Update {
+            A(i32),
+            B(u8),
+            C(u64),
+        }
+
+        fn filter_a<Out>() -> Handler<'static, DependencyMap, Out, MaybeUnknown<HashSet<UpdateKind>>>
+        where
+            Out: Send + Sync + 'static,
+        {
+            filter_map_with_requirements(Known(hashset! { UpdateKind::A }), |update: Update| {
+                match update {
+                    Update::A(x) => Some(x),
+                    _ => None,
+                }
+            })
+        }
+
+        fn filter_b<Out>() -> Handler<'static, DependencyMap, Out, MaybeUnknown<HashSet<UpdateKind>>>
+        where
+            Out: Send + Sync + 'static,
+        {
+            filter_map_with_requirements(Known(hashset! { UpdateKind::B }), |update: Update| {
+                match update {
+                    Update::B(x) => Some(x),
+                    _ => None,
+                }
+            })
+        }
+
+        fn filter_c<Out>() -> Handler<'static, DependencyMap, Out, MaybeUnknown<HashSet<UpdateKind>>>
+        where
+            Out: Send + Sync + 'static,
+        {
+            filter_map_with_requirements(Known(hashset! { UpdateKind::C }), |update: Update| {
+                match update {
+                    Update::B(x) => Some(x),
+                    _ => None,
+                }
+            })
+        }
+
+        #[track_caller]
+        fn assert(
+            handler: Handler<'static, DependencyMap, (), MaybeUnknown<HashSet<UpdateKind>>>,
+            allowed: MaybeUnknown<HashSet<UpdateKind>>,
+        ) {
+            assert_eq!(handler.required_update_kinds_set(), &allowed)
+        }
+
+        assert(filter_a().chain(filter_b()), Known(hashset! {}));
+        assert(entry().chain(filter_b()), Known(hashset! { UpdateKind::B }));
+
+        assert(filter_a().branch(filter_b()), Known(hashset! { UpdateKind::A, UpdateKind::B }));
+        assert(
+            filter_a().branch(filter_b()).branch(filter_c().chain(filter_c())),
+            Known(hashset! { UpdateKind::A, UpdateKind::B, UpdateKind::C }),
+        );
+        assert(filter_a().chain(filter(|| true)), Known(hashset! { UpdateKind::A }));
+
+        // This is unfortunate, can we somehow fix this?
+        assert(entry().branch(filter_a()), Unknown);
+        // Maybe this should return Known({})?
+        assert(entry(), Unknown);
     }
 }

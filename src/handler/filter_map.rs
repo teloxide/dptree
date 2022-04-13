@@ -1,6 +1,6 @@
 use crate::{
     di::{Asyncify, Injectable, Insert},
-    from_fn, Handler,
+    from_fn_with_requirements, Handler, UpdateSet,
 };
 use std::{ops::ControlFlow, sync::Arc};
 
@@ -11,14 +11,15 @@ use std::{ops::ControlFlow, sync::Arc};
 /// `None`, then the handler will return [`ControlFlow::Continue`] with the old
 /// container.
 #[must_use]
-pub fn filter_map<'a, Projection, Input, Output, NewType, Args>(
+pub fn filter_map<'a, Projection, Input, Output, NewType, Args, UpdSet>(
     proj: Projection,
-) -> Handler<'a, Input, Output>
+) -> Handler<'a, Input, Output, UpdSet>
 where
     Input: Clone,
     Asyncify<Projection>: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
     Input: Insert<NewType> + Send + Sync + 'a,
     Output: Send + Sync + 'a,
+    UpdSet: UpdateSet,
     NewType: Send,
 {
     filter_map_async(Asyncify(proj))
@@ -26,9 +27,40 @@ where
 
 /// The asynchronous version of [`filter_map`].
 #[must_use]
-pub fn filter_map_async<'a, Projection, Input, Output, NewType, Args>(
+pub fn filter_map_async<'a, Projection, Input, Output, NewType, Args, UpdSet>(
     proj: Projection,
-) -> Handler<'a, Input, Output>
+) -> Handler<'a, Input, Output, UpdSet>
+where
+    Input: Clone,
+    Projection: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
+    Input: Insert<NewType> + Send + Sync + 'a,
+    Output: Send + Sync + 'a,
+    UpdSet: UpdateSet,
+    NewType: Send,
+{
+    filter_map_async_with_requirements(UpdSet::unknown(), proj)
+}
+
+#[must_use]
+pub fn filter_map_with_requirements<'a, Projection, Input, Output, NewType, Args, UpdSet>(
+    required_update_kinds_set: UpdSet,
+    proj: Projection,
+) -> Handler<'a, Input, Output, UpdSet>
+where
+    Input: Clone,
+    Asyncify<Projection>: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
+    Input: Insert<NewType> + Send + Sync + 'a,
+    Output: Send + Sync + 'a,
+    NewType: Send,
+{
+    filter_map_async_with_requirements(required_update_kinds_set, Asyncify(proj))
+}
+
+#[must_use]
+pub fn filter_map_async_with_requirements<'a, Projection, Input, Output, NewType, Args, UpdSet>(
+    required_update_kinds_set: UpdSet,
+    proj: Projection,
+) -> Handler<'a, Input, Output, UpdSet>
 where
     Input: Clone,
     Projection: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
@@ -38,7 +70,7 @@ where
 {
     let proj = Arc::new(proj);
 
-    from_fn(move |container: Input, cont| {
+    from_fn_with_requirements(required_update_kinds_set, move |container: Input, cont| {
         let proj = Arc::clone(&proj);
 
         async move {
@@ -64,13 +96,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::deps;
+    use crate::{deps, help_inference};
 
     #[tokio::test]
     async fn test_some() {
         let value = 123;
 
-        let result = filter_map(move || Some(value))
+        let result = help_inference(filter_map(move || Some(value)))
             .endpoint(move |event: i32| async move {
                 assert_eq!(event, value);
                 value
@@ -83,7 +115,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_none() {
-        let result = filter_map(|| None::<i32>)
+        let result = help_inference(filter_map(|| None::<i32>))
             .endpoint(|| async move { unreachable!() })
             .dispatch(deps![])
             .await;
