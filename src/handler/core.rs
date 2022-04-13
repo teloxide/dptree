@@ -7,15 +7,15 @@ use futures::future::BoxFuture;
 ///
 /// In order to create this structure, you can use the predefined functions from
 /// [`crate`].
-pub struct Handler<'a, Input, Output>(
+pub struct Handler<'a, Input, Output> {
     #[allow(clippy::type_complexity)]
-    Arc<
+    f: Arc<
         dyn Fn(Input, Cont<'a, Input, Output>) -> HandlerResult<'a, Input, Output>
             + Send
             + Sync
             + 'a,
     >,
-);
+}
 
 /// A continuation representing the rest of a handler chain.
 pub type Cont<'a, Input, Output> =
@@ -28,7 +28,7 @@ pub type HandlerResult<'a, Input, Output> = BoxFuture<'a, ControlFlow<Output, In
 // but we do not need it here because of `Arc`.
 impl<'a, Input, Output> Clone for Handler<'a, Input, Output> {
     fn clone(&self) -> Self {
-        Handler(Arc::clone(&self.0))
+        Handler { f: Arc::clone(&self.f) }
     }
 }
 
@@ -163,7 +163,7 @@ where
         Cont: Send + Sync + 'a,
         ContFut: Future<Output = ControlFlow<Output, Input>> + Send + 'a,
     {
-        (self.0)(container, Box::new(move |event| Box::pin(cont(event)))).await
+        (self.f)(container, Box::new(move |event| Box::pin(cont(event)))).await
     }
 
     /// Executes this handler.
@@ -187,7 +187,7 @@ where
     F: Send + Sync + 'a,
     Fut: Future<Output = ControlFlow<Output, Input>> + Send + 'a,
 {
-    Handler(Arc::new(move |event, cont| Box::pin(f(event, cont))))
+    Handler { f: Arc::new(move |event, cont| Box::pin(f(event, cont))) }
 }
 
 /// Constructs an entry point handler.
