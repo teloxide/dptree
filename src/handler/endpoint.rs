@@ -1,20 +1,19 @@
 use crate::{di::Injectable, from_fn, Handler};
 use futures::FutureExt;
-use std::{convert::Infallible, ops::ControlFlow, sync::Arc};
+use std::{ops::ControlFlow, sync::Arc};
 
-impl<'a, Input, Output, Intermediate> Handler<'a, Input, Output, Intermediate>
+impl<'a, Input, Output> Handler<'a, Input, Output>
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
-    Intermediate: Send + Sync + 'a,
 {
-    /// Chain this handler with the endpoint handler `endp`.
+    /// Chain this handler with the endpoint handler `f`.
     #[must_use]
-    pub fn endpoint<F, FnArgs>(self, endp: F) -> Endpoint<'a, Input, Output>
+    pub fn endpoint<F, FnArgs>(self, f: F) -> Endpoint<'a, Input, Output>
     where
-        F: Injectable<Intermediate, Output, FnArgs> + Send + Sync + 'a,
+        F: Injectable<Input, Output, FnArgs> + Send + Sync + 'a,
     {
-        self.chain(endpoint(endp))
+        self.chain(endpoint(f))
     }
 }
 
@@ -42,7 +41,7 @@ where
 }
 
 /// A handler with no further handlers in a chain.
-pub type Endpoint<'a, Input, Output> = Handler<'a, Input, Output, Infallible>;
+pub type Endpoint<'a, Input, Output> = Handler<'a, Input, Output>;
 
 #[cfg(test)]
 mod tests {
