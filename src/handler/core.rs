@@ -242,7 +242,7 @@ where
     Output: Send + Sync + 'a,
     UpdSet: UpdateSet,
 {
-    from_fn(|event, cont| cont(event))
+    from_fn_with_requirements(UpdSet::invisible(), |event, cont| cont(event))
 }
 
 #[cfg(test)]
@@ -257,10 +257,10 @@ mod tests {
     use maplit::hashset;
 
     use crate::{
-        deps, filter_map_with_requirements,
+        deps, filter_map, filter_map_with_requirements,
         handler::{endpoint, filter, filter_async},
         prelude::DependencyMap,
-        MaybeUnknown,
+        MaybeSpecial,
     };
 
     use super::*;
@@ -366,7 +366,7 @@ mod tests {
 
     #[tokio::test]
     async fn allowed_updates() {
-        use MaybeUnknown::*;
+        use MaybeSpecial::*;
 
         #[derive(Debug, Clone, PartialEq, Eq, Hash)]
         enum UpdateKind {
@@ -383,7 +383,7 @@ mod tests {
             C(u64),
         }
 
-        fn filter_a<Out>() -> Handler<'static, DependencyMap, Out, MaybeUnknown<HashSet<UpdateKind>>>
+        fn filter_a<Out>() -> Handler<'static, DependencyMap, Out, MaybeSpecial<HashSet<UpdateKind>>>
         where
             Out: Send + Sync + 'static,
         {
@@ -395,7 +395,7 @@ mod tests {
             })
         }
 
-        fn filter_b<Out>() -> Handler<'static, DependencyMap, Out, MaybeUnknown<HashSet<UpdateKind>>>
+        fn filter_b<Out>() -> Handler<'static, DependencyMap, Out, MaybeSpecial<HashSet<UpdateKind>>>
         where
             Out: Send + Sync + 'static,
         {
@@ -407,7 +407,7 @@ mod tests {
             })
         }
 
-        fn filter_c<Out>() -> Handler<'static, DependencyMap, Out, MaybeUnknown<HashSet<UpdateKind>>>
+        fn filter_c<Out>() -> Handler<'static, DependencyMap, Out, MaybeSpecial<HashSet<UpdateKind>>>
         where
             Out: Send + Sync + 'static,
         {
@@ -419,10 +419,22 @@ mod tests {
             })
         }
 
+        // User-defined filter that doesn't provide allowed updates
+        fn user_defined_filter<Out>(
+        ) -> Handler<'static, DependencyMap, Out, MaybeSpecial<HashSet<UpdateKind>>>
+        where
+            Out: Send + Sync + 'static,
+        {
+            filter_map(|update: Update| match update {
+                Update::B(x) => Some(x),
+                _ => None,
+            })
+        }
+
         #[track_caller]
         fn assert(
-            handler: Handler<'static, DependencyMap, (), MaybeUnknown<HashSet<UpdateKind>>>,
-            allowed: MaybeUnknown<HashSet<UpdateKind>>,
+            handler: Handler<'static, DependencyMap, (), MaybeSpecial<HashSet<UpdateKind>>>,
+            allowed: MaybeSpecial<HashSet<UpdateKind>>,
         ) {
             assert_eq!(handler.required_update_kinds_set(), &allowed)
         }
@@ -436,10 +448,14 @@ mod tests {
             Known(hashset! { UpdateKind::A, UpdateKind::B, UpdateKind::C }),
         );
         assert(filter_a().chain(filter(|| true)), Known(hashset! { UpdateKind::A }));
+        assert(user_defined_filter().chain(filter_a()), Known(hashset! { UpdateKind::A }));
+        assert(filter_a().chain(user_defined_filter()), Known(hashset! { UpdateKind::A }));
 
-        // This is unfortunate, can we somehow fix this?
-        assert(entry().branch(filter_a()), Unknown);
-        // Maybe this should return Known({})?
-        assert(entry(), Unknown);
+        // Entry is invisible
+        assert(entry().branch(filter_a()), Known(hashset! { UpdateKind::A }));
+        assert(entry(), Invisible);
+
+        assert(user_defined_filter(), Unknown);
+        assert(user_defined_filter().branch(filter_a()), Unknown);
     }
 }

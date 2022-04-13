@@ -7,6 +7,9 @@ pub trait UpdateSet: Send + Sync + 'static {
     /// This should behave as a "set of all possible update kinds"
     fn unknown() -> Self;
 
+    /// Returns a value that doesn't affect anything.
+    fn invisible() -> Self;
+
     fn union(&self, other: &Self) -> Self;
 
     fn intersection(&self, other: &Self) -> Self;
@@ -14,15 +17,16 @@ pub trait UpdateSet: Send + Sync + 'static {
 
 // named option
 #[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
-pub enum MaybeUnknown<T> {
+pub enum MaybeSpecial<T> {
     Known(T),
     Unknown,
+    Invisible,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Unspecified(());
 
-impl<T, S> UpdateSet for MaybeUnknown<HashSet<T, S>>
+impl<T, S> UpdateSet for MaybeSpecial<HashSet<T, S>>
 where
     T: Eq + Hash + Clone,
     S: BuildHasher + Clone,
@@ -30,13 +34,18 @@ where
     S: Send + Sync + 'static,
 {
     fn unknown() -> Self {
-        MaybeUnknown::Unknown
+        MaybeSpecial::Unknown
+    }
+
+    fn invisible() -> Self {
+        MaybeSpecial::Invisible
     }
 
     fn union(&self, other: &Self) -> Self {
-        use MaybeUnknown::*;
+        use MaybeSpecial::*;
 
         match (self, other) {
+            (Invisible, other) | (other, Invisible) => other.clone(),
             (Known(l), Known(r)) => {
                 let hasher = l.hasher().clone();
                 let mut res = HashSet::with_hasher(hasher);
@@ -49,9 +58,10 @@ where
     }
 
     fn intersection(&self, other: &Self) -> Self {
-        use MaybeUnknown::*;
+        use MaybeSpecial::*;
 
         match (self, other) {
+            (Invisible, other) | (other, Invisible) => other.clone(),
             (Known(l), Known(r)) => {
                 let hasher = l.hasher().clone();
                 let mut res = HashSet::with_hasher(hasher);
@@ -67,6 +77,10 @@ where
 
 impl UpdateSet for Unspecified {
     fn unknown() -> Self {
+        Self(())
+    }
+
+    fn invisible() -> Self {
         Self(())
     }
 
