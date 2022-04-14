@@ -10,16 +10,16 @@ use crate::{Unspecified, UpdateSet};
 /// In order to create this structure, you can use the predefined functions from
 /// [`crate`].
 pub struct Handler<'a, Input, Output, UpdSet = Unspecified> {
-    // FIXME: this should use a single `Arc<_>`
-    #[allow(clippy::type_complexity)]
-    f: Arc<
-        dyn Fn(Input, Cont<'a, Input, Output>) -> HandlerResult<'a, Input, Output>
-            + Send
-            + Sync
-            + 'a,
-    >,
-    required_update_kinds_set: Arc<UpdSet>,
+    data: Arc<HandlerData<UpdSet, DynF<'a, Input, Output>>>,
 }
+
+struct HandlerData<UpdSet, F: ?Sized> {
+    required_update_kinds_set: UpdSet,
+    f: F,
+}
+
+type DynF<'a, Input, Output> =
+    dyn Fn(Input, Cont<'a, Input, Output>) -> HandlerResult<'a, Input, Output> + Send + Sync + 'a;
 
 /// A continuation representing the rest of a handler chain.
 pub type Cont<'a, Input, Output> =
@@ -32,10 +32,7 @@ pub type HandlerResult<'a, Input, Output> = BoxFuture<'a, ControlFlow<Output, In
 // but we do not need it here because of `Arc`.
 impl<'a, Input, Output, UpdSet> Clone for Handler<'a, Input, Output, UpdSet> {
     fn clone(&self) -> Self {
-        Handler {
-            f: Arc::clone(&self.f),
-            required_update_kinds_set: Arc::clone(&self.required_update_kinds_set),
-        }
+        Handler { data: Arc::clone(&self.data) }
     }
 }
 
@@ -73,7 +70,7 @@ where
     #[must_use]
     pub fn chain(self, next: Self) -> Self {
         let required_update_kinds_set =
-            self.required_update_kinds_set.intersection(&next.required_update_kinds_set);
+            self.required_update_kinds_set().intersection(next.required_update_kinds_set());
 
         from_fn_with_requirements(required_update_kinds_set, move |event, cont| {
             let this = self.clone();
@@ -127,7 +124,7 @@ where
     #[must_use]
     pub fn branch(self, next: Self) -> Self {
         let required_update_kinds_set =
-            self.required_update_kinds_set.union(&next.required_update_kinds_set);
+            self.required_update_kinds_set().union(next.required_update_kinds_set());
 
         from_fn_with_requirements(required_update_kinds_set, move |event, cont| {
             let this = self.clone();
@@ -178,7 +175,7 @@ where
         Cont: Send + Sync + 'a,
         ContFut: Future<Output = ControlFlow<Output, Input>> + Send + 'a,
     {
-        (self.f)(container, Box::new(move |event| Box::pin(cont(event)))).await
+        (self.data.f)(container, Box::new(move |event| Box::pin(cont(event)))).await
     }
 
     /// Executes this handler.
@@ -191,7 +188,7 @@ where
 
     /// Returns the set of updates that can be processed by this handler.
     pub fn required_update_kinds_set(&self) -> &UpdSet {
-        &self.required_update_kinds_set
+        &self.data.required_update_kinds_set
     }
 }
 
@@ -226,8 +223,10 @@ where
     Fut: Future<Output = ControlFlow<Output, Input>> + Send + 'a,
 {
     Handler {
-        f: Arc::new(move |event, cont| Box::pin(f(event, cont))),
-        required_update_kinds_set: Arc::new(required_update_kinds_set),
+        data: Arc::new(HandlerData {
+            f: move |event, cont| Box::pin(f(event, cont)) as HandlerResult<_, _>,
+            required_update_kinds_set,
+        }),
     }
 }
 
