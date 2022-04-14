@@ -1,7 +1,7 @@
 use crate::{
     di::{Asyncify, Injectable},
     handler::core::{from_fn, Handler},
-    UpdateSet,
+    HandlerDescription,
 };
 use std::{ops::ControlFlow, sync::Arc};
 
@@ -11,28 +11,28 @@ use std::{ops::ControlFlow, sync::Arc};
 /// If it returns `true`, a continuation of the handler will be called,
 /// otherwise the handler returns [`ControlFlow::Continue`].
 #[must_use]
-pub fn filter<'a, Pred, Input, Output, FnArgs, UpdSet>(
+pub fn filter<'a, Pred, Input, Output, FnArgs, Descr>(
     pred: Pred,
-) -> Handler<'a, Input, Output, UpdSet>
+) -> Handler<'a, Input, Output, Descr>
 where
     Asyncify<Pred>: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
-    UpdSet: UpdateSet,
+    Descr: HandlerDescription,
 {
     filter_async(Asyncify(pred))
 }
 
 /// The asynchronous version of [`filter`].
 #[must_use]
-pub fn filter_async<'a, Pred, Input, Output, FnArgs, UpdSet>(
+pub fn filter_async<'a, Pred, Input, Output, FnArgs, Descr>(
     pred: Pred,
-) -> Handler<'a, Input, Output, UpdSet>
+) -> Handler<'a, Input, Output, Descr>
 where
     Pred: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
-    UpdSet: UpdateSet,
+    Descr: HandlerDescription,
 {
     let pred = Arc::new(pred);
 

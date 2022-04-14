@@ -1,16 +1,16 @@
-use crate::{di::Injectable, from_fn, Handler, Unspecified, UpdateSet};
+use crate::{di::Injectable, from_fn, Handler, HandlerDescription, Unspecified};
 use futures::FutureExt;
 use std::{ops::ControlFlow, sync::Arc};
 
-impl<'a, Input, Output, UpdSet> Handler<'a, Input, Output, UpdSet>
+impl<'a, Input, Output, Descr> Handler<'a, Input, Output, Descr>
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
-    UpdSet: UpdateSet,
+    Descr: HandlerDescription,
 {
     /// Chain this handler with the endpoint handler `f`.
     #[must_use]
-    pub fn endpoint<F, FnArgs>(self, f: F) -> Endpoint<'a, Input, Output, UpdSet>
+    pub fn endpoint<F, FnArgs>(self, f: F) -> Endpoint<'a, Input, Output, Descr>
     where
         F: Injectable<Input, Output, FnArgs> + Send + Sync + 'a,
     {
@@ -24,11 +24,11 @@ where
 /// completion. So, you can use it when your chain of responsibility must end
 /// up, and handle an incoming event.
 #[must_use]
-pub fn endpoint<'a, F, Input, Output, FnArgs, UpdSet>(f: F) -> Endpoint<'a, Input, Output, UpdSet>
+pub fn endpoint<'a, F, Input, Output, FnArgs, Descr>(f: F) -> Endpoint<'a, Input, Output, Descr>
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
-    UpdSet: UpdateSet,
+    Descr: HandlerDescription,
     F: Injectable<Input, Output, FnArgs> + Send + Sync + 'a,
 {
     let f = Arc::new(f);
@@ -43,7 +43,7 @@ where
 }
 
 /// A handler with no further handlers in a chain.
-pub type Endpoint<'a, Input, Output, UpdSet = Unspecified> = Handler<'a, Input, Output, UpdSet>;
+pub type Endpoint<'a, Input, Output, Descr = Unspecified> = Handler<'a, Input, Output, Descr>;
 
 #[cfg(test)]
 mod tests {

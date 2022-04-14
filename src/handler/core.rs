@@ -2,19 +2,19 @@ use std::{future::Future, ops::ControlFlow, sync::Arc};
 
 use futures::future::BoxFuture;
 
-use crate::{Unspecified, UpdateSet};
+use crate::{HandlerDescription, Unspecified};
 
 /// An instance that receives an input and decides whether to break a chain or
 /// pass the value further.
 ///
 /// In order to create this structure, you can use the predefined functions from
 /// [`crate`].
-pub struct Handler<'a, Input, Output, UpdSet = Unspecified> {
-    data: Arc<HandlerData<UpdSet, DynF<'a, Input, Output>>>,
+pub struct Handler<'a, Input, Output, Descr = Unspecified> {
+    data: Arc<HandlerData<Descr, DynF<'a, Input, Output>>>,
 }
 
-struct HandlerData<UpdSet, F: ?Sized> {
-    required_update_kinds_set: UpdSet,
+struct HandlerData<Descr, F: ?Sized> {
+    description: Descr,
     f: F,
 }
 
@@ -30,17 +30,17 @@ pub type HandlerResult<'a, Input, Output> = BoxFuture<'a, ControlFlow<Output, In
 
 // `#[derive(Clone)]` obligates all type parameters to satisfy `Clone` as well,
 // but we do not need it here because of `Arc`.
-impl<'a, Input, Output, UpdSet> Clone for Handler<'a, Input, Output, UpdSet> {
+impl<'a, Input, Output, Descr> Clone for Handler<'a, Input, Output, Descr> {
     fn clone(&self) -> Self {
         Handler { data: Arc::clone(&self.data) }
     }
 }
 
-impl<'a, Input, Output, UpdSet> Handler<'a, Input, Output, UpdSet>
+impl<'a, Input, Output, Descr> Handler<'a, Input, Output, Descr>
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
-    UpdSet: UpdateSet,
+    Descr: HandlerDescription,
 {
     /// Chain two handlers to form a [chain of responsibility].
     ///
@@ -69,10 +69,9 @@ where
     /// [chain of responsibility]: https://en.wikipedia.org/wiki/Chain-of-responsibility_pattern
     #[must_use]
     pub fn chain(self, next: Self) -> Self {
-        let required_update_kinds_set =
-            self.required_update_kinds_set().intersection(next.required_update_kinds_set());
+        let required_update_kinds_set = self.description().merge_chain(next.description());
 
-        from_fn_with_requirements(required_update_kinds_set, move |event, cont| {
+        from_fn_with_description(required_update_kinds_set, move |event, cont| {
             let this = self.clone();
             let next = next.clone();
             let cont = Arc::new(cont);
@@ -123,10 +122,9 @@ where
     /// ```
     #[must_use]
     pub fn branch(self, next: Self) -> Self {
-        let required_update_kinds_set =
-            self.required_update_kinds_set().union(next.required_update_kinds_set());
+        let required_update_kinds_set = self.description().merge_branch(next.description());
 
-        from_fn_with_requirements(required_update_kinds_set, move |event, cont| {
+        from_fn_with_description(required_update_kinds_set, move |event, cont| {
             let this = self.clone();
             let next = next.clone();
             let cont = Arc::new(cont);
@@ -187,8 +185,8 @@ where
     }
 
     /// Returns the set of updates that can be processed by this handler.
-    pub fn required_update_kinds_set(&self) -> &UpdSet {
-        &self.data.required_update_kinds_set
+    pub fn description(&self) -> &Descr {
+        &self.data.description
     }
 }
 
@@ -198,13 +196,13 @@ where
 /// specialised functions: [`crate::endpoint`], [`crate::filter`],
 /// [`crate::filter_map`], etc.
 #[must_use]
-pub fn from_fn<'a, F, Fut, Input, Output, UpdSet>(f: F) -> Handler<'a, Input, Output, UpdSet>
+pub fn from_fn<'a, F, Fut, Input, Output, Descr>(f: F) -> Handler<'a, Input, Output, Descr>
 where
     F: Fn(Input, Cont<'a, Input, Output>) -> Fut + Send + Sync + 'a,
     Fut: Future<Output = ControlFlow<Output, Input>> + Send + 'a,
-    UpdSet: UpdateSet,
+    Descr: HandlerDescription,
 {
-    from_fn_with_requirements(UpdSet::unknown(), f)
+    from_fn_with_description(Descr::user_defined(), f)
 }
 
 /// Constructs a handler from a function.
@@ -213,10 +211,10 @@ where
 /// specialised functions: [`crate::endpoint`], [`crate::filter`],
 /// [`crate::filter_map`], etc.
 #[must_use]
-pub fn from_fn_with_requirements<'a, F, Fut, Input, Output, UpdSet>(
-    required_update_kinds_set: UpdSet,
+pub fn from_fn_with_description<'a, F, Fut, Input, Output, Descr>(
+    required_update_kinds_set: Descr,
     f: F,
-) -> Handler<'a, Input, Output, UpdSet>
+) -> Handler<'a, Input, Output, Descr>
 where
     F: Fn(Input, Cont<'a, Input, Output>) -> Fut,
     F: Send + Sync + 'a,
@@ -225,7 +223,7 @@ where
     Handler {
         data: Arc::new(HandlerData {
             f: move |event, cont| Box::pin(f(event, cont)) as HandlerResult<_, _>,
-            required_update_kinds_set,
+            description: required_update_kinds_set,
         }),
     }
 }
@@ -235,13 +233,13 @@ where
 /// This function is only used to specify other handlers upon it (see the root
 /// examples).
 #[must_use]
-pub fn entry<'a, Input, Output, UpdSet>() -> Handler<'a, Input, Output, UpdSet>
+pub fn entry<'a, Input, Output, Descr>() -> Handler<'a, Input, Output, Descr>
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
-    UpdSet: UpdateSet,
+    Descr: HandlerDescription,
 {
-    from_fn_with_requirements(UpdSet::invisible(), |event, cont| cont(event))
+    from_fn_with_description(Descr::entry(), |event, cont| cont(event))
 }
 
 #[cfg(test)]
@@ -251,15 +249,13 @@ pub(crate) fn help_inference<I, O>(h: Handler<I, O>) -> Handler<I, O> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
     use maplit::hashset;
 
     use crate::{
         deps, filter_map, filter_map_with_requirements,
         handler::{endpoint, filter, filter_async},
         prelude::DependencyMap,
-        MaybeSpecial,
+        EventKindDescription,
     };
 
     use super::*;
@@ -365,7 +361,7 @@ mod tests {
 
     #[tokio::test]
     async fn allowed_updates() {
-        use MaybeSpecial::*;
+        use EventKindDescription::*;
 
         #[derive(Debug, Clone, PartialEq, Eq, Hash)]
         enum UpdateKind {
@@ -382,45 +378,48 @@ mod tests {
             C(u64),
         }
 
-        fn filter_a<Out>() -> Handler<'static, DependencyMap, Out, MaybeSpecial<HashSet<UpdateKind>>>
+        fn filter_a<Out>() -> Handler<'static, DependencyMap, Out, EventKindDescription<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
-            filter_map_with_requirements(Known(hashset! { UpdateKind::A }), |update: Update| {
-                match update {
+            filter_map_with_requirements(
+                InterestingEventKinds(hashset! { UpdateKind::A }),
+                |update: Update| match update {
                     Update::A(x) => Some(x),
                     _ => None,
-                }
-            })
+                },
+            )
         }
 
-        fn filter_b<Out>() -> Handler<'static, DependencyMap, Out, MaybeSpecial<HashSet<UpdateKind>>>
+        fn filter_b<Out>() -> Handler<'static, DependencyMap, Out, EventKindDescription<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
-            filter_map_with_requirements(Known(hashset! { UpdateKind::B }), |update: Update| {
-                match update {
+            filter_map_with_requirements(
+                InterestingEventKinds(hashset! { UpdateKind::B }),
+                |update: Update| match update {
                     Update::B(x) => Some(x),
                     _ => None,
-                }
-            })
+                },
+            )
         }
 
-        fn filter_c<Out>() -> Handler<'static, DependencyMap, Out, MaybeSpecial<HashSet<UpdateKind>>>
+        fn filter_c<Out>() -> Handler<'static, DependencyMap, Out, EventKindDescription<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
-            filter_map_with_requirements(Known(hashset! { UpdateKind::C }), |update: Update| {
-                match update {
+            filter_map_with_requirements(
+                InterestingEventKinds(hashset! { UpdateKind::C }),
+                |update: Update| match update {
                     Update::B(x) => Some(x),
                     _ => None,
-                }
-            })
+                },
+            )
         }
 
         // User-defined filter that doesn't provide allowed updates
         fn user_defined_filter<Out>(
-        ) -> Handler<'static, DependencyMap, Out, MaybeSpecial<HashSet<UpdateKind>>>
+        ) -> Handler<'static, DependencyMap, Out, EventKindDescription<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
@@ -432,29 +431,38 @@ mod tests {
 
         #[track_caller]
         fn assert(
-            handler: Handler<'static, DependencyMap, (), MaybeSpecial<HashSet<UpdateKind>>>,
-            allowed: MaybeSpecial<HashSet<UpdateKind>>,
+            handler: Handler<'static, DependencyMap, (), EventKindDescription<UpdateKind>>,
+            allowed: EventKindDescription<UpdateKind>,
         ) {
-            assert_eq!(handler.required_update_kinds_set(), &allowed)
+            assert_eq!(handler.description(), &allowed)
         }
 
-        assert(filter_a().chain(filter_b()), Known(hashset! {}));
-        assert(entry().chain(filter_b()), Known(hashset! { UpdateKind::B }));
+        assert(filter_a().chain(filter_b()), InterestingEventKinds(hashset! {}));
+        assert(entry().chain(filter_b()), InterestingEventKinds(hashset! { UpdateKind::B }));
 
-        assert(filter_a().branch(filter_b()), Known(hashset! { UpdateKind::A, UpdateKind::B }));
+        assert(
+            filter_a().branch(filter_b()),
+            InterestingEventKinds(hashset! { UpdateKind::A, UpdateKind::B }),
+        );
         assert(
             filter_a().branch(filter_b()).branch(filter_c().chain(filter_c())),
-            Known(hashset! { UpdateKind::A, UpdateKind::B, UpdateKind::C }),
+            InterestingEventKinds(hashset! { UpdateKind::A, UpdateKind::B, UpdateKind::C }),
         );
-        assert(filter_a().chain(filter(|| true)), Known(hashset! { UpdateKind::A }));
-        assert(user_defined_filter().chain(filter_a()), Known(hashset! { UpdateKind::A }));
-        assert(filter_a().chain(user_defined_filter()), Known(hashset! { UpdateKind::A }));
+        assert(
+            filter_a().chain(filter(|| true)),
+            InterestingEventKinds(hashset! { UpdateKind::A }),
+        );
+        assert(user_defined_filter().chain(filter_a()), UserDefined);
+        assert(
+            filter_a().chain(user_defined_filter()),
+            InterestingEventKinds(hashset! { UpdateKind::A }),
+        );
 
         // Entry is invisible
-        assert(entry().branch(filter_a()), Known(hashset! { UpdateKind::A }));
-        assert(entry(), Invisible);
+        assert(entry().branch(filter_a()), InterestingEventKinds(hashset! { UpdateKind::A }));
+        assert(entry(), Entry);
 
-        assert(user_defined_filter(), Unknown);
-        assert(user_defined_filter().branch(filter_a()), Unknown);
+        assert(user_defined_filter(), UserDefined);
+        assert(user_defined_filter().branch(filter_a()), UserDefined);
     }
 }

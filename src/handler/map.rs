@@ -1,6 +1,6 @@
 use crate::{
     di::{Asyncify, Injectable, Insert},
-    from_fn, Handler, UpdateSet,
+    from_fn, Handler, HandlerDescription,
 };
 use std::{ops::ControlFlow, sync::Arc};
 
@@ -11,15 +11,15 @@ use std::{ops::ControlFlow, sync::Arc};
 ///
 /// See also: [`crate::filter_map`].
 #[must_use]
-pub fn map<'a, Projection, Input, Output, NewType, Args, UpdSet>(
+pub fn map<'a, Projection, Input, Output, NewType, Args, Descr>(
     proj: Projection,
-) -> Handler<'a, Input, Output, UpdSet>
+) -> Handler<'a, Input, Output, Descr>
 where
     Input: Clone,
     Asyncify<Projection>: Injectable<Input, NewType, Args> + Send + Sync + 'a,
     Input: Insert<NewType> + Send + Sync + 'a,
     Output: Send + Sync + 'a,
-    UpdSet: UpdateSet,
+    Descr: HandlerDescription,
     NewType: Send,
 {
     map_async(Asyncify(proj))
@@ -27,15 +27,15 @@ where
 
 /// The asynchronous version of [`map`].
 #[must_use]
-pub fn map_async<'a, Projection, Input, Output, NewType, Args, UpdSet>(
+pub fn map_async<'a, Projection, Input, Output, NewType, Args, Descr>(
     proj: Projection,
-) -> Handler<'a, Input, Output, UpdSet>
+) -> Handler<'a, Input, Output, Descr>
 where
     Input: Clone,
     Projection: Injectable<Input, NewType, Args> + Send + Sync + 'a,
     Input: Insert<NewType> + Send + Sync + 'a,
     Output: Send + Sync + 'a,
-    UpdSet: UpdateSet,
+    Descr: HandlerDescription,
     NewType: Send,
 {
     let proj = Arc::new(proj);

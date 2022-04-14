@@ -1,6 +1,6 @@
 use crate::{
     di::{Asyncify, Injectable, Insert},
-    from_fn_with_requirements, Handler, UpdateSet,
+    from_fn_with_description, Handler, HandlerDescription,
 };
 use std::{ops::ControlFlow, sync::Arc};
 
@@ -11,15 +11,15 @@ use std::{ops::ControlFlow, sync::Arc};
 /// `None`, then the handler will return [`ControlFlow::Continue`] with the old
 /// container.
 #[must_use]
-pub fn filter_map<'a, Projection, Input, Output, NewType, Args, UpdSet>(
+pub fn filter_map<'a, Projection, Input, Output, NewType, Args, Descr>(
     proj: Projection,
-) -> Handler<'a, Input, Output, UpdSet>
+) -> Handler<'a, Input, Output, Descr>
 where
     Input: Clone,
     Asyncify<Projection>: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
     Input: Insert<NewType> + Send + Sync + 'a,
     Output: Send + Sync + 'a,
-    UpdSet: UpdateSet,
+    Descr: HandlerDescription,
     NewType: Send,
 {
     filter_map_async(Asyncify(proj))
@@ -27,25 +27,25 @@ where
 
 /// The asynchronous version of [`filter_map`].
 #[must_use]
-pub fn filter_map_async<'a, Projection, Input, Output, NewType, Args, UpdSet>(
+pub fn filter_map_async<'a, Projection, Input, Output, NewType, Args, Descr>(
     proj: Projection,
-) -> Handler<'a, Input, Output, UpdSet>
+) -> Handler<'a, Input, Output, Descr>
 where
     Input: Clone,
     Projection: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
     Input: Insert<NewType> + Send + Sync + 'a,
     Output: Send + Sync + 'a,
-    UpdSet: UpdateSet,
+    Descr: HandlerDescription,
     NewType: Send,
 {
-    filter_map_async_with_requirements(UpdSet::unknown(), proj)
+    filter_map_async_with_requirements(Descr::user_defined(), proj)
 }
 
 #[must_use]
-pub fn filter_map_with_requirements<'a, Projection, Input, Output, NewType, Args, UpdSet>(
-    required_update_kinds_set: UpdSet,
+pub fn filter_map_with_requirements<'a, Projection, Input, Output, NewType, Args, Descr>(
+    required_update_kinds_set: Descr,
     proj: Projection,
-) -> Handler<'a, Input, Output, UpdSet>
+) -> Handler<'a, Input, Output, Descr>
 where
     Input: Clone,
     Asyncify<Projection>: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
@@ -57,10 +57,10 @@ where
 }
 
 #[must_use]
-pub fn filter_map_async_with_requirements<'a, Projection, Input, Output, NewType, Args, UpdSet>(
-    required_update_kinds_set: UpdSet,
+pub fn filter_map_async_with_requirements<'a, Projection, Input, Output, NewType, Args, Descr>(
+    required_update_kinds_set: Descr,
     proj: Projection,
-) -> Handler<'a, Input, Output, UpdSet>
+) -> Handler<'a, Input, Output, Descr>
 where
     Input: Clone,
     Projection: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
@@ -70,7 +70,7 @@ where
 {
     let proj = Arc::new(proj);
 
-    from_fn_with_requirements(required_update_kinds_set, move |container: Input, cont| {
+    from_fn_with_description(required_update_kinds_set, move |container: Input, cont| {
         let proj = Arc::clone(&proj);
 
         async move {
