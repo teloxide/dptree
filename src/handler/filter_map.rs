@@ -11,6 +11,7 @@ use std::{ops::ControlFlow, sync::Arc};
 /// `None`, then the handler will return [`ControlFlow::Continue`] with the old
 /// container.
 #[must_use]
+#[track_caller]
 pub fn filter_map<'a, Projection, Input, Output, NewType, Args, Descr>(
     proj: Projection,
 ) -> Handler<'a, Input, Output, Descr>
@@ -22,11 +23,12 @@ where
     Descr: HandlerDescription,
     NewType: Send,
 {
-    filter_map_async(Asyncify(proj))
+    filter_map_with_description(Descr::filter_map(), proj)
 }
 
 /// The asynchronous version of [`filter_map`].
 #[must_use]
+#[track_caller]
 pub fn filter_map_async<'a, Projection, Input, Output, NewType, Args, Descr>(
     proj: Projection,
 ) -> Handler<'a, Input, Output, Descr>
@@ -38,12 +40,12 @@ where
     Descr: HandlerDescription,
     NewType: Send,
 {
-    filter_map_async_with_requirements(Descr::user_defined(), proj)
+    filter_map_async_with_description(Descr::filter_map_async(), proj)
 }
 
 #[must_use]
-pub fn filter_map_with_requirements<'a, Projection, Input, Output, NewType, Args, Descr>(
-    required_update_kinds_set: Descr,
+pub fn filter_map_with_description<'a, Projection, Input, Output, NewType, Args, Descr>(
+    description: Descr,
     proj: Projection,
 ) -> Handler<'a, Input, Output, Descr>
 where
@@ -53,12 +55,12 @@ where
     Output: Send + Sync + 'a,
     NewType: Send,
 {
-    filter_map_async_with_requirements(required_update_kinds_set, Asyncify(proj))
+    filter_map_async_with_description(description, Asyncify(proj))
 }
 
 #[must_use]
-pub fn filter_map_async_with_requirements<'a, Projection, Input, Output, NewType, Args, Descr>(
-    required_update_kinds_set: Descr,
+pub fn filter_map_async_with_description<'a, Projection, Input, Output, NewType, Args, Descr>(
+    description: Descr,
     proj: Projection,
 ) -> Handler<'a, Input, Output, Descr>
 where
@@ -70,7 +72,7 @@ where
 {
     let proj = Arc::new(proj);
 
-    from_fn_with_description(required_update_kinds_set, move |container: Input, cont| {
+    from_fn_with_description(description, move |container: Input, cont| {
         let proj = Arc::clone(&proj);
 
         async move {

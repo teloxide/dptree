@@ -1,6 +1,7 @@
 use crate::{
     di::{Asyncify, Injectable},
-    handler::core::{from_fn, Handler},
+    from_fn_with_description,
+    handler::core::Handler,
     HandlerDescription,
 };
 use std::{ops::ControlFlow, sync::Arc};
@@ -11,6 +12,7 @@ use std::{ops::ControlFlow, sync::Arc};
 /// If it returns `true`, a continuation of the handler will be called,
 /// otherwise the handler returns [`ControlFlow::Continue`].
 #[must_use]
+#[track_caller]
 pub fn filter<'a, Pred, Input, Output, FnArgs, Descr>(
     pred: Pred,
 ) -> Handler<'a, Input, Output, Descr>
@@ -20,11 +22,12 @@ where
     Output: Send + Sync + 'a,
     Descr: HandlerDescription,
 {
-    filter_async(Asyncify(pred))
+    filter_with_description(Descr::filter(), pred)
 }
 
 /// The asynchronous version of [`filter`].
 #[must_use]
+#[track_caller]
 pub fn filter_async<'a, Pred, Input, Output, FnArgs, Descr>(
     pred: Pred,
 ) -> Handler<'a, Input, Output, Descr>
@@ -34,9 +37,41 @@ where
     Output: Send + Sync + 'a,
     Descr: HandlerDescription,
 {
+    filter_async_with_description(Descr::filter_async(), pred)
+}
+
+/// Constructs a handler that filters input with the predicate `pred`.
+///
+/// `pred` has an access to all values that are stored in the input container.
+/// If it returns `true`, a continuation of the handler will be called,
+/// otherwise the handler returns [`ControlFlow::Continue`].
+#[must_use]
+pub fn filter_with_description<'a, Pred, Input, Output, FnArgs, Descr>(
+    description: Descr,
+    pred: Pred,
+) -> Handler<'a, Input, Output, Descr>
+where
+    Asyncify<Pred>: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
+    Input: Send + Sync + 'a,
+    Output: Send + Sync + 'a,
+{
+    filter_async_with_description(description, Asyncify(pred))
+}
+
+/// The asynchronous version of [`filter`].
+#[must_use]
+pub fn filter_async_with_description<'a, Pred, Input, Output, FnArgs, Descr>(
+    description: Descr,
+    pred: Pred,
+) -> Handler<'a, Input, Output, Descr>
+where
+    Pred: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
+    Input: Send + Sync + 'a,
+    Output: Send + Sync + 'a,
+{
     let pred = Arc::new(pred);
 
-    from_fn(move |event, cont| {
+    from_fn_with_description(description, move |event, cont| {
         let pred = Arc::clone(&pred);
 
         async move {

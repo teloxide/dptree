@@ -252,7 +252,7 @@ mod tests {
     use maplit::hashset;
 
     use crate::{
-        deps, filter_map, filter_map_with_requirements,
+        deps, filter_map, filter_map_with_description,
         handler::{endpoint, filter, filter_async},
         prelude::DependencyMap,
         EventKindDescription,
@@ -382,7 +382,7 @@ mod tests {
         where
             Out: Send + Sync + 'static,
         {
-            filter_map_with_requirements(
+            filter_map_with_description(
                 InterestingEventKinds(hashset! { UpdateKind::A }),
                 |update: Update| match update {
                     Update::A(x) => Some(x),
@@ -395,7 +395,7 @@ mod tests {
         where
             Out: Send + Sync + 'static,
         {
-            filter_map_with_requirements(
+            filter_map_with_description(
                 InterestingEventKinds(hashset! { UpdateKind::B }),
                 |update: Update| match update {
                     Update::B(x) => Some(x),
@@ -408,7 +408,7 @@ mod tests {
         where
             Out: Send + Sync + 'static,
         {
-            filter_map_with_requirements(
+            filter_map_with_description(
                 InterestingEventKinds(hashset! { UpdateKind::C }),
                 |update: Update| match update {
                     Update::B(x) => Some(x),

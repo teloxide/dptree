@@ -1,4 +1,4 @@
-use crate::{di::Injectable, from_fn, Handler, HandlerDescription, Unspecified};
+use crate::{di::Injectable, from_fn_with_description, Handler, HandlerDescription, Unspecified};
 use futures::FutureExt;
 use std::{ops::ControlFlow, sync::Arc};
 
@@ -10,6 +10,7 @@ where
 {
     /// Chain this handler with the endpoint handler `f`.
     #[must_use]
+    #[track_caller]
     pub fn endpoint<F, FnArgs>(self, f: F) -> Endpoint<'a, Input, Output, Descr>
     where
         F: Injectable<Input, Output, FnArgs> + Send + Sync + 'a,
@@ -24,6 +25,7 @@ where
 /// completion. So, you can use it when your chain of responsibility must end
 /// up, and handle an incoming event.
 #[must_use]
+#[track_caller]
 pub fn endpoint<'a, F, Input, Output, FnArgs, Descr>(f: F) -> Endpoint<'a, Input, Output, Descr>
 where
     Input: Send + Sync + 'a,
@@ -33,7 +35,7 @@ where
 {
     let f = Arc::new(f);
 
-    from_fn(move |x, _cont| {
+    from_fn_with_description(Descr::endpoint(), move |x, _cont| {
         let f = Arc::clone(&f);
         async move {
             let f = f.inject(&x);
