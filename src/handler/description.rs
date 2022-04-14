@@ -146,6 +146,7 @@ pub trait HandlerDescription: Sized + Send + Sync + 'static {
     }
 }
 
+/// Uninformative handler description.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Unspecified(());
 
