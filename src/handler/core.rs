@@ -68,6 +68,7 @@ where
     ///
     /// [chain of responsibility]: https://en.wikipedia.org/wiki/Chain-of-responsibility_pattern
     #[must_use]
+    #[track_caller]
     pub fn chain(self, next: Self) -> Self {
         let required_update_kinds_set = self.description().merge_chain(next.description());
 
@@ -121,6 +122,7 @@ where
     /// # }
     /// ```
     #[must_use]
+    #[track_caller]
     pub fn branch(self, next: Self) -> Self {
         let required_update_kinds_set = self.description().merge_branch(next.description());
 
@@ -233,6 +235,7 @@ where
 /// This function is only used to specify other handlers upon it (see the root
 /// examples).
 #[must_use]
+#[track_caller]
 pub fn entry<'a, Input, Output, Descr>() -> Handler<'a, Input, Output, Descr>
 where
     Input: Send + Sync + 'a,
