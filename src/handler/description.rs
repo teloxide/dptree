@@ -154,7 +154,7 @@ pub struct Unspecified(());
 /// the handler.
 #[derive(Debug, Clone)]
 pub enum EventKindDescription<K, S = RandomState> {
-    /// Only event) kinds in the set are "interesting".
+    /// Only event kinds in the set are "interesting".
     InterestingEventKinds(HashSet<K, S>),
     /// Any event kind may be "interesting".
     UserDefined,
