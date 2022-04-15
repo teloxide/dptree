@@ -386,7 +386,7 @@ mod tests {
             Out: Send + Sync + 'static,
         {
             filter_map_with_description(
-                InterestingEventKinds(hashset! { UpdateKind::A }),
+                InterestList(hashset! { UpdateKind::A }),
                 |update: Update| match update {
                     Update::A(x) => Some(x),
                     _ => None,
@@ -399,7 +399,7 @@ mod tests {
             Out: Send + Sync + 'static,
         {
             filter_map_with_description(
-                InterestingEventKinds(hashset! { UpdateKind::B }),
+                InterestList(hashset! { UpdateKind::B }),
                 |update: Update| match update {
                     Update::B(x) => Some(x),
                     _ => None,
@@ -412,7 +412,7 @@ mod tests {
             Out: Send + Sync + 'static,
         {
             filter_map_with_description(
-                InterestingEventKinds(hashset! { UpdateKind::C }),
+                InterestList(hashset! { UpdateKind::C }),
                 |update: Update| match update {
                     Update::B(x) => Some(x),
                     _ => None,
@@ -440,29 +440,23 @@ mod tests {
             assert_eq!(handler.description(), &allowed)
         }
 
-        assert(filter_a().chain(filter_b()), InterestingEventKinds(hashset! {}));
-        assert(entry().chain(filter_b()), InterestingEventKinds(hashset! { UpdateKind::B }));
+        assert(filter_a().chain(filter_b()), InterestList(hashset! {}));
+        assert(entry().chain(filter_b()), InterestList(hashset! { UpdateKind::B }));
 
         assert(
             filter_a().branch(filter_b()),
-            InterestingEventKinds(hashset! { UpdateKind::A, UpdateKind::B }),
+            InterestList(hashset! { UpdateKind::A, UpdateKind::B }),
         );
         assert(
             filter_a().branch(filter_b()).branch(filter_c().chain(filter_c())),
-            InterestingEventKinds(hashset! { UpdateKind::A, UpdateKind::B, UpdateKind::C }),
+            InterestList(hashset! { UpdateKind::A, UpdateKind::B, UpdateKind::C }),
         );
-        assert(
-            filter_a().chain(filter(|| true)),
-            InterestingEventKinds(hashset! { UpdateKind::A }),
-        );
+        assert(filter_a().chain(filter(|| true)), InterestList(hashset! { UpdateKind::A }));
         assert(user_defined_filter().chain(filter_a()), UserDefined);
-        assert(
-            filter_a().chain(user_defined_filter()),
-            InterestingEventKinds(hashset! { UpdateKind::A }),
-        );
+        assert(filter_a().chain(user_defined_filter()), InterestList(hashset! { UpdateKind::A }));
 
         // Entry is invisible
-        assert(entry().branch(filter_a()), InterestingEventKinds(hashset! { UpdateKind::A }));
+        assert(entry().branch(filter_a()), InterestList(hashset! { UpdateKind::A }));
         assert(entry(), Entry);
 
         assert(user_defined_filter(), UserDefined);

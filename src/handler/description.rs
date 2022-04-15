@@ -155,7 +155,7 @@ pub struct Unspecified(());
 #[derive(Debug, Clone)]
 pub enum EventKindDescription<K, S = RandomState> {
     /// Only event kinds in the set are "interesting".
-    InterestingEventKinds(HashSet<K, S>),
+    InterestList(HashSet<K, S>),
     /// Any event kind may be "interesting".
     UserDefined,
     /// No event kinds are "interesting", this handler doesn't do anything.
@@ -187,17 +187,17 @@ where
             (Entry, other) | (other, Entry) => other.clone(),
             // If we chain two filters together, we are only interested in events that can
             // pass either of them.
-            (InterestingEventKinds(l), InterestingEventKinds(r)) => {
+            (InterestList(l), InterestList(r)) => {
                 let hasher = l.hasher().clone();
                 let mut res = HashSet::with_hasher(hasher);
 
                 res.extend(l.intersection(r).cloned());
 
-                InterestingEventKinds(res)
+                InterestList(res)
             }
             // If we chain a filter with something user-defined (but not the other way around), then
             // we are interested only in things that could pass the filter.
-            (InterestingEventKinds(known), UserDefined) => InterestingEventKinds(known.clone()),
+            (InterestList(known), UserDefined) => InterestList(known.clone()),
             // If we chain something user-defined with anything than anything could be interesting,
             // since we don't know user intentions.
             (UserDefined, _) => UserDefined,
@@ -214,12 +214,12 @@ where
             (Entry, other) | (other, Entry) => other.clone(),
             // If we branch two filters together, we are interested in all events that are
             // interesting to either handler (they both can be executed).
-            (InterestingEventKinds(l), InterestingEventKinds(r)) => {
+            (InterestList(l), InterestList(r)) => {
                 let hasher = l.hasher().clone();
                 let mut res = HashSet::with_hasher(hasher);
                 res.extend(l.union(r).cloned());
 
-                InterestingEventKinds(res)
+                InterestList(res)
             }
             // If either of the operands is user-defined, than we may be interested in anything.
             (UserDefined, _) | (_, UserDefined) => UserDefined,
@@ -232,7 +232,7 @@ impl<K: Hash + Eq, S: BuildHasher> Eq for EventKindDescription<K, S> {}
 impl<K: Hash + Eq, S: BuildHasher> PartialEq for EventKindDescription<K, S> {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::InterestingEventKinds(l), Self::InterestingEventKinds(r)) => l == r,
+            (Self::InterestList(l), Self::InterestList(r)) => l == r,
             _ => mem::discriminant(self) == mem::discriminant(other),
         }
     }
