@@ -17,6 +17,7 @@ futures = { version = "0.3", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync"] }
+maplit = "1.0.2"
 
 [package.metadata.docs.rs]
 all-features = true

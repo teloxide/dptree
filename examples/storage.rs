@@ -25,7 +25,7 @@ async fn main() {
 
     // This will cause a panic because we do not store `Ipv4Addr` in out store.
     let handle = tokio::spawn(async move {
-        let ip_handler = dptree::endpoint(|ip: Ipv4Addr| async move {
+        let ip_handler: Endpoint<_, _> = dptree::endpoint(|ip: Ipv4Addr| async move {
             assert_eq!(ip, Ipv4Addr::new(0, 0, 0, 0));
         });
         ip_handler.dispatch(store.clone()).await;

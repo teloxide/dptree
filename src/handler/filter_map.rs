@@ -1,6 +1,6 @@
 use crate::{
     di::{Asyncify, Injectable, Insert},
-    from_fn, Handler,
+    from_fn_with_description, Handler, HandlerDescription,
 };
 use std::{ops::ControlFlow, sync::Arc};
 
@@ -11,9 +11,43 @@ use std::{ops::ControlFlow, sync::Arc};
 /// `None`, then the handler will return [`ControlFlow::Continue`] with the old
 /// container.
 #[must_use]
-pub fn filter_map<'a, Projection, Input, Output, NewType, Args>(
+#[track_caller]
+pub fn filter_map<'a, Projection, Input, Output, NewType, Args, Descr>(
     proj: Projection,
-) -> Handler<'a, Input, Output>
+) -> Handler<'a, Input, Output, Descr>
+where
+    Input: Clone,
+    Asyncify<Projection>: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
+    Input: Insert<NewType> + Send + Sync + 'a,
+    Output: Send + Sync + 'a,
+    Descr: HandlerDescription,
+    NewType: Send,
+{
+    filter_map_with_description(Descr::filter_map(), proj)
+}
+
+/// The asynchronous version of [`filter_map`].
+#[must_use]
+#[track_caller]
+pub fn filter_map_async<'a, Projection, Input, Output, NewType, Args, Descr>(
+    proj: Projection,
+) -> Handler<'a, Input, Output, Descr>
+where
+    Input: Clone,
+    Projection: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
+    Input: Insert<NewType> + Send + Sync + 'a,
+    Output: Send + Sync + 'a,
+    Descr: HandlerDescription,
+    NewType: Send,
+{
+    filter_map_async_with_description(Descr::filter_map_async(), proj)
+}
+
+#[must_use]
+pub fn filter_map_with_description<'a, Projection, Input, Output, NewType, Args, Descr>(
+    description: Descr,
+    proj: Projection,
+) -> Handler<'a, Input, Output, Descr>
 where
     Input: Clone,
     Asyncify<Projection>: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
@@ -21,14 +55,14 @@ where
     Output: Send + Sync + 'a,
     NewType: Send,
 {
-    filter_map_async(Asyncify(proj))
+    filter_map_async_with_description(description, Asyncify(proj))
 }
 
-/// The asynchronous version of [`filter_map`].
 #[must_use]
-pub fn filter_map_async<'a, Projection, Input, Output, NewType, Args>(
+pub fn filter_map_async_with_description<'a, Projection, Input, Output, NewType, Args, Descr>(
+    description: Descr,
     proj: Projection,
-) -> Handler<'a, Input, Output>
+) -> Handler<'a, Input, Output, Descr>
 where
     Input: Clone,
     Projection: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
@@ -38,7 +72,7 @@ where
 {
     let proj = Arc::new(proj);
 
-    from_fn(move |container: Input, cont| {
+    from_fn_with_description(description, move |container: Input, cont| {
         let proj = Arc::clone(&proj);
 
         async move {
@@ -64,13 +98,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::deps;
+    use crate::{deps, help_inference};
 
     #[tokio::test]
     async fn test_some() {
         let value = 123;
 
-        let result = filter_map(move || Some(value))
+        let result = help_inference(filter_map(move || Some(value)))
             .endpoint(move |event: i32| async move {
                 assert_eq!(event, value);
                 value
@@ -83,7 +117,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_none() {
-        let result = filter_map(|| None::<i32>)
+        let result = help_inference(filter_map(|| None::<i32>))
             .endpoint(|| async move { unreachable!() })
             .dispatch(deps![])
             .await;

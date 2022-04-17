@@ -1,6 +1,8 @@
 use crate::{
     di::{Asyncify, Injectable},
-    handler::core::{from_fn, Handler},
+    from_fn_with_description,
+    handler::core::Handler,
+    HandlerDescription,
 };
 use std::{ops::ControlFlow, sync::Arc};
 
@@ -10,18 +12,58 @@ use std::{ops::ControlFlow, sync::Arc};
 /// If it returns `true`, a continuation of the handler will be called,
 /// otherwise the handler returns [`ControlFlow::Continue`].
 #[must_use]
-pub fn filter<'a, Pred, Input, Output, FnArgs>(pred: Pred) -> Handler<'a, Input, Output>
+#[track_caller]
+pub fn filter<'a, Pred, Input, Output, FnArgs, Descr>(
+    pred: Pred,
+) -> Handler<'a, Input, Output, Descr>
+where
+    Asyncify<Pred>: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
+    Input: Send + Sync + 'a,
+    Output: Send + Sync + 'a,
+    Descr: HandlerDescription,
+{
+    filter_with_description(Descr::filter(), pred)
+}
+
+/// The asynchronous version of [`filter`].
+#[must_use]
+#[track_caller]
+pub fn filter_async<'a, Pred, Input, Output, FnArgs, Descr>(
+    pred: Pred,
+) -> Handler<'a, Input, Output, Descr>
+where
+    Pred: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
+    Input: Send + Sync + 'a,
+    Output: Send + Sync + 'a,
+    Descr: HandlerDescription,
+{
+    filter_async_with_description(Descr::filter_async(), pred)
+}
+
+/// Constructs a handler that filters input with the predicate `pred`.
+///
+/// `pred` has an access to all values that are stored in the input container.
+/// If it returns `true`, a continuation of the handler will be called,
+/// otherwise the handler returns [`ControlFlow::Continue`].
+#[must_use]
+pub fn filter_with_description<'a, Pred, Input, Output, FnArgs, Descr>(
+    description: Descr,
+    pred: Pred,
+) -> Handler<'a, Input, Output, Descr>
 where
     Asyncify<Pred>: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
 {
-    filter_async(Asyncify(pred))
+    filter_async_with_description(description, Asyncify(pred))
 }
 
 /// The asynchronous version of [`filter`].
 #[must_use]
-pub fn filter_async<'a, Pred, Input, Output, FnArgs>(pred: Pred) -> Handler<'a, Input, Output>
+pub fn filter_async_with_description<'a, Pred, Input, Output, FnArgs, Descr>(
+    description: Descr,
+    pred: Pred,
+) -> Handler<'a, Input, Output, Descr>
 where
     Pred: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
     Input: Send + Sync + 'a,
@@ -29,7 +71,7 @@ where
 {
     let pred = Arc::new(pred);
 
-    from_fn(move |event, cont| {
+    from_fn_with_description(description, move |event, cont| {
         let pred = Arc::clone(&pred);
 
         async move {
@@ -49,7 +91,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::deps;
+    use crate::{deps, help_inference};
 
     #[tokio::test]
     async fn test_filter() {
@@ -57,10 +99,10 @@ mod tests {
         let input = deps![input_value];
         let output = 7;
 
-        let result = filter_async(move |event: i32| async move {
+        let result = help_inference(filter_async(move |event: i32| async move {
             assert_eq!(event, input_value);
             true
-        })
+        }))
         .endpoint(move |event: i32| async move {
             assert_eq!(event, input_value);
             output
@@ -76,10 +118,10 @@ mod tests {
         let input = 123;
         let output = 7;
 
-        let result = filter(move |event: i32| {
+        let result = help_inference(filter(move |event: i32| {
             assert_eq!(event, input);
             true
-        })
+        }))
         .chain(
             filter_async(move |event: i32| async move {
                 assert_eq!(event, input);

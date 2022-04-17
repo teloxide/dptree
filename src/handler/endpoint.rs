@@ -1,15 +1,17 @@
-use crate::{di::Injectable, from_fn, Handler};
+use crate::{di::Injectable, from_fn_with_description, Handler, HandlerDescription, Unspecified};
 use futures::FutureExt;
 use std::{ops::ControlFlow, sync::Arc};
 
-impl<'a, Input, Output> Handler<'a, Input, Output>
+impl<'a, Input, Output, Descr> Handler<'a, Input, Output, Descr>
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
+    Descr: HandlerDescription,
 {
     /// Chain this handler with the endpoint handler `f`.
     #[must_use]
-    pub fn endpoint<F, FnArgs>(self, f: F) -> Endpoint<'a, Input, Output>
+    #[track_caller]
+    pub fn endpoint<F, FnArgs>(self, f: F) -> Endpoint<'a, Input, Output, Descr>
     where
         F: Injectable<Input, Output, FnArgs> + Send + Sync + 'a,
     {
@@ -23,15 +25,17 @@ where
 /// completion. So, you can use it when your chain of responsibility must end
 /// up, and handle an incoming event.
 #[must_use]
-pub fn endpoint<'a, F, Input, Output, FnArgs>(f: F) -> Endpoint<'a, Input, Output>
+#[track_caller]
+pub fn endpoint<'a, F, Input, Output, FnArgs, Descr>(f: F) -> Endpoint<'a, Input, Output, Descr>
 where
     Input: Send + Sync + 'a,
     Output: Send + Sync + 'a,
+    Descr: HandlerDescription,
     F: Injectable<Input, Output, FnArgs> + Send + Sync + 'a,
 {
     let f = Arc::new(f);
 
-    from_fn(move |x, _cont| {
+    from_fn_with_description(Descr::endpoint(), move |x, _cont| {
         let f = Arc::clone(&f);
         async move {
             let f = f.inject(&x);
@@ -41,22 +45,22 @@ where
 }
 
 /// A handler with no further handlers in a chain.
-pub type Endpoint<'a, Input, Output> = Handler<'a, Input, Output>;
+pub type Endpoint<'a, Input, Output, Descr = Unspecified> = Handler<'a, Input, Output, Descr>;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::deps;
+    use crate::{deps, help_inference};
 
     #[tokio::test]
     async fn test_endpoint() {
         let input = 123;
         let output = 7;
 
-        let result = endpoint(move |num: i32| async move {
+        let result = help_inference(endpoint(move |num: i32| async move {
             assert_eq!(num, input);
             output
-        })
+        }))
         .dispatch(deps![input])
         .await;
 
