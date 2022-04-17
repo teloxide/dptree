@@ -2,14 +2,14 @@ use std::{future::Future, ops::ControlFlow, sync::Arc};
 
 use futures::future::BoxFuture;
 
-use crate::{HandlerDescription, Unspecified};
+use crate::{description, HandlerDescription};
 
 /// An instance that receives an input and decides whether to break a chain or
 /// pass the value further.
 ///
 /// In order to create this structure, you can use the predefined functions from
 /// [`crate`].
-pub struct Handler<'a, Input, Output, Descr = Unspecified> {
+pub struct Handler<'a, Input, Output, Descr = description::Unspecified> {
     data: Arc<HandlerData<Descr, DynF<'a, Input, Output>>>,
 }
 
@@ -251,10 +251,9 @@ mod tests {
     use maplit::hashset;
 
     use crate::{
-        deps, filter_map, filter_map_with_description,
+        deps, description, filter_map, filter_map_with_description,
         handler::{endpoint, filter, filter_async},
         prelude::DependencyMap,
-        EventKindDescription,
     };
 
     use super::*;
@@ -360,7 +359,7 @@ mod tests {
 
     #[tokio::test]
     async fn allowed_updates() {
-        use EventKindDescription::*;
+        use crate::description::EventKind::*;
 
         #[derive(Debug, Clone, PartialEq, Eq, Hash)]
         enum UpdateKind {
@@ -377,7 +376,8 @@ mod tests {
             C(u64),
         }
 
-        fn filter_a<Out>() -> Handler<'static, DependencyMap, Out, EventKindDescription<UpdateKind>>
+        fn filter_a<Out>(
+        ) -> Handler<'static, DependencyMap, Out, description::EventKind<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
@@ -390,7 +390,8 @@ mod tests {
             )
         }
 
-        fn filter_b<Out>() -> Handler<'static, DependencyMap, Out, EventKindDescription<UpdateKind>>
+        fn filter_b<Out>(
+        ) -> Handler<'static, DependencyMap, Out, description::EventKind<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
@@ -403,7 +404,8 @@ mod tests {
             )
         }
 
-        fn filter_c<Out>() -> Handler<'static, DependencyMap, Out, EventKindDescription<UpdateKind>>
+        fn filter_c<Out>(
+        ) -> Handler<'static, DependencyMap, Out, description::EventKind<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
@@ -418,7 +420,7 @@ mod tests {
 
         // User-defined filter that doesn't provide allowed updates
         fn user_defined_filter<Out>(
-        ) -> Handler<'static, DependencyMap, Out, EventKindDescription<UpdateKind>>
+        ) -> Handler<'static, DependencyMap, Out, description::EventKind<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
@@ -430,8 +432,8 @@ mod tests {
 
         #[track_caller]
         fn assert(
-            handler: Handler<'static, DependencyMap, (), EventKindDescription<UpdateKind>>,
-            allowed: EventKindDescription<UpdateKind>,
+            handler: Handler<'static, DependencyMap, (), description::EventKind<UpdateKind>>,
+            allowed: description::EventKind<UpdateKind>,
         ) {
             assert_eq!(handler.description(), &allowed)
         }

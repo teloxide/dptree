@@ -1,3 +1,5 @@
+//! Built-in handler description types.
+
 use core::mem;
 use std::{
     collections::{hash_map::RandomState, HashSet},
@@ -153,7 +155,7 @@ pub struct Unspecified(());
 /// Description for a handler that describes what event kinds are interesting to
 /// the handler.
 #[derive(Debug, Clone)]
-pub enum EventKindDescription<K, S = RandomState> {
+pub enum EventKind<K, S = RandomState> {
     /// Only event kinds in the set are "interesting".
     InterestList(HashSet<K, S>),
     /// Any event kind may be "interesting".
@@ -162,7 +164,7 @@ pub enum EventKindDescription<K, S = RandomState> {
     Entry,
 }
 
-impl<T, S> HandlerDescription for EventKindDescription<T, S>
+impl<T, S> HandlerDescription for EventKind<T, S>
 where
     T: Eq + Hash + Clone,
     S: BuildHasher + Clone,
@@ -170,15 +172,15 @@ where
     S: Send + Sync + 'static,
 {
     fn entry() -> Self {
-        EventKindDescription::Entry
+        EventKind::Entry
     }
 
     fn user_defined() -> Self {
-        EventKindDescription::UserDefined
+        EventKind::UserDefined
     }
 
     fn merge_chain(&self, other: &Self) -> Self {
-        use EventKindDescription::*;
+        use EventKind::*;
 
         match (self, other) {
             // If we chain anything with entry, then we are only interested in events that are
@@ -205,7 +207,7 @@ where
     }
 
     fn merge_branch(&self, other: &Self) -> Self {
-        use EventKindDescription::*;
+        use EventKind::*;
 
         match (self, other) {
             // If we branch anything with entry, then we are only interested in events that are
@@ -227,9 +229,9 @@ where
     }
 }
 
-impl<K: Hash + Eq, S: BuildHasher> Eq for EventKindDescription<K, S> {}
+impl<K: Hash + Eq, S: BuildHasher> Eq for EventKind<K, S> {}
 
-impl<K: Hash + Eq, S: BuildHasher> PartialEq for EventKindDescription<K, S> {
+impl<K: Hash + Eq, S: BuildHasher> PartialEq for EventKind<K, S> {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::InterestList(l), Self::InterestList(r)) => l == r,

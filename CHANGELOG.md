@@ -8,7 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
- - Introspection facilities: `Unspecified`, `EventKindDescription`, `filter_async_with_description`, `filter_map_async_with_description`, `filter_map_with_description`, `filter_with_description`, `from_fn_with_description`, `map_async_with_description`, `map_with_description`.
+ - Introspection facilities:
+   - The `HandlerDescription` trait.
+   - Build-in description types: `crate::description::{Unspecified`, `EventKind}`.
+   - Functions constructing handlers with descriptions: `filter_async_with_description`, `filter_map_async_with_description`, `filter_map_with_description`, `filter_with_description`, `from_fn_with_description`, `map_async_with_description`, `map_with_description`.
 
 ## 0.1.2 - 2022-04-04
 

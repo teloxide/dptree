@@ -1,4 +1,4 @@
-use crate::{di::Injectable, from_fn_with_description, Handler, HandlerDescription, Unspecified};
+use crate::{description, di::Injectable, from_fn_with_description, Handler, HandlerDescription};
 use futures::FutureExt;
 use std::{ops::ControlFlow, sync::Arc};
 
@@ -45,7 +45,8 @@ where
 }
 
 /// A handler with no further handlers in a chain.
-pub type Endpoint<'a, Input, Output, Descr = Unspecified> = Handler<'a, Input, Output, Descr>;
+pub type Endpoint<'a, Input, Output, Descr = description::Unspecified> =
+    Handler<'a, Input, Output, Descr>;
 
 #[cfg(test)]
 mod tests {
