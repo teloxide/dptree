@@ -61,6 +61,7 @@ fn not_found_handler() -> WebHandler {
  - ✔️ A lightweight functional design using a form of [continuation-passing style (CPS)] internally.
  - ✔️ [Dependency injection (DI)] out-of-the-box.
  - ✔️ Supports both handler _chaining_ and _branching_ operations.
+ - ✔️ Handler introspection facilities.
  - ✔️ Battle-tested: dptree is used in [teloxide] as a framework for Telegram update dispatching.
  - ✔️ Runtime-agnostic: uses only the [futures] crate.
 

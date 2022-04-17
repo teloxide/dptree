@@ -43,6 +43,7 @@ where
     filter_map_async_with_description(Descr::filter_map_async(), proj)
 }
 
+/// [`filter_map`] with a custom description.
 #[must_use]
 pub fn filter_map_with_description<'a, Projection, Input, Output, NewType, Args, Descr>(
     description: Descr,
@@ -58,6 +59,7 @@ where
     filter_map_async_with_description(description, Asyncify(proj))
 }
 
+/// [`filter_map_async`] with a custom description.
 #[must_use]
 pub fn filter_map_async_with_description<'a, Projection, Input, Output, NewType, Args, Descr>(
     description: Descr,

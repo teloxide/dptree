@@ -43,12 +43,7 @@ where
     map_async_with_description(Descr::map_async(), proj)
 }
 
-/// Constructs a handler that passes a value of a new type further.
-///
-/// The result of invoking `proj` will be added to the container and passed
-/// further in a handler chain.
-///
-/// See also: [`crate::filter_map`].
+/// [`map`] with a custom description.
 #[must_use]
 pub fn map_with_description<'a, Projection, Input, Output, NewType, Args, Descr>(
     description: Descr,
@@ -65,7 +60,7 @@ where
     map_async_with_description(description, Asyncify(proj))
 }
 
-/// The asynchronous version of [`map`].
+/// [`map_async`] with a custom description.
 #[must_use]
 pub fn map_async_with_description<'a, Projection, Input, Output, NewType, Args, Descr>(
     description: Descr,

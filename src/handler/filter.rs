@@ -40,11 +40,7 @@ where
     filter_async_with_description(Descr::filter_async(), pred)
 }
 
-/// Constructs a handler that filters input with the predicate `pred`.
-///
-/// `pred` has an access to all values that are stored in the input container.
-/// If it returns `true`, a continuation of the handler will be called,
-/// otherwise the handler returns [`ControlFlow::Continue`].
+/// [`filter`] with a custom description.
 #[must_use]
 pub fn filter_with_description<'a, Pred, Input, Output, FnArgs, Descr>(
     description: Descr,
@@ -58,7 +54,7 @@ where
     filter_async_with_description(description, Asyncify(pred))
 }
 
-/// The asynchronous version of [`filter`].
+/// [`filter_async`] with a custom description.
 #[must_use]
 pub fn filter_async_with_description<'a, Pred, Input, Output, FnArgs, Descr>(
     description: Descr,

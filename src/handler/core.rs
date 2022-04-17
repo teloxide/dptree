@@ -207,14 +207,10 @@ where
     from_fn_with_description(Descr::user_defined(), f)
 }
 
-/// Constructs a handler from a function.
-///
-/// Most of the time, you do not want to use this function. Take a look at more
-/// specialised functions: [`crate::endpoint`], [`crate::filter`],
-/// [`crate::filter_map`], etc.
+/// [`from_fn`] with a custom description.
 #[must_use]
 pub fn from_fn_with_description<'a, F, Fut, Input, Output, Descr>(
-    required_update_kinds_set: Descr,
+    description: Descr,
     f: F,
 ) -> Handler<'a, Input, Output, Descr>
 where
@@ -225,7 +221,7 @@ where
     Handler {
         data: Arc::new(HandlerData {
             f: move |event, cont| Box::pin(f(event, cont)) as HandlerResult<_, _>,
-            description: required_update_kinds_set,
+            description,
         }),
     }
 }
