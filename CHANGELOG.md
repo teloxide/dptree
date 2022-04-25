@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## unreleased
 
+### Added
+
+ - The `dptree::case!` macro for enumeration destructuring.
+
 ## 0.2.0 - 2022-04-18
 
 ### Added
