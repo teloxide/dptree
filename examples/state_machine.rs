@@ -104,52 +104,40 @@ mod transitions {
     use super::*;
 
     pub fn begin() -> Transition {
-        dptree::filter(|event: Event| matches!(event, Event::Begin))
-            .endpoint(|| async { CommandState::Active })
+        dptree::case![Event::Begin].endpoint(|| async { CommandState::Active })
     }
 
     pub fn pause() -> Transition {
-        dptree::filter(|event: Event| matches!(event, Event::Pause))
-            .endpoint(|| async { CommandState::Paused })
+        dptree::case![Event::Pause].endpoint(|| async { CommandState::Paused })
     }
 
     pub fn end() -> Transition {
-        dptree::filter(|event: Event| matches!(event, Event::End))
-            .endpoint(|| async { CommandState::Inactive })
+        dptree::case![Event::End].endpoint(|| async { CommandState::Inactive })
     }
 
     pub fn resume() -> Transition {
-        dptree::filter(|event: Event| matches!(event, Event::Resume))
-            .endpoint(|| async { CommandState::Active })
+        dptree::case![Event::Resume].endpoint(|| async { CommandState::Active })
     }
 
     pub fn exit() -> Transition {
-        dptree::filter(|event: Event| matches!(event, Event::Exit))
-            .endpoint(|| async { CommandState::Exit })
+        dptree::case![Event::Exit].endpoint(|| async { CommandState::Exit })
     }
 }
 
 type FsmHandler = Handler<'static, Store, TransitionOut>;
 
 fn active_handler() -> FsmHandler {
-    dptree::filter(|state: CommandState| matches!(state, CommandState::Active))
-        .branch(transitions::pause())
-        .branch(transitions::end())
+    dptree::case![CommandState::Active].branch(transitions::pause()).branch(transitions::end())
 }
 
 fn paused_handler() -> FsmHandler {
-    dptree::filter(|state: CommandState| matches!(state, CommandState::Paused))
-        .branch(transitions::resume())
-        .branch(transitions::end())
+    dptree::case![CommandState::Paused].branch(transitions::resume()).branch(transitions::end())
 }
 
 fn inactive_handler() -> FsmHandler {
-    dptree::filter(|state: CommandState| matches!(state, CommandState::Inactive))
-        .branch(transitions::begin())
-        .branch(transitions::exit())
+    dptree::case![CommandState::Inactive].branch(transitions::begin()).branch(transitions::exit())
 }
 
 fn exit_handler() -> FsmHandler {
-    dptree::filter(|state: CommandState| matches!(state, CommandState::Exit))
-        .branch(transitions::exit())
+    dptree::case![CommandState::Exit].branch(transitions::exit())
 }
