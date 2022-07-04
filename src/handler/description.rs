@@ -136,6 +136,28 @@ pub trait HandlerDescription: Sized + Send + Sync + 'static {
         Self::user_defined()
     }
 
+    /// Description for [`inspect`](crate::inspect).
+    ///
+    /// ## Default implementation
+    ///
+    /// By default this returns the value from
+    /// [`user_defined`](HandlerDescription::user_defined).
+    #[track_caller]
+    fn inspect() -> Self {
+        Self::user_defined()
+    }
+
+    /// Description for [`inspect_async`](crate::inspect_async).
+    ///
+    /// ## Default implementation
+    ///
+    /// By default this returns the value from
+    /// [`user_defined`](HandlerDescription::user_defined).
+    #[track_caller]
+    fn inspect_async() -> Self {
+        Self::user_defined()
+    }
+
     /// Description for [`endpoint`](crate::endpoint).
     ///
     /// ## Default implementation

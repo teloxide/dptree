@@ -18,8 +18,8 @@ pub fn map<'a, Projection, Input, Output, NewType, Args, Descr>(
 where
     Input: Clone,
     Asyncify<Projection>: Injectable<Input, NewType, Args> + Send + Sync + 'a,
-    Input: Insert<NewType> + Send + Sync + 'a,
-    Output: Send + Sync + 'a,
+    Input: Insert<NewType> + Send + 'a,
+    Output: 'a,
     Descr: HandlerDescription,
     NewType: Send,
 {
@@ -35,8 +35,8 @@ pub fn map_async<'a, Projection, Input, Output, NewType, Args, Descr>(
 where
     Input: Clone,
     Projection: Injectable<Input, NewType, Args> + Send + Sync + 'a,
-    Input: Insert<NewType> + Send + Sync + 'a,
-    Output: Send + Sync + 'a,
+    Input: Insert<NewType> + Send + 'a,
+    Output: 'a,
     Descr: HandlerDescription,
     NewType: Send,
 {
@@ -52,8 +52,8 @@ pub fn map_with_description<'a, Projection, Input, Output, NewType, Args, Descr>
 where
     Input: Clone,
     Asyncify<Projection>: Injectable<Input, NewType, Args> + Send + Sync + 'a,
-    Input: Insert<NewType> + Send + Sync + 'a,
-    Output: Send + Sync + 'a,
+    Input: Insert<NewType> + Send + 'a,
+    Output: 'a,
     Descr: HandlerDescription,
     NewType: Send,
 {
@@ -69,8 +69,8 @@ pub fn map_async_with_description<'a, Projection, Input, Output, NewType, Args, 
 where
     Input: Clone,
     Projection: Injectable<Input, NewType, Args> + Send + Sync + 'a,
-    Input: Insert<NewType> + Send + Sync + 'a,
-    Output: Send + Sync + 'a,
+    Input: Insert<NewType> + Send + 'a,
+    Output: 'a,
     Descr: HandlerDescription,
     NewType: Send,
 {
