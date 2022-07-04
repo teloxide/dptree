@@ -18,8 +18,8 @@ pub fn filter_map<'a, Projection, Input, Output, NewType, Args, Descr>(
 where
     Input: Clone,
     Asyncify<Projection>: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
-    Input: Insert<NewType> + Send + Sync + 'a,
-    Output: Send + Sync + 'a,
+    Input: Insert<NewType> + Send + 'a,
+    Output: 'a,
     Descr: HandlerDescription,
     NewType: Send,
 {
@@ -35,8 +35,8 @@ pub fn filter_map_async<'a, Projection, Input, Output, NewType, Args, Descr>(
 where
     Input: Clone,
     Projection: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
-    Input: Insert<NewType> + Send + Sync + 'a,
-    Output: Send + Sync + 'a,
+    Input: Insert<NewType> + Send + 'a,
+    Output: 'a,
     Descr: HandlerDescription,
     NewType: Send,
 {
@@ -52,8 +52,8 @@ pub fn filter_map_with_description<'a, Projection, Input, Output, NewType, Args,
 where
     Input: Clone,
     Asyncify<Projection>: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
-    Input: Insert<NewType> + Send + Sync + 'a,
-    Output: Send + Sync + 'a,
+    Input: Insert<NewType> + Send + 'a,
+    Output: 'a,
     NewType: Send,
 {
     filter_map_async_with_description(description, Asyncify(proj))
@@ -68,8 +68,8 @@ pub fn filter_map_async_with_description<'a, Projection, Input, Output, NewType,
 where
     Input: Clone,
     Projection: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
-    Input: Insert<NewType> + Send + Sync + 'a,
-    Output: Send + Sync + 'a,
+    Input: Insert<NewType> + Send + 'a,
+    Output: 'a,
     NewType: Send,
 {
     let proj = Arc::new(proj);

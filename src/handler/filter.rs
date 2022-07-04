@@ -18,8 +18,8 @@ pub fn filter<'a, Pred, Input, Output, FnArgs, Descr>(
 ) -> Handler<'a, Input, Output, Descr>
 where
     Asyncify<Pred>: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
-    Input: Send + Sync + 'a,
-    Output: Send + Sync + 'a,
+    Input: Send + 'a,
+    Output: 'a,
     Descr: HandlerDescription,
 {
     filter_with_description(Descr::filter(), pred)
@@ -33,8 +33,8 @@ pub fn filter_async<'a, Pred, Input, Output, FnArgs, Descr>(
 ) -> Handler<'a, Input, Output, Descr>
 where
     Pred: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
-    Input: Send + Sync + 'a,
-    Output: Send + Sync + 'a,
+    Input: Send + 'a,
+    Output: 'a,
     Descr: HandlerDescription,
 {
     filter_async_with_description(Descr::filter_async(), pred)
@@ -48,8 +48,8 @@ pub fn filter_with_description<'a, Pred, Input, Output, FnArgs, Descr>(
 ) -> Handler<'a, Input, Output, Descr>
 where
     Asyncify<Pred>: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
-    Input: Send + Sync + 'a,
-    Output: Send + Sync + 'a,
+    Input: Send + 'a,
+    Output: 'a,
 {
     filter_async_with_description(description, Asyncify(pred))
 }
@@ -62,8 +62,8 @@ pub fn filter_async_with_description<'a, Pred, Input, Output, FnArgs, Descr>(
 ) -> Handler<'a, Input, Output, Descr>
 where
     Pred: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
-    Input: Send + Sync + 'a,
-    Output: Send + Sync + 'a,
+    Input: Send + 'a,
+    Output: 'a,
 {
     let pred = Arc::new(pred);
 

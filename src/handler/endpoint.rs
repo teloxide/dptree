@@ -4,8 +4,8 @@ use std::{ops::ControlFlow, sync::Arc};
 
 impl<'a, Input, Output, Descr> Handler<'a, Input, Output, Descr>
 where
-    Input: Send + Sync + 'a,
-    Output: Send + Sync + 'a,
+    Input: Send + 'a,
+    Output: 'a,
     Descr: HandlerDescription,
 {
     /// Chain this handler with the endpoint handler `f`.
@@ -28,10 +28,10 @@ where
 #[track_caller]
 pub fn endpoint<'a, F, Input, Output, FnArgs, Descr>(f: F) -> Endpoint<'a, Input, Output, Descr>
 where
-    Input: Send + Sync + 'a,
-    Output: Send + Sync + 'a,
-    Descr: HandlerDescription,
     F: Injectable<Input, Output, FnArgs> + Send + Sync + 'a,
+    Input: Send + 'a,
+    Output: 'a,
+    Descr: HandlerDescription,
 {
     let f = Arc::new(f);
 

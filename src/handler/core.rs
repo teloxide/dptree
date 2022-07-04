@@ -38,8 +38,8 @@ impl<'a, Input, Output, Descr> Clone for Handler<'a, Input, Output, Descr> {
 
 impl<'a, Input, Output, Descr> Handler<'a, Input, Output, Descr>
 where
-    Input: Send + Sync + 'a,
-    Output: Send + Sync + 'a,
+    Input: Send + 'a,
+    Output: 'a,
     Descr: HandlerDescription,
 {
     /// Chain two handlers to form a [chain of responsibility].
@@ -123,7 +123,10 @@ where
     /// ```
     #[must_use]
     #[track_caller]
-    pub fn branch(self, next: Self) -> Self {
+    pub fn branch(self, next: Self) -> Self
+    where
+        Output: Send,
+    {
         let required_update_kinds_set = self.description().merge_branch(next.description());
 
         from_fn_with_description(required_update_kinds_set, move |event, cont| {
@@ -200,7 +203,8 @@ where
 #[must_use]
 pub fn from_fn<'a, F, Fut, Input, Output, Descr>(f: F) -> Handler<'a, Input, Output, Descr>
 where
-    F: Fn(Input, Cont<'a, Input, Output>) -> Fut + Send + Sync + 'a,
+    F: Fn(Input, Cont<'a, Input, Output>) -> Fut,
+    F: Send + Sync + 'a,
     Fut: Future<Output = ControlFlow<Output, Input>> + Send + 'a,
     Descr: HandlerDescription,
 {
@@ -234,8 +238,8 @@ where
 #[track_caller]
 pub fn entry<'a, Input, Output, Descr>() -> Handler<'a, Input, Output, Descr>
 where
-    Input: Send + Sync + 'a,
-    Output: Send + Sync + 'a,
+    Input: Send + 'a,
+    Output: 'a,
     Descr: HandlerDescription,
 {
     from_fn_with_description(Descr::entry(), |event, cont| cont(event))
