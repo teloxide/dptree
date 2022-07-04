@@ -2,23 +2,6 @@ use crate::{description, di::Injectable, from_fn_with_description, Handler, Hand
 use futures::FutureExt;
 use std::{ops::ControlFlow, sync::Arc};
 
-impl<'a, Input, Output, Descr> Handler<'a, Input, Output, Descr>
-where
-    Input: Send + 'a,
-    Output: 'a,
-    Descr: HandlerDescription,
-{
-    /// Chain this handler with the endpoint handler `f`.
-    #[must_use]
-    #[track_caller]
-    pub fn endpoint<F, FnArgs>(self, f: F) -> Endpoint<'a, Input, Output, Descr>
-    where
-        F: Injectable<Input, Output, FnArgs> + Send + Sync + 'a,
-    {
-        self.chain(endpoint(f))
-    }
-}
-
 /// Constructs a handler that has no further handlers in a chain.
 ///
 /// An endpoint is a handler that _always_ breaks handler execution after its

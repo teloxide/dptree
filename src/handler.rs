@@ -5,6 +5,7 @@ mod filter;
 mod filter_map;
 mod inspect;
 mod map;
+mod methods;
 
 pub use self::core::*;
 pub use description::HandlerDescription;
