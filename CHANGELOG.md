@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## unreleased
 
+### Added
+
+- `inspect{,_async}{,_with_description}` functions for creating inspection handlers
+- `Handler::{filter,filter_map,map,inspect}{,_async}` convenience functions 
+
+### Changed
+
+- Removed some useless bounds from methods
+
 ## 0.2.1 - 2022-04-27
 
 ### Added
