@@ -88,10 +88,11 @@ mod tests {
     async fn test_inspect() {
         let value = 123;
         let inspect_passed = Arc::new(AtomicBool::new(false));
+        let inspect_passed_cloned = Arc::clone(&inspect_passed);
 
         let result: ControlFlow<(), _> = help_inference(inspect(move |x: i32| {
             assert_eq!(x, value);
-            inspect_passed.swap(true, Ordering::Relaxed);
+            inspect_passed_cloned.swap(true, Ordering::Relaxed);
         }))
         .dispatch(deps![value])
         .await;
