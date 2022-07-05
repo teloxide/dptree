@@ -110,3 +110,49 @@ where
         self.chain(crate::endpoint(f))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::ops::ControlFlow;
+
+    use crate::{deps, help_inference};
+
+    // Test that these methods just do compile.
+    #[tokio::test]
+    async fn test_methods() {
+        let value = 42;
+
+        let _: ControlFlow<(), _> =
+            help_inference(crate::entry()).filter(|| true).dispatch(deps![value]).await;
+
+        let _: ControlFlow<(), _> = help_inference(crate::entry())
+            .filter_async(|| async { true })
+            .dispatch(deps![value])
+            .await;
+
+        let _: ControlFlow<(), _> =
+            help_inference(crate::entry()).filter_map(|| Some("abc")).dispatch(deps![value]).await;
+
+        let _: ControlFlow<(), _> = help_inference(crate::entry())
+            .filter_map_async(|| async { Some("abc") })
+            .dispatch(deps![value])
+            .await;
+
+        let _: ControlFlow<(), _> =
+            help_inference(crate::entry()).map(|| "abc").dispatch(deps![value]).await;
+
+        let _: ControlFlow<(), _> = help_inference(crate::entry())
+            .map_async(|| async { "abc" })
+            .dispatch(deps![value])
+            .await;
+
+        let _: ControlFlow<(), _> =
+            help_inference(crate::entry()).inspect(|| {}).dispatch(deps![value]).await;
+
+        let _: ControlFlow<(), _> =
+            help_inference(crate::entry()).inspect_async(|| async {}).dispatch(deps![value]).await;
+
+        let _: ControlFlow<(), _> =
+            help_inference(crate::entry()).endpoint(|| async {}).dispatch(deps![value]).await;
+    }
+}
