@@ -97,5 +97,6 @@ mod tests {
         .await;
 
         assert!(matches!(result, ControlFlow::Continue(_)));
+        assert!(inspect_passed.load(Ordering::Relaxed));
     }
 }
