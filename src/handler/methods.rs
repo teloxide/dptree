@@ -1,7 +1,6 @@
 use crate::{
     di::{Asyncify, Injectable, Insert},
-    endpoint, filter, filter_async, filter_map, filter_map_async, inspect, inspect_async, map,
-    map_async, Handler, HandlerDescription,
+    Handler, HandlerDescription,
 };
 
 impl<'a, Input, Output, Descr> Handler<'a, Input, Output, Descr>
@@ -17,7 +16,7 @@ where
     where
         Asyncify<Pred>: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
     {
-        self.chain(filter(pred))
+        self.chain(crate::filter(pred))
     }
 
     /// Chain this handler with the async filter predicate `pred`.
@@ -27,7 +26,7 @@ where
     where
         Pred: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
     {
-        self.chain(filter_async(pred))
+        self.chain(crate::filter_async(pred))
     }
 
     /// Chain this handler with the filter projection `proj`.
@@ -39,7 +38,7 @@ where
         Asyncify<Proj>: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
         NewType: Send,
     {
-        self.chain(filter_map(proj))
+        self.chain(crate::filter_map(proj))
     }
 
     /// Chain this handler with the async filter projection `proj`.
@@ -54,7 +53,7 @@ where
         Proj: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
         NewType: Send,
     {
-        self.chain(filter_map_async(proj))
+        self.chain(crate::filter_map_async(proj))
     }
 
     /// Chain this handler with the map projection `proj`.
@@ -66,7 +65,7 @@ where
         Asyncify<Proj>: Injectable<Input, NewType, Args> + Send + Sync + 'a,
         NewType: Send,
     {
-        self.chain(map(proj))
+        self.chain(crate::map(proj))
     }
 
     /// Chain this handler with the async map projection `proj`.
@@ -78,7 +77,7 @@ where
         Proj: Injectable<Input, NewType, Args> + Send + Sync + 'a,
         NewType: Send,
     {
-        self.chain(map_async(proj))
+        self.chain(crate::map_async(proj))
     }
 
     /// Chain this handler with the inspection function `f`.
@@ -88,7 +87,7 @@ where
     where
         Asyncify<F>: Injectable<Input, (), Args> + Send + Sync + 'a,
     {
-        self.chain(inspect(f))
+        self.chain(crate::inspect(f))
     }
 
     /// Chain this handler with the async inspection function `f`.
@@ -98,7 +97,7 @@ where
     where
         F: Injectable<Input, (), Args> + Send + Sync + 'a,
     {
-        self.chain(inspect_async(f))
+        self.chain(crate::inspect_async(f))
     }
 
     /// Chain this handler with the endpoint handler `f`.
@@ -108,6 +107,52 @@ where
     where
         F: Injectable<Input, Output, FnArgs> + Send + Sync + 'a,
     {
-        self.chain(endpoint(f))
+        self.chain(crate::endpoint(f))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ops::ControlFlow;
+
+    use crate::{deps, help_inference};
+
+    // Test that these methods just do compile.
+    #[tokio::test]
+    async fn test_methods() {
+        let value = 42;
+
+        let _: ControlFlow<(), _> =
+            help_inference(crate::entry()).filter(|| true).dispatch(deps![value]).await;
+
+        let _: ControlFlow<(), _> = help_inference(crate::entry())
+            .filter_async(|| async { true })
+            .dispatch(deps![value])
+            .await;
+
+        let _: ControlFlow<(), _> =
+            help_inference(crate::entry()).filter_map(|| Some("abc")).dispatch(deps![value]).await;
+
+        let _: ControlFlow<(), _> = help_inference(crate::entry())
+            .filter_map_async(|| async { Some("abc") })
+            .dispatch(deps![value])
+            .await;
+
+        let _: ControlFlow<(), _> =
+            help_inference(crate::entry()).map(|| "abc").dispatch(deps![value]).await;
+
+        let _: ControlFlow<(), _> = help_inference(crate::entry())
+            .map_async(|| async { "abc" })
+            .dispatch(deps![value])
+            .await;
+
+        let _: ControlFlow<(), _> =
+            help_inference(crate::entry()).inspect(|| {}).dispatch(deps![value]).await;
+
+        let _: ControlFlow<(), _> =
+            help_inference(crate::entry()).inspect_async(|| async {}).dispatch(deps![value]).await;
+
+        let _: ControlFlow<(), _> =
+            help_inference(crate::entry()).endpoint(|| async {}).dispatch(deps![value]).await;
     }
 }
