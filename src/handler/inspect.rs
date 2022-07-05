@@ -73,3 +73,29 @@ where
         }
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        ops::ControlFlow,
+        sync::atomic::{AtomicBool, Ordering},
+    };
+
+    use super::*;
+    use crate::{deps, help_inference};
+
+    #[tokio::test]
+    async fn test_inspect() {
+        let value = 123;
+        let inspect_passed = Arc::new(AtomicBool::new(false));
+
+        let result: ControlFlow<(), _> = help_inference(inspect(move |x: i32| {
+            assert_eq!(x, value);
+            inspect_passed.swap(true, Ordering::Relaxed);
+        }))
+        .dispatch(deps![value])
+        .await;
+
+        assert!(matches!(result, ControlFlow::Continue(_)));
+    }
+}
