@@ -76,10 +76,7 @@ where
             let this = self.clone();
             let next = next.clone();
 
-            this.execute(event, |event| {
-                #[allow(clippy::redundant_closure)] // Clippy is a fucking donkey.
-                next.execute(event, |event| cont(event))
-            })
+            this.execute(event, |event| next.execute(event, cont))
         })
     }
 
