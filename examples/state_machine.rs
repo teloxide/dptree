@@ -55,7 +55,7 @@ async fn repl(mut state: CommandState, dispatcher: Handler<'static, Store, Comma
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CommandState {
     Active,
     Paused,
