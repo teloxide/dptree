@@ -175,15 +175,25 @@ pub struct Unspecified(());
 
 /// Description for a handler that describes what event kinds are interesting to
 /// the handler.
+///
+/// This can be useful if you can filter events before they are passed to
+/// `dptree`. In this case you should keep updates that are in the `observed`
+/// set.
 #[derive(Debug, Clone)]
 pub struct InterestList<K, S = RandomState> {
     /// Event kinds that are of interested for a given handler.
+    ///
+    /// I.e. the ones that can cause meaningful side-effects.
     pub observed: HashSet<K, S>,
+
     /// Event kinds that can be observed by handlers chained to this one.
     pub filtered: HashSet<K, S>,
 }
 
 /// An event kind that can be used with [`InterestList`].
+///
+/// Usually this would be implemented by a field-less enumeration of all update
+/// kinds.
 pub trait EventKind<S = RandomState>: Sized {
     /// Set of all event kinds.
     fn full_set() -> HashSet<Self, S>;
@@ -193,6 +203,31 @@ pub trait EventKind<S = RandomState>: Sized {
 }
 
 impl<K: EventKind<S>, S> InterestList<K, S> {
+    /// Constructs an [`InterestList`] for a filter that allows to pass through
+    /// it only updates with kinds in the `filtered` list.
+    ///
+    /// Note that the filter should not have observable side-effects, for
+    /// example:
+    /// ```
+    /// use dptree::{description::{InterestList, EventKind}, filter_with_description};
+    /// use maplit::hashset;
+    ///
+    /// # enum K {} impl EventKind for K { fn full_set() -> std::collections::HashSet<Self> { hashset!{} } fn empty_set() -> std::collections::HashSet<Self> { hashset!{} } }
+    /// # let _: dptree::Handler<(), (), InterestList<K>> =
+    /// filter_with_description(InterestList::new_filter(hashset! {}), || {
+    ///     println!("Filter called!"); // <-- bad
+    ///
+    ///     false
+    /// });
+    ///
+    /// # #[derive(Clone)] struct Db; impl Db { fn fetch_enabled(&self) -> bool { false } }
+    /// # let _: dptree::Handler<dptree::di::DependencyMap, (), InterestList<K>> =
+    /// filter_with_description(InterestList::new_filter(hashset! {}), |db: Db| {
+    ///     let pass = db.fetch_enabled(); // <-- fine
+    ///
+    ///     pass
+    /// });
+    /// ```
     pub fn new_filter(filtered: HashSet<K, S>) -> Self {
         // We assume that well behaved filters don't observe anything (filters should
         // only filter!).
