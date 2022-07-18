@@ -23,7 +23,7 @@ type DynF<'a, Input, Output> =
 
 /// A continuation representing the rest of a handler chain.
 pub type Cont<'a, Input, Output> =
-    Box<dyn Fn(Input) -> HandlerResult<'a, Input, Output> + Send + Sync + 'a>;
+    Box<dyn FnOnce(Input) -> HandlerResult<'a, Input, Output> + Send + Sync + 'a>;
 
 /// An output type produced by a handler.
 pub type HandlerResult<'a, Input, Output> = BoxFuture<'a, ControlFlow<Output, Input>>;
@@ -75,15 +75,8 @@ where
         from_fn_with_description(required_update_kinds_set, move |event, cont| {
             let this = self.clone();
             let next = next.clone();
-            let cont = Arc::new(cont);
 
-            this.execute(event, move |event| {
-                let next = next.clone();
-                let cont = cont.clone();
-
-                #[allow(clippy::redundant_closure)] // Clippy is a fucking donkey.
-                next.execute(event, move |event| cont(event))
-            })
+            this.execute(event, |event| next.execute(event, cont))
         })
     }
 
@@ -132,17 +125,11 @@ where
         from_fn_with_description(required_update_kinds_set, move |event, cont| {
             let this = self.clone();
             let next = next.clone();
-            let cont = Arc::new(cont);
 
-            this.execute(event, move |event| {
-                let next = next.clone();
-                let cont = cont.clone();
-
-                async move {
-                    match next.dispatch(event).await {
-                        ControlFlow::Continue(event) => cont(event).await,
-                        done => done,
-                    }
+            this.execute(event, |event| async move {
+                match next.dispatch(event).await {
+                    ControlFlow::Continue(event) => cont(event).await,
+                    done => done,
                 }
             })
         })
@@ -174,11 +161,11 @@ where
         cont: Cont,
     ) -> ControlFlow<Output, Input>
     where
-        Cont: Fn(Input) -> ContFut,
+        Cont: FnOnce(Input) -> ContFut,
         Cont: Send + Sync + 'a,
         ContFut: Future<Output = ControlFlow<Output, Input>> + Send + 'a,
     {
-        (self.data.f)(container, Box::new(move |event| Box::pin(cont(event)))).await
+        (self.data.f)(container, Box::new(|event| Box::pin(cont(event)))).await
     }
 
     /// Executes this handler.

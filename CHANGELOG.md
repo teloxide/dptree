@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Removed some useless bounds from methods
+- `Cont` is now `FnOnce` instead of `Fn`
 
 ## 0.2.1 - 2022-04-27
 
