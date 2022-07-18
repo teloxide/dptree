@@ -180,7 +180,7 @@ pub struct Unspecified(());
 /// `dptree`. In this case you should keep updates that are in the `observed`
 /// set.
 #[derive(Debug, Clone)]
-pub struct InterestList<K, S = RandomState> {
+pub struct InterestSet<K, S = RandomState> {
     /// Event kinds that are of interested for a given handler.
     ///
     /// I.e. the ones that can cause meaningful side-effects.
@@ -190,7 +190,7 @@ pub struct InterestList<K, S = RandomState> {
     pub filtered: HashSet<K, S>,
 }
 
-/// An event kind that can be used with [`InterestList`].
+/// An event kind that can be used with [`InterestSet`].
 ///
 /// Usually this would be implemented by a field-less enumeration of all update
 /// kinds.
@@ -202,27 +202,27 @@ pub trait EventKind<S = RandomState>: Sized {
     fn empty_set() -> HashSet<Self, S>;
 }
 
-impl<K: EventKind<S>, S> InterestList<K, S> {
-    /// Constructs an [`InterestList`] for a filter that allows to pass through
-    /// it only updates with kinds in the `filtered` list.
+impl<K: EventKind<S>, S> InterestSet<K, S> {
+    /// Constructs an [`InterestSet`] for a filter that allows to pass through
+    /// it only updates with kinds in the `filtered` set.
     ///
     /// Note that the filter should not have observable side-effects, for
     /// example:
     /// ```
-    /// use dptree::{description::{InterestList, EventKind}, filter_with_description};
+    /// use dptree::{description::{InterestSet, EventKind}, filter_with_description};
     /// use maplit::hashset;
     ///
     /// # enum K {} impl EventKind for K { fn full_set() -> std::collections::HashSet<Self> { hashset!{} } fn empty_set() -> std::collections::HashSet<Self> { hashset!{} } }
-    /// # let _: dptree::Handler<(), (), InterestList<K>> =
-    /// filter_with_description(InterestList::new_filter(hashset! {}), || {
+    /// # let _: dptree::Handler<(), (), InterestSet<K>> =
+    /// filter_with_description(InterestSet::new_filter(hashset! {}), || {
     ///     println!("Filter called!"); // <-- bad
     ///
     ///     false
     /// });
     ///
     /// # #[derive(Clone)] struct Db; impl Db { fn fetch_enabled(&self) -> bool { false } }
-    /// # let _: dptree::Handler<dptree::di::DependencyMap, (), InterestList<K>> =
-    /// filter_with_description(InterestList::new_filter(hashset! {}), |db: Db| {
+    /// # let _: dptree::Handler<dptree::di::DependencyMap, (), InterestSet<K>> =
+    /// filter_with_description(InterestSet::new_filter(hashset! {}), |db: Db| {
     ///     let pass = db.fetch_enabled(); // <-- fine
     ///
     ///     pass
@@ -235,7 +235,7 @@ impl<K: EventKind<S>, S> InterestList<K, S> {
     }
 }
 
-impl<T, S> HandlerDescription for InterestList<T, S>
+impl<T, S> HandlerDescription for InterestSet<T, S>
 where
     T: EventKind<S> + Eq + Hash + Clone,
     S: BuildHasher + Clone,
@@ -314,9 +314,9 @@ where
     }
 }
 
-impl<K: Hash + Eq, S: BuildHasher> Eq for InterestList<K, S> {}
+impl<K: Hash + Eq, S: BuildHasher> Eq for InterestSet<K, S> {}
 
-impl<K: Hash + Eq, S: BuildHasher> PartialEq for InterestList<K, S> {
+impl<K: Hash + Eq, S: BuildHasher> PartialEq for InterestSet<K, S> {
     fn eq(&self, other: &Self) -> bool {
         let Self { observed: l_obs, filtered: l_flt } = self;
         let Self { observed: r_obs, filtered: r_flt } = other;

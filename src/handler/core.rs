@@ -365,7 +365,7 @@ mod tests {
 
     #[tokio::test]
     async fn allowed_updates() {
-        use crate::description::{EventKind, InterestList};
+        use crate::description::{EventKind, InterestSet};
         use UpdateKind::*;
 
         #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -393,12 +393,12 @@ mod tests {
             C(u64),
         }
 
-        fn filter_a<Out>() -> Handler<'static, DependencyMap, Out, InterestList<UpdateKind>>
+        fn filter_a<Out>() -> Handler<'static, DependencyMap, Out, InterestSet<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
             filter_map_with_description(
-                InterestList::new_filter(hashset! { A }),
+                InterestSet::new_filter(hashset! { A }),
                 |update: Update| match update {
                     Update::A(x) => Some(x),
                     _ => None,
@@ -406,12 +406,12 @@ mod tests {
             )
         }
 
-        fn filter_b<Out>() -> Handler<'static, DependencyMap, Out, InterestList<UpdateKind>>
+        fn filter_b<Out>() -> Handler<'static, DependencyMap, Out, InterestSet<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
             filter_map_with_description(
-                InterestList::new_filter(hashset! { B }),
+                InterestSet::new_filter(hashset! { B }),
                 |update: Update| match update {
                     Update::B(x) => Some(x),
                     _ => None,
@@ -419,12 +419,12 @@ mod tests {
             )
         }
 
-        fn filter_c<Out>() -> Handler<'static, DependencyMap, Out, InterestList<UpdateKind>>
+        fn filter_c<Out>() -> Handler<'static, DependencyMap, Out, InterestSet<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
             filter_map_with_description(
-                InterestList::new_filter(hashset! { C }),
+                InterestSet::new_filter(hashset! { C }),
                 |update: Update| match update {
                     Update::B(x) => Some(x),
                     _ => None,
@@ -434,7 +434,7 @@ mod tests {
 
         // User-defined filter that doesn't provide allowed updates
         fn user_defined_filter<Out>(
-        ) -> Handler<'static, DependencyMap, Out, InterestList<UpdateKind>>
+        ) -> Handler<'static, DependencyMap, Out, InterestSet<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
@@ -446,7 +446,7 @@ mod tests {
 
         #[track_caller]
         fn assert(
-            handler: Handler<'static, DependencyMap, (), description::InterestList<UpdateKind>>,
+            handler: Handler<'static, DependencyMap, (), description::InterestSet<UpdateKind>>,
             allowed: HashSet<UpdateKind>,
         ) {
             assert_eq!(handler.description().observed, allowed);
