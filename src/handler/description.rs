@@ -259,6 +259,10 @@ where
 
         InterestList { observed, filtered }
     }
+
+    fn endpoint() -> Self {
+        InterestList { observed: T::full_set(), filtered: T::empty_set() }
+    }
 }
 
 impl<K: Hash + Eq, S: BuildHasher> Eq for InterestList<K, S> {}
