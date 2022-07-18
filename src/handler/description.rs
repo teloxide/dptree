@@ -194,6 +194,8 @@ pub trait EventKind<S = RandomState>: Sized {
 
 impl<K: EventKind<S>, S> InterestList<K, S> {
     pub fn new_filter(filtered: HashSet<K, S>) -> Self {
+        // We assume that well behaved filters don't observe anything (filters should
+        // only filter!).
         Self { observed: K::empty_set(), filtered }
     }
 }
@@ -206,16 +208,40 @@ where
     S: Send + Sync + 'static,
 {
     fn entry() -> Self {
-        InterestList { observed: T::empty_set(), filtered: T::full_set() }
+        // Entry does not observe anything and allows everything
+        Self { observed: T::empty_set(), filtered: T::full_set() }
     }
 
     fn user_defined() -> Self {
-        InterestList { observed: T::full_set(), filtered: T::full_set() }
+        // We don't know what user defined code does, so we assume the most forgiving
+        // case: it observes everything and allows everything.
+        //
+        // Were we to choose anything else, there would be user code that would be
+        // broken.
+        Self { observed: T::full_set(), filtered: T::full_set() }
+    }
+
+    fn endpoint() -> Self {
+        // Endpoint observes everything (again, as per the same reasoning as
+        // `user_defined`), but does not allow anything to pass through (it's
+        // the last handler).
+        Self { observed: T::full_set(), filtered: T::empty_set() }
     }
 
     fn merge_chain(&self, other: &Self) -> Self {
-        let InterestList { observed: l_obs, filtered: l_flt } = self;
-        let InterestList { observed: r_obs, filtered: r_flt } = other;
+        let Self { observed: l_obs, filtered: l_flt } = self;
+        let Self { observed: r_obs, filtered: r_flt } = other;
+
+        // Second handler can only observe things that were passed through by the first
+        // one.
+        let observed = {
+            let hasher = l_obs.hasher().clone();
+            let mut tmp = HashSet::with_hasher(hasher);
+
+            tmp.extend(l_obs.iter().cloned());
+            tmp.extend(l_flt.intersection(r_obs).cloned());
+            tmp
+        };
 
         // If we chain two filters together, we are only interested in events that can
         // pass both of them.
@@ -227,24 +253,15 @@ where
             tmp
         };
 
-        // Second handler can only observe things that were output by the first one.
-        let observed = {
-            let hasher = l_obs.hasher().clone();
-            let mut tmp = HashSet::with_hasher(hasher);
-
-            tmp.extend(l_obs.iter().cloned());
-            tmp.extend(l_flt.intersection(r_obs).cloned());
-            tmp
-        };
-
-        InterestList { filtered, observed }
+        Self { filtered, observed }
     }
 
     fn merge_branch(&self, other: &Self) -> Self {
-        let InterestList { observed: l_obs, filtered: l_flt } = self;
-        let InterestList { observed: r_obs, filtered: _ } = other;
+        let Self { observed: l_obs, filtered: l_flt } = self;
+        let Self { observed: r_obs, filtered: _ } = other;
 
-        // Second handler can only observe things that were output by the first one.
+        // Second handler can only observe things that were passed through by the first
+        // one.
         let observed = {
             let hasher = l_obs.hasher().clone();
             let mut tmp = HashSet::with_hasher(hasher);
@@ -254,14 +271,11 @@ where
             tmp
         };
 
-        // Even if second filter did not pass, the execution continues
+        // Even if second filter did not pass something through, the execution still
+        // continues
         let filtered = l_flt.clone();
 
-        InterestList { observed, filtered }
-    }
-
-    fn endpoint() -> Self {
-        InterestList { observed: T::full_set(), filtered: T::empty_set() }
+        Self { observed, filtered }
     }
 }
 
@@ -269,8 +283,8 @@ impl<K: Hash + Eq, S: BuildHasher> Eq for InterestList<K, S> {}
 
 impl<K: Hash + Eq, S: BuildHasher> PartialEq for InterestList<K, S> {
     fn eq(&self, other: &Self) -> bool {
-        let InterestList { observed: l_obs, filtered: l_flt } = self;
-        let InterestList { observed: r_obs, filtered: r_flt } = other;
+        let Self { observed: l_obs, filtered: l_flt } = self;
+        let Self { observed: r_obs, filtered: r_flt } = other;
 
         l_obs == r_obs && l_flt == r_flt
     }
