@@ -252,6 +252,8 @@ pub(crate) fn help_inference<I, O>(h: Handler<I, O>) -> Handler<I, O> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use maplit::hashset;
 
     use crate::{
@@ -363,13 +365,24 @@ mod tests {
 
     #[tokio::test]
     async fn allowed_updates() {
-        use crate::description::EventKind::*;
+        use crate::description::{EventKind, InterestList};
+        use UpdateKind::*;
 
         #[derive(Debug, Clone, PartialEq, Eq, Hash)]
         enum UpdateKind {
             A,
             B,
             C,
+        }
+
+        impl EventKind for UpdateKind {
+            fn full_set() -> HashSet<Self> {
+                hashset! { A, B, C }
+            }
+
+            fn empty_set() -> HashSet<Self> {
+                hashset! {}
+            }
         }
 
         #[derive(Clone)]
@@ -380,13 +393,12 @@ mod tests {
             C(u64),
         }
 
-        fn filter_a<Out>(
-        ) -> Handler<'static, DependencyMap, Out, description::EventKind<UpdateKind>>
+        fn filter_a<Out>() -> Handler<'static, DependencyMap, Out, InterestList<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
             filter_map_with_description(
-                InterestList(hashset! { UpdateKind::A }),
+                InterestList::new_filter(hashset! { A }),
                 |update: Update| match update {
                     Update::A(x) => Some(x),
                     _ => None,
@@ -394,13 +406,12 @@ mod tests {
             )
         }
 
-        fn filter_b<Out>(
-        ) -> Handler<'static, DependencyMap, Out, description::EventKind<UpdateKind>>
+        fn filter_b<Out>() -> Handler<'static, DependencyMap, Out, InterestList<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
             filter_map_with_description(
-                InterestList(hashset! { UpdateKind::B }),
+                InterestList::new_filter(hashset! { B }),
                 |update: Update| match update {
                     Update::B(x) => Some(x),
                     _ => None,
@@ -408,13 +419,12 @@ mod tests {
             )
         }
 
-        fn filter_c<Out>(
-        ) -> Handler<'static, DependencyMap, Out, description::EventKind<UpdateKind>>
+        fn filter_c<Out>() -> Handler<'static, DependencyMap, Out, InterestList<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
             filter_map_with_description(
-                InterestList(hashset! { UpdateKind::C }),
+                InterestList::new_filter(hashset! { C }),
                 |update: Update| match update {
                     Update::B(x) => Some(x),
                     _ => None,
@@ -424,7 +434,7 @@ mod tests {
 
         // User-defined filter that doesn't provide allowed updates
         fn user_defined_filter<Out>(
-        ) -> Handler<'static, DependencyMap, Out, description::EventKind<UpdateKind>>
+        ) -> Handler<'static, DependencyMap, Out, InterestList<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
@@ -436,32 +446,42 @@ mod tests {
 
         #[track_caller]
         fn assert(
-            handler: Handler<'static, DependencyMap, (), description::EventKind<UpdateKind>>,
-            allowed: description::EventKind<UpdateKind>,
+            handler: Handler<'static, DependencyMap, (), description::InterestList<UpdateKind>>,
+            allowed: HashSet<UpdateKind>,
         ) {
-            assert_eq!(handler.description(), &allowed)
+            assert_eq!(handler.description().observed, allowed);
         }
 
-        assert(filter_a().chain(filter_b()), InterestList(hashset! {}));
-        assert(entry().chain(filter_b()), InterestList(hashset! { UpdateKind::B }));
+        // Filters don't observe anything on their own
+        assert(filter_a(), hashset! {});
+        assert(entry().chain(filter_b()), hashset! {});
+        assert(filter_a().chain(filter_b()), hashset! {});
+        assert(filter_a().branch(filter_b()), hashset! {});
+        assert(filter_a().branch(filter_b()).branch(filter_c().chain(filter_c())), hashset! {});
 
+        // Anything user-defined observes everything that it can
+        assert(filter_a().chain(filter(|| true)), hashset! { A });
+        assert(user_defined_filter().chain(filter_a()), hashset! { A, B, C });
+        assert(filter_a().chain(user_defined_filter()), hashset! { A });
         assert(
-            filter_a().branch(filter_b()),
-            InterestList(hashset! { UpdateKind::A, UpdateKind::B }),
+            entry().branch(filter_a()).branch(filter_b()).chain(user_defined_filter()),
+            hashset! { A, B, C },
         );
         assert(
-            filter_a().branch(filter_b()).branch(filter_c().chain(filter_c())),
-            InterestList(hashset! { UpdateKind::A, UpdateKind::B, UpdateKind::C }),
+            entry()
+                .branch(filter_a().endpoint(|| async {}))
+                .branch(filter_b().endpoint(|| async {})),
+            hashset! { A, B },
         );
-        assert(filter_a().chain(filter(|| true)), InterestList(hashset! { UpdateKind::A }));
-        assert(user_defined_filter().chain(filter_a()), UserDefined);
-        assert(filter_a().chain(user_defined_filter()), InterestList(hashset! { UpdateKind::A }));
+        assert(user_defined_filter(), hashset! { A, B, C });
+        assert(user_defined_filter().branch(filter_a()), hashset! { A, B, C });
 
         // Entry is invisible
-        assert(entry().branch(filter_a()), InterestList(hashset! { UpdateKind::A }));
-        assert(entry(), Entry);
+        assert(entry(), hashset! {});
+        assert(entry().chain(filter_a().endpoint(|| async {})), hashset! { A });
+        assert(entry().branch(filter_a()), hashset! {});
 
-        assert(user_defined_filter(), UserDefined);
-        assert(user_defined_filter().branch(filter_a()), UserDefined);
+        // Chained non-overlapping filters do not allow anything
+        assert(filter_a().chain(filter_b()).endpoint(|| async {}), hashset! {});
     }
 }

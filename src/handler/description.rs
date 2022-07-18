@@ -1,6 +1,5 @@
 //! Built-in handler description types.
 
-use core::mem;
 use std::{
     collections::{hash_map::RandomState, HashSet},
     hash::{BuildHasher, Hash},
@@ -177,88 +176,99 @@ pub struct Unspecified(());
 /// Description for a handler that describes what event kinds are interesting to
 /// the handler.
 #[derive(Debug, Clone)]
-pub enum EventKind<K, S = RandomState> {
-    /// Only event kinds in the set are "interesting".
-    InterestList(HashSet<K, S>),
-    /// Any event kind may be "interesting".
-    UserDefined,
-    /// No event kinds are "interesting", this handler doesn't do anything.
-    Entry,
+pub struct InterestList<K, S = RandomState> {
+    /// Event kinds that are of interested for a given handler.
+    pub observed: HashSet<K, S>,
+    /// Event kinds that can be observed by handlers chained to this one.
+    pub filtered: HashSet<K, S>,
 }
 
-impl<T, S> HandlerDescription for EventKind<T, S>
+/// An event kind that can be used with [`InterestList`].
+pub trait EventKind<S = RandomState>: Sized {
+    /// Set of all event kinds.
+    fn full_set() -> HashSet<Self, S>;
+
+    /// An empty set.
+    fn empty_set() -> HashSet<Self, S>;
+}
+
+impl<K: EventKind<S>, S> InterestList<K, S> {
+    pub fn new_filter(filtered: HashSet<K, S>) -> Self {
+        Self { observed: K::empty_set(), filtered }
+    }
+}
+
+impl<T, S> HandlerDescription for InterestList<T, S>
 where
-    T: Eq + Hash + Clone,
+    T: EventKind<S> + Eq + Hash + Clone,
     S: BuildHasher + Clone,
     T: Send + Sync + 'static,
     S: Send + Sync + 'static,
 {
     fn entry() -> Self {
-        EventKind::Entry
+        InterestList { observed: T::empty_set(), filtered: T::full_set() }
     }
 
     fn user_defined() -> Self {
-        EventKind::UserDefined
+        InterestList { observed: T::full_set(), filtered: T::full_set() }
     }
 
     fn merge_chain(&self, other: &Self) -> Self {
-        use EventKind::*;
+        let InterestList { observed: l_obs, filtered: l_flt } = self;
+        let InterestList { observed: r_obs, filtered: r_flt } = other;
 
-        match (self, other) {
-            // If we chain anything with entry, then we are only interested in events that are
-            // interesting from POV of the non-entry handler (this is because `entry` doesn't
-            // observe anything).
-            (Entry, other) | (other, Entry) => other.clone(),
-            // If we chain two filters together, we are only interested in events that can
-            // pass either of them.
-            (InterestList(l), InterestList(r)) => {
-                let hasher = l.hasher().clone();
-                let mut res = HashSet::with_hasher(hasher);
+        // If we chain two filters together, we are only interested in events that can
+        // pass both of them.
+        let filtered = {
+            let hasher = l_flt.hasher().clone();
+            let mut tmp = HashSet::with_hasher(hasher);
 
-                res.extend(l.intersection(r).cloned());
+            tmp.extend(l_flt.intersection(r_flt).cloned());
+            tmp
+        };
 
-                InterestList(res)
-            }
-            // If we chain a filter with something user-defined (but not the other way around), then
-            // we are interested only in things that could pass the filter.
-            (InterestList(known), UserDefined) => InterestList(known.clone()),
-            // If we chain something user-defined with anything than anything could be interesting,
-            // since we don't know user intentions.
-            (UserDefined, _) => UserDefined,
-        }
+        // Second handler can only observe things that were output by the first one.
+        let observed = {
+            let hasher = l_obs.hasher().clone();
+            let mut tmp = HashSet::with_hasher(hasher);
+
+            tmp.extend(l_obs.iter().cloned());
+            tmp.extend(l_flt.intersection(r_obs).cloned());
+            tmp
+        };
+
+        InterestList { filtered, observed }
     }
 
     fn merge_branch(&self, other: &Self) -> Self {
-        use EventKind::*;
+        let InterestList { observed: l_obs, filtered: l_flt } = self;
+        let InterestList { observed: r_obs, filtered: _ } = other;
 
-        match (self, other) {
-            // If we branch anything with entry, then we are only interested in events that are
-            // interesting from POV of the non-entry handler (this is because `entry` doesn't
-            // observe anything).
-            (Entry, other) | (other, Entry) => other.clone(),
-            // If we branch two filters together, we are interested in all events that are
-            // interesting to either handler (they both can be executed).
-            (InterestList(l), InterestList(r)) => {
-                let hasher = l.hasher().clone();
-                let mut res = HashSet::with_hasher(hasher);
-                res.extend(l.union(r).cloned());
+        // Second handler can only observe things that were output by the first one.
+        let observed = {
+            let hasher = l_obs.hasher().clone();
+            let mut tmp = HashSet::with_hasher(hasher);
 
-                InterestList(res)
-            }
-            // If either of the operands is user-defined, than we may be interested in anything.
-            (UserDefined, _) | (_, UserDefined) => UserDefined,
-        }
+            tmp.extend(l_obs.iter().cloned());
+            tmp.extend(l_flt.intersection(r_obs).cloned());
+            tmp
+        };
+
+        // Even if second filter did not pass, the execution continues
+        let filtered = l_flt.clone();
+
+        InterestList { observed, filtered }
     }
 }
 
-impl<K: Hash + Eq, S: BuildHasher> Eq for EventKind<K, S> {}
+impl<K: Hash + Eq, S: BuildHasher> Eq for InterestList<K, S> {}
 
-impl<K: Hash + Eq, S: BuildHasher> PartialEq for EventKind<K, S> {
+impl<K: Hash + Eq, S: BuildHasher> PartialEq for InterestList<K, S> {
     fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::InterestList(l), Self::InterestList(r)) => l == r,
-            _ => mem::discriminant(self) == mem::discriminant(other),
-        }
+        let InterestList { observed: l_obs, filtered: l_flt } = self;
+        let InterestList { observed: r_obs, filtered: r_flt } = other;
+
+        l_obs == r_obs && l_flt == r_flt
     }
 }
 
