@@ -90,7 +90,7 @@ Using dptree, you can specify arbitrary complex dispatching schemes using the sa
 ## Pitfalls
 
  - `DependencyMap` can panic at run-time if a non-existing dependency is requested. Always test your code and ensure that all dependencies are specified **before** they are being requested.
- - `.branch` and `.chain` are different operations. Take the layout of your dispatching scheme into consideration: if you want to nest handlers, use `.branch`; if you want to append a new handler to your chain, use `.chain`. E.g., if you put `.chain` after `.filter`, it will not be executed if the filter returns `false`.
+ - `.branch` and `.chain` are different operations. See ["The difference between chaining and branching"](https://docs.rs/dptree/latest/dptree/struct.Handler.html#the-difference-between-chaining-and-branching).
 
 ## Design choices
 

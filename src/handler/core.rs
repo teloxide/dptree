@@ -9,6 +9,41 @@ use crate::{description, HandlerDescription};
 ///
 /// In order to create this structure, you can use the predefined functions from
 /// [`crate`].
+///
+/// ## The difference between chaining and branching
+///
+/// Handlers can be chained via [`Handler::chain`] and branched via
+/// [`Handler::branch`]. To understand the difference between the two, consider
+/// the following examples: `a.chain(b).c` and `a.branch(b).c`.
+///
+/// In `a.chain(b).c`, the handler `a` is given the rest of the handler chain,
+/// `b` and `c`; if `a` decides to pass the value further, it invokes `b`. Then,
+/// if `b` decides to pass the value further, it invokes `c`. Thus, the handler
+/// chain is _linear_.
+///
+/// In `a.branch(b).c`, if `a` decides to pass the value further, it invokes
+/// `b`. But since `b` is "branched", it receives an empty chain, so it cannot
+/// invoke `c`. Instead, if `b` decides to continue execution
+/// ([`ControlFlow::Continue`]), `a` invokes `c`; otherwise
+/// ([`ControlFlow::Break`]), the process is terminated. The handler chain is
+/// _nested_.
+///
+/// To sum up, chaining looks like this:
+///
+/// ```txt
+/// a -> b -> c
+/// ```
+///
+/// And branching looks like this:
+///
+/// ```txt
+/// a -> b
+///   -> c
+/// ```
+///
+/// This is very crucial when `b` is a filter: if it is chained, it decides
+/// whether or not to call `c`, but when it is branched, whether `c` is called
+/// depends solely on `a`.
 pub struct Handler<'a, Input, Output, Descr = description::Unspecified> {
     data: Arc<HandlerData<Descr, DynF<'a, Input, Output>>>,
 }
@@ -44,8 +79,9 @@ where
 {
     /// Chain two handlers to form a [chain of responsibility].
     ///
-    /// First, `self` will be executed, and then, if `self` decides to continue
-    /// execution, `next` will be executed.
+    /// Chaining is different from branching. See ["The difference between
+    /// chaining and
+    /// branching"](#the-difference-between-chaining-and-branching).
     ///
     /// # Examples
     ///
@@ -82,8 +118,9 @@ where
 
     /// Chain two handlers to make a tree of responsibility.
     ///
-    /// This function is the same as [`Handler::chain`] but instead of expanding
-    /// a chain, it adds a new branch, thereby forming a tree.
+    /// Chaining is different from branching. See ["The difference between
+    /// chaining and
+    /// branching"](#the-difference-between-chaining-and-branching).
     ///
     /// # Examples
     ///
