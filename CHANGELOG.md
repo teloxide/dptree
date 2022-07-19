@@ -6,15 +6,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## unreleased
 
+## 0.3.0 - 2022-07-19
+
 ### Added
 
-- `inspect{,_async}{,_with_description}` functions for creating inspection handlers
-- `Handler::{filter,filter_map,map,inspect}{,_async}` convenience functions 
+ - `inspect{,_async}{,_with_description}` functions for creating inspection handlers.
+ - `Handler::{filter,filter_map,map,inspect}{,_async}` convenience methods.
 
 ### Changed
 
-- Removed some useless bounds from methods
-- `Cont` is now `FnOnce` instead of `Fn`
+ - Removed a few useless bounds from several methods ([PR #13](https://github.com/teloxide/dptree/pull/13)).
+ - `Cont` is now `FnOnce` instead of `Fn` ([PR #15](https://github.com/teloxide/dptree/pull/15)).
+
+### Fixed
+
+ - Fix the inference algorithm of allowed updates ([PR #16](https://github.com/teloxide/dptree/pull/16)).
 
 ## 0.2.1 - 2022-04-27
 
