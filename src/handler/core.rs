@@ -452,14 +452,14 @@ mod tests {
             assert_eq!(handler.description().observed, allowed);
         }
 
-        // Filters don't observe anything on their own
+        // Filters do not observe anything on their own.
         assert(filter_a(), hashset! {});
         assert(entry().chain(filter_b()), hashset! {});
         assert(filter_a().chain(filter_b()), hashset! {});
         assert(filter_a().branch(filter_b()), hashset! {});
         assert(filter_a().branch(filter_b()).branch(filter_c().chain(filter_c())), hashset! {});
 
-        // Anything user-defined observes everything that it can
+        // Anything user-defined observes everything that it can observe.
         assert(filter_a().chain(filter(|| true)), hashset! { A });
         assert(user_defined_filter().chain(filter_a()), hashset! { A, B, C });
         assert(filter_a().chain(user_defined_filter()), hashset! { A });
@@ -476,12 +476,12 @@ mod tests {
         assert(user_defined_filter(), hashset! { A, B, C });
         assert(user_defined_filter().branch(filter_a()), hashset! { A, B, C });
 
-        // Entry is invisible
+        // An entry is "invisible".
         assert(entry(), hashset! {});
         assert(entry().chain(filter_a().endpoint(|| async {})), hashset! { A });
         assert(entry().branch(filter_a()), hashset! {});
 
-        // Chained non-overlapping filters do not allow anything
+        // Chained non-overlapping filters do not allow anything.
         assert(filter_a().chain(filter_b()).endpoint(|| async {}), hashset! {});
     }
 }
