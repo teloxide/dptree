@@ -139,7 +139,7 @@ where
         };
 
         // Even if second filter did not pass something through, the execution still
-        // continues
+        // continues.
         let filtered = l_flt.clone();
 
         Self { observed, filtered }
