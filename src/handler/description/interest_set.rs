@@ -75,7 +75,7 @@ where
     S: Send + Sync + 'static,
 {
     fn entry() -> Self {
-        // Entry does not observe anything and allows everything
+        // Entry does not observe anything and allows everything.
         Self { observed: T::empty_set(), filtered: T::full_set() }
     }
 
