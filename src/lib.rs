@@ -1,5 +1,6 @@
 //! An implementation of the [chain (tree) of responsibility] pattern.
 //!
+//! [[`examples/web_server.rs`](https://github.com/teloxide/dptree/blob/master/examples/web_server.rs)]
 //! ```
 //! use dptree::prelude::*;
 //!
