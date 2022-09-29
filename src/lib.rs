@@ -72,7 +72,7 @@ pub use handler::*;
 /// Variants can take the following forms:
 ///
 ///  - `Enum::MyVariant` for empty variants;
-///  - `Enum::MyVariant(param1, ..., paramN)` for function-like variants;
+///  - `Enum::MyVariant(param1, ..., paramN)` for tuple-like variants;
 ///  - `Enum::MyVariant { param1, ..., paramN }` for `struct`-like variants.
 ///
 /// In the first case, this macro results in a simple [`crate::filter`]; in the
