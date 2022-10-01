@@ -1,5 +1,5 @@
 # dptree
-[![Rust](https://github.com/p0lunin/dptree/actions/workflows/rust.yml/badge.svg)](https://github.com/p0lunin/dptree/actions/workflows/rust.yml)
+[![Rust](https://github.com/teloxide/dptree/actions/workflows/rust.yml/badge.svg)](https://github.com/teloxide/dptree/actions/workflows/rust.yml)
 [![Crates.io](https://img.shields.io/crates/v/dptree.svg)](https://crates.io/crates/dptree)
 [![Docs.rs](https://docs.rs/dptree/badge.svg)](https://docs.rs/dptree)
 

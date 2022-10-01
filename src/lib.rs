@@ -50,7 +50,7 @@
 //! }
 //! ```
 //!
-//! For a high-level overview, please see [`README.md`](https://github.com/p0lunin/dptree).
+//! For a high-level overview, please see [`README.md`](https://github.com/teloxide/dptree).
 //!
 //! [chain (tree) of responsibility]: https://en.wikipedia.org/wiki/Chain-of-responsibility_pattern
 
