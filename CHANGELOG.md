@@ -41,14 +41,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
- - `DependencyMap::insert_container` ([PR #7](https://github.com/p0lunin/dptree/pull/7)).
- - `map` and `map_async` ([PR #8](https://github.com/p0lunin/dptree/pull/8)).
+ - `DependencyMap::insert_container` ([PR #7](https://github.com/teloxide/dptree/pull/7)).
+ - `map` and `map_async` ([PR #8](https://github.com/teloxide/dptree/pull/8)).
 
 ## 0.1.1 - 2022-03-21
 
 ### Fixed
 
- - Emit a full list of available types on `DependencyMap::get` panic ([PR #6](https://github.com/p0lunin/dptree/pull/6)).
+ - Emit a full list of available types on `DependencyMap::get` panic ([PR #6](https://github.com/teloxide/dptree/pull/6)).
 
 ## 0.1.0 - 2022-02-05
 
