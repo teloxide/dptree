@@ -54,6 +54,8 @@
 //!
 //! [chain (tree) of responsibility]: https://en.wikipedia.org/wiki/Chain-of-responsibility_pattern
 
+#![feature(closure_track_caller)]
+
 mod handler;
 
 pub mod di;
