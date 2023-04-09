@@ -8,8 +8,8 @@ pub use unspecified::Unspecified;
 
 /// Handler description.
 ///
-/// This trait allows information to flow "back up" the tree, allowing to check
-/// its structure.
+/// This trait allows information to flow "back up" the tree, allowing a user to
+/// check its structure.
 ///
 /// ## Examples
 ///
