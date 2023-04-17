@@ -110,7 +110,7 @@ where
             tmp
         };
 
-        // If we chain two filters together, we are only interested in events that can
+        // If we chain two filters together, we are only passing through events that can
         // pass both of them.
         let filtered = {
             let hasher = l_flt.hasher().clone();
