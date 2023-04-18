@@ -44,7 +44,7 @@ pub use unspecified::Unspecified;
 /// }
 ///
 /// assert_count(0, dptree::entry());
-/// assert_count(1, dptree::entry().branch(dptree::entry()));
+/// assert_count(1, dptree::entry().branch(dptree::inspect(|| ())));
 /// assert_count(
 ///     5,
 ///     dptree::entry()
@@ -53,7 +53,7 @@ pub use unspecified::Unspecified;
 ///                 .branch(dptree::entry().branch(dptree::filter(|| true)))
 ///                 .branch(dptree::entry().chain(dptree::filter(|| false))),
 ///         )
-///         .branch(dptree::entry()),
+///         .branch(dptree::inspect(|| ())),
 /// );
 /// ```
 pub trait HandlerDescription: Sized + Send + Sync + 'static {

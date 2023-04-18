@@ -1,8 +1,8 @@
 use crate::{
     di::{Asyncify, Injectable, Insert},
-    from_fn_with_description, Handler, HandlerDescription,
+    from_fn_with_description, Handler, HandlerDescription, HandlerSignature, Type,
 };
-use std::{ops::ControlFlow, sync::Arc};
+use std::{collections::HashSet, ops::ControlFlow, sync::Arc};
 
 /// Constructs a handler that optionally passes a value of a new type further.
 ///
@@ -10,6 +10,12 @@ use std::{ops::ControlFlow, sync::Arc};
 /// container and passed further in a handler chain. If the function returns
 /// `None`, then the handler will return [`ControlFlow::Continue`] with the old
 /// container.
+///
+/// # Signature
+///
+/// The run-time type signature of this handler is `HandlerSignature::Other {
+/// input_types: Projection::input_types(), output_types:
+/// HashSet::from([RtType::of::<NewType>()]) }`.
 #[must_use]
 #[track_caller]
 pub fn filter_map<'a, Projection, Input, Output, NewType, Args, Descr>(
@@ -21,7 +27,7 @@ where
     Input: Insert<NewType> + Send + 'a,
     Output: 'a,
     Descr: HandlerDescription,
-    NewType: Send,
+    NewType: Send + 'static,
 {
     filter_map_with_description(Descr::filter_map(), proj)
 }
@@ -38,7 +44,7 @@ where
     Input: Insert<NewType> + Send + 'a,
     Output: 'a,
     Descr: HandlerDescription,
-    NewType: Send,
+    NewType: Send + 'static,
 {
     filter_map_async_with_description(Descr::filter_map_async(), proj)
 }
@@ -54,7 +60,7 @@ where
     Asyncify<Projection>: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
     Input: Insert<NewType> + Send + 'a,
     Output: 'a,
-    NewType: Send,
+    NewType: Send + 'static,
 {
     filter_map_async_with_description(description, Asyncify(proj))
 }
@@ -70,31 +76,38 @@ where
     Projection: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
     Input: Insert<NewType> + Send + 'a,
     Output: 'a,
-    NewType: Send,
+    NewType: Send + 'static,
 {
     let proj = Arc::new(proj);
 
-    from_fn_with_description(description, move |container: Input, cont| {
-        let proj = Arc::clone(&proj);
+    from_fn_with_description(
+        description,
+        move |container: Input, cont| {
+            let proj = Arc::clone(&proj);
 
-        async move {
-            let proj = proj.inject(&container);
-            let res = proj().await;
-            std::mem::drop(proj);
+            async move {
+                let proj = proj.inject(&container);
+                let res = proj().await;
+                std::mem::drop(proj);
 
-            match res {
-                Some(new_type) => {
-                    let mut intermediate = container.clone();
-                    intermediate.insert(new_type);
-                    match cont(intermediate).await {
-                        ControlFlow::Continue(_) => ControlFlow::Continue(container),
-                        ControlFlow::Break(result) => ControlFlow::Break(result),
+                match res {
+                    Some(new_type) => {
+                        let mut intermediate = container.clone();
+                        intermediate.insert(new_type);
+                        match cont(intermediate).await {
+                            ControlFlow::Continue(_) => ControlFlow::Continue(container),
+                            ControlFlow::Break(result) => ControlFlow::Break(result),
+                        }
                     }
+                    None => ControlFlow::Continue(container),
                 }
-                None => ControlFlow::Continue(container),
             }
-        }
-    })
+        },
+        HandlerSignature::Other {
+            input_types: Projection::input_types(),
+            output_types: HashSet::from([Type::of::<NewType>()]),
+        },
+    )
 }
 
 #[cfg(test)]

@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## unreleased
 
+### Added
+
+ - The `type_check` function that performs run-time type checking. Call this function to ensure that all types required by your handler are present in `DependencyMap`.
+ - The `HandlerRtSig` and `RtType` types.
+ - The `Handler::sig` function.
+ - The `Injectable::input_types` associated function [**BC**].
+
+### Changed
+
+ - The `Output` generic of `Injectable` is now required to be `'static` [**BC**].
+ - Function parameters in the implementation of `Injectable` for functions are now required to be `'static` [**BC**].
+ - `Handler::{chain, branch}` now panic if the second handler is `dptree::entry()` [**BC**].
+ - The following functions now accept the `sig: HandlerRtSig` parameter [**BC**]:
+   - `dptree::from_fn`
+   - `dptree::from_fn_with_description`
+
 ## 0.3.0 - 2022-07-19
 
 ### Added

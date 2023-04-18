@@ -36,7 +36,7 @@ where
     where
         Input: Insert<NewType> + Clone,
         Asyncify<Proj>: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
-        NewType: Send,
+        NewType: Send + 'static,
     {
         self.chain(crate::filter_map(proj))
     }
@@ -51,7 +51,7 @@ where
     where
         Input: Insert<NewType> + Clone,
         Proj: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
-        NewType: Send,
+        NewType: Send + 'static,
     {
         self.chain(crate::filter_map_async(proj))
     }
@@ -63,7 +63,7 @@ where
     where
         Input: Insert<NewType> + Clone,
         Asyncify<Proj>: Injectable<Input, NewType, Args> + Send + Sync + 'a,
-        NewType: Send,
+        NewType: Send + 'static,
     {
         self.chain(crate::map(proj))
     }
@@ -75,7 +75,7 @@ where
     where
         Input: Insert<NewType> + Clone,
         Proj: Injectable<Input, NewType, Args> + Send + Sync + 'a,
-        NewType: Send,
+        NewType: Send + 'static,
     {
         self.chain(crate::map_async(proj))
     }
@@ -106,6 +106,7 @@ where
     pub fn endpoint<F, FnArgs>(self, f: F) -> Handler<'a, Input, Output, Descr>
     where
         F: Injectable<Input, Output, FnArgs> + Send + Sync + 'a,
+        Output: 'static,
     {
         self.chain(crate::endpoint(f))
     }

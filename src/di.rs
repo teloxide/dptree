@@ -6,7 +6,9 @@
 //!
 //! Currently, the only container is [`DependencyMap`]. It implements the DI
 //! pattern completely, but be careful: it can panic when you do not provide
-//! necessary types. See more in its documentation.
+//! necessary types. Most the times, it is profitable to use
+//! [`crate::type_check`] to make sure that all types are provided _before_
+//! executing a particular handler.
 //!
 //! [dependency injection]: https://en.wikipedia.org/wiki/Dependency_injection
 //! [this discussion on StackOverflow]: https://stackoverflow.com/questions/130794/what-is-dependency-injection
@@ -14,12 +16,14 @@ use futures::future::{ready, BoxFuture};
 
 use std::{
     any::{Any, TypeId},
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::{Debug, Formatter, Write},
     future::Future,
     ops::Deref,
     sync::Arc,
 };
+
+use crate::Type;
 
 /// A DI container from which we can extract a value of a given type.
 ///
@@ -44,7 +48,8 @@ pub trait DependencySupplier<Value> {
 /// This DI container stores types by their corresponding type identifiers. It
 /// cannot prove at compile-time that a type of a requested value exists within
 /// the container, so if you do not provide necessary types but they were
-/// requested, it will panic.
+/// requested, it will panic. However, you can use [`crate::type_check`] to make
+/// sure that all types are provided _before_ executing a particular handler.
 ///
 /// # Examples
 ///
@@ -86,12 +91,12 @@ pub trait DependencySupplier<Value> {
 /// ```
 #[derive(Default, Clone)]
 pub struct DependencyMap {
-    map: HashMap<TypeId, Dependency>,
+    pub(crate) map: HashMap<TypeId, Dependency>,
 }
 
 #[derive(Clone)]
-struct Dependency {
-    type_name: &'static str,
+pub(crate) struct Dependency {
+    pub(crate) type_name: &'static str,
     inner: Arc<dyn Any + Send + Sync>,
 }
 
@@ -191,8 +196,15 @@ where
 /// `DependencySupplier<T>`.
 /// 2. The function must be of 0-9 arguments.
 /// 3. The function must return [`Future`].
-pub trait Injectable<Input, Output, FnArgs> {
+pub trait Injectable<Input, Output, FnArgs>
+where
+    Output: 'static,
+{
     fn inject<'a>(&'a self, container: &'a Input) -> CompiledFn<'a, Output>;
+
+    /// Returns the set of types that this function depends on. Used only for
+    /// run-time "type checking".
+    fn input_types() -> HashSet<Type>;
 }
 
 /// A function with all dependencies satisfied.
@@ -209,7 +221,8 @@ macro_rules! impl_into_di {
             Input: Send + Sync,
             Func: Fn($($generic),*) -> Fut + Send + Sync + 'static,
             Fut: Future<Output = Output> + Send + 'static,
-            $($generic: Clone + Send + Sync),*
+            Output: 'static,
+            $($generic: Clone + Send + Sync + 'static),*
         {
             #[allow(non_snake_case)]
             #[allow(unused_variables)]
@@ -220,6 +233,12 @@ macro_rules! impl_into_di {
                     Box::pin(fut)
                 })
             }
+
+            fn input_types() -> HashSet<Type> {
+                HashSet::from([
+                    $(Type::of::<$generic>()),*
+                ])
+            }
         }
 
         impl<Func, Input, Output, $($generic),*> Injectable<Input, Output, ($($generic,)*)> for Asyncify<Func>
@@ -228,7 +247,7 @@ macro_rules! impl_into_di {
             Input: Send + Sync,
             Func: Fn($($generic),*) -> Output + Send + Sync + 'static,
             Output: Send + 'static,
-            $($generic: Clone + Send + Sync),*
+            $($generic: Clone + Send + Sync + 'static),*
         {
             #[allow(non_snake_case)]
             #[allow(unused_variables)]
@@ -239,6 +258,12 @@ macro_rules! impl_into_di {
                     let out = this( $( $generic ),* );
                     Box::pin(ready(out))
                 })
+            }
+
+            fn input_types() -> HashSet<Type> {
+                HashSet::from([
+                    $(Type::of::<$generic>()),*
+                ])
             }
         }
     };

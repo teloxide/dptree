@@ -2,15 +2,20 @@ use crate::{
     di::{Asyncify, Injectable},
     from_fn_with_description,
     handler::core::Handler,
-    HandlerDescription,
+    HandlerDescription, HandlerSignature,
 };
-use std::{ops::ControlFlow, sync::Arc};
+use std::{collections::HashSet, ops::ControlFlow, sync::Arc};
 
 /// Constructs a handler that filters input with the predicate `pred`.
 ///
 /// `pred` has an access to all values that are stored in the input container.
 /// If it returns `true`, a continuation of the handler will be called,
 /// otherwise the handler returns [`ControlFlow::Continue`].
+///
+/// # Signature
+///
+/// The run-time type signature of this handler is `HandlerSignature::Other {
+/// input_types: Pred::input_types(), output_types: HashSet::from([]) }`.
 #[must_use]
 #[track_caller]
 pub fn filter<'a, Pred, Input, Output, FnArgs, Descr>(
@@ -67,21 +72,28 @@ where
 {
     let pred = Arc::new(pred);
 
-    from_fn_with_description(description, move |event, cont| {
-        let pred = Arc::clone(&pred);
+    from_fn_with_description(
+        description,
+        move |event, cont| {
+            let pred = Arc::clone(&pred);
 
-        async move {
-            let pred = pred.inject(&event);
-            let cond = pred().await;
-            drop(pred);
+            async move {
+                let pred = pred.inject(&event);
+                let cond = pred().await;
+                drop(pred);
 
-            if cond {
-                cont(event).await
-            } else {
-                ControlFlow::Continue(event)
+                if cond {
+                    cont(event).await
+                } else {
+                    ControlFlow::Continue(event)
+                }
             }
-        }
-    })
+        },
+        HandlerSignature::Other {
+            input_types: Pred::input_types(),
+            output_types: HashSet::from([]),
+        },
+    )
 }
 
 #[cfg(test)]

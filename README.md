@@ -81,7 +81,7 @@ The above code is a simple web server dispatching tree. In pseudocode, it would 
 
 **Control flow:** as you can see, we have just described a dispatching scheme consisting of three branches. First, dptree enters the first handler `smiles_handler`, then, if it fails to process an update, it passes the update to `sqrt_handler` and so on. If nobody have succeeded in handling an update, the control flow enters `not_found_handler` that returns the error. In other words, the result of the whole `.dispatch` call would be the result of the first handler that succeeded to handle an incoming update.
 
-**Dependency injection:** instead of passing straightforward values to `.dispatch`, we use the `dptree::deps!` macro. It accepts a sequence of values and constructs `DependencyMap` out of them. The handlers request values of certain types in their signatures (such as `|req: &'static str|`), and dptree automatically _injects_ the values from `dptree::deps!` into these functions. If it fails to obtain values of requested types, it will [panic at run-time](#di), so be careful and always test your code before pushing to production.
+**Dependency injection:** instead of passing straightforward values to `.dispatch`, we use the `dptree::deps!` macro. It accepts a sequence of values and constructs `DependencyMap` out of them. The handlers request values of certain types in their signatures (such as `|req: &'static str|`), and dptree automatically _injects_ the values from `dptree::deps!` into these functions. You can use `dptree::type_check` to make sure that all required types are specified in `dptree::deps!`; otherwise, `dptree` will delay run-time type checking until execution.
 
 Using dptree, you can specify arbitrary complex dispatching schemes using the same recurring patterns you have seen above.
 
@@ -89,7 +89,7 @@ Using dptree, you can specify arbitrary complex dispatching schemes using the sa
 
 ## Pitfalls
 
- - `DependencyMap` can panic at run-time if a non-existing dependency is requested. Always test your code and ensure that all dependencies are specified **before** they are being requested.
+ - `DependencyMap` can panic at run-time if a non-existing dependency is requested. Use `dptree::type_check` to make sure that all required types are specified in the container.
  - `.branch` and `.chain` are different operations. See ["The difference between chaining and branching"](https://docs.rs/dptree/latest/dptree/struct.Handler.html#the-difference-between-chaining-and-branching).
 
 ## Design choices
@@ -100,7 +100,9 @@ We decided to use a [continuation-passing style (CPS)] internally and expose nea
 
 ### DI
 
-In Rust, it is possible to have a type-safe DI container instead of `DependencyMap` that panics at run-time. However, this would require complex type-level manipulations (like those in the [frunk] library). [@p0lunin] and I ([@Hirrolot]) decided not to trade comprehensible error messages for compile-time safety, since we had a plenty of experience that the uninitiated users simply cannot understand what is wrong with their code, owing to the utterly inadequate diagnostic messages from rustc.
+In Rust, it is possible to express type-safe DI that checks all types statically. However, this would require complex type-level manipulations (like those in the [frunk] library). [@p0lunin] and I ([@Hirrolot]) decided not to trade comprehensible error messages for compile-time safety, since we had a plenty of experience that the uninitiated users simply cannot understand what is wrong with their code, owing to the utterly inadequate diagnostic messages from rustc.
+
+The approach taken by `dptree` is to implement run-time type checking instead, via `dptree::type_check`, to make sure that all required types are provided _before_ execution. If `dptree::type_check` is _not_ called, type checking will be delayed until execution (this is not recommended). This approach works much like static type checking when you build your whole dispatch tree at a program startup; the downside is that the panic message raised by `dptree::type_check` does not show the exact location to be fixed, only a final type mismatch message (the types in question are shown though!).
 
 [frunk]: https://github.com/lloydmeta/frunk
 [@p0lunin]: https://github.com/p0lunin

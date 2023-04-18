@@ -1,8 +1,8 @@
 use crate::{
     di::{Asyncify, Injectable, Insert},
-    from_fn_with_description, Handler, HandlerDescription,
+    from_fn_with_description, Handler, HandlerDescription, HandlerSignature, Type,
 };
-use std::{ops::ControlFlow, sync::Arc};
+use std::{collections::HashSet, ops::ControlFlow, sync::Arc};
 
 /// Constructs a handler that passes a value of a new type further.
 ///
@@ -10,6 +10,12 @@ use std::{ops::ControlFlow, sync::Arc};
 /// further in a handler chain.
 ///
 /// See also: [`crate::filter_map`].
+///
+/// # Signature
+///
+/// The run-time type signature of this handler is `HandlerSignature::Other {
+/// input_types: Projection::input_types(), output_types:
+/// HashSet::from([RtType::of::<NewType>()]) }`.
 #[must_use]
 #[track_caller]
 pub fn map<'a, Projection, Input, Output, NewType, Args, Descr>(
@@ -21,7 +27,7 @@ where
     Input: Insert<NewType> + Send + 'a,
     Output: 'a,
     Descr: HandlerDescription,
-    NewType: Send,
+    NewType: Send + 'static,
 {
     map_with_description(Descr::map(), proj)
 }
@@ -38,7 +44,7 @@ where
     Input: Insert<NewType> + Send + 'a,
     Output: 'a,
     Descr: HandlerDescription,
-    NewType: Send,
+    NewType: Send + 'static,
 {
     map_async_with_description(Descr::map_async(), proj)
 }
@@ -55,7 +61,7 @@ where
     Input: Insert<NewType> + Send + 'a,
     Output: 'a,
     Descr: HandlerDescription,
-    NewType: Send,
+    NewType: Send + 'static,
 {
     map_async_with_description(description, Asyncify(proj))
 }
@@ -72,26 +78,33 @@ where
     Input: Insert<NewType> + Send + 'a,
     Output: 'a,
     Descr: HandlerDescription,
-    NewType: Send,
+    NewType: Send + 'static,
 {
     let proj = Arc::new(proj);
 
-    from_fn_with_description(description, move |container: Input, cont| {
-        let proj = Arc::clone(&proj);
+    from_fn_with_description(
+        description,
+        move |container: Input, cont| {
+            let proj = Arc::clone(&proj);
 
-        async move {
-            let proj = proj.inject(&container);
-            let res = proj().await;
-            std::mem::drop(proj);
+            async move {
+                let proj = proj.inject(&container);
+                let res = proj().await;
+                std::mem::drop(proj);
 
-            let mut intermediate = container.clone();
-            intermediate.insert(res);
-            match cont(intermediate).await {
-                ControlFlow::Continue(_) => ControlFlow::Continue(container),
-                ControlFlow::Break(result) => ControlFlow::Break(result),
+                let mut intermediate = container.clone();
+                intermediate.insert(res);
+                match cont(intermediate).await {
+                    ControlFlow::Continue(_) => ControlFlow::Continue(container),
+                    ControlFlow::Break(result) => ControlFlow::Break(result),
+                }
             }
-        }
-    })
+        },
+        HandlerSignature::Other {
+            input_types: Projection::input_types(),
+            output_types: HashSet::from([Type::of::<NewType>()]),
+        },
+    )
 }
 
 #[cfg(test)]

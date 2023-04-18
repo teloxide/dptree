@@ -1,12 +1,17 @@
 use crate::{
     di::{Asyncify, Injectable},
-    from_fn_with_description, Handler, HandlerDescription,
+    from_fn_with_description, Handler, HandlerDescription, HandlerSignature,
 };
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 /// Constructs a handler that inspects current state. Like [`map`] but does not
 /// add return value of `f` to the container.
+///
+/// # Signature
+///
+/// The run-time type signature of this handler is `HandlerSignature::Other {
+/// input_types: F::input_types(), output_types: HashSet::from([]) }`.
 ///
 /// [`map`]: crate::map
 #[must_use]
@@ -61,17 +66,21 @@ where
 {
     let f = Arc::new(f);
 
-    from_fn_with_description(description, move |x, cont| {
-        let f = Arc::clone(&f);
-        async move {
-            {
-                let f = f.inject(&x);
-                f().await;
-            }
+    from_fn_with_description(
+        description,
+        move |x, cont| {
+            let f = Arc::clone(&f);
+            async move {
+                {
+                    let f = f.inject(&x);
+                    f().await;
+                }
 
-            cont(x).await
-        }
-    })
+                cont(x).await
+            }
+        },
+        HandlerSignature::Other { input_types: F::input_types(), output_types: HashSet::from([]) },
+    )
 }
 
 #[cfg(test)]
