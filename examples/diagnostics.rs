@@ -11,8 +11,7 @@ struct D;
 
 #[tokio::main]
 async fn main() {
-    let h: Handler<DependencyMap, D> =
-        dptree::entry().map(|_: A| B).inspect(|_: C| ()).endpoint(|| async { D });
+    let h: Handler<D> = dptree::entry().map(|_: A| B).inspect(|_: C| ()).endpoint(|| async { D });
 
     // Missing `A` and `C` in the dependency map (see the panic message below).
     dptree::type_check(h.sig(), &dptree::deps![B, D]);

@@ -16,10 +16,9 @@ use std::{collections::HashSet, sync::Arc};
 /// [`map`]: crate::map
 #[must_use]
 #[track_caller]
-pub fn inspect<'a, F, Input, Output, Args, Descr>(f: F) -> Handler<'a, Input, Output, Descr>
+pub fn inspect<'a, F, Output, Args, Descr>(f: F) -> Handler<'a, Output, Descr>
 where
-    Asyncify<F>: Injectable<Input, (), Args> + Send + Sync + 'a,
-    Input: Send + 'a,
+    Asyncify<F>: Injectable<(), Args> + Send + Sync + 'a,
     Output: 'a,
     Descr: HandlerDescription,
 {
@@ -29,10 +28,9 @@ where
 /// The asynchronous version of [`inspect`].
 #[must_use]
 #[track_caller]
-pub fn inspect_async<'a, F, Input, Output, Args, Descr>(f: F) -> Handler<'a, Input, Output, Descr>
+pub fn inspect_async<'a, F, Output, Args, Descr>(f: F) -> Handler<'a, Output, Descr>
 where
-    F: Injectable<Input, (), Args> + Send + Sync + 'a,
-    Input: Send + 'a,
+    F: Injectable<(), Args> + Send + Sync + 'a,
     Output: 'a,
     Descr: HandlerDescription,
 {
@@ -42,13 +40,12 @@ where
 /// [`inspect`] with a custom description.
 #[must_use]
 #[track_caller]
-pub fn inspect_with_description<'a, F, Input, Output, Args, Descr>(
+pub fn inspect_with_description<'a, F, Output, Args, Descr>(
     description: Descr,
     f: F,
-) -> Handler<'a, Input, Output, Descr>
+) -> Handler<'a, Output, Descr>
 where
-    Asyncify<F>: Injectable<Input, (), Args> + Send + Sync + 'a,
-    Input: Send + 'a,
+    Asyncify<F>: Injectable<(), Args> + Send + Sync + 'a,
     Output: 'a,
 {
     inspect_async_with_description(description, Asyncify(f))
@@ -57,13 +54,12 @@ where
 /// [`inspect_async`] with a custom description.
 #[must_use]
 #[track_caller]
-pub fn inspect_async_with_description<'a, F, Input, Output, Args, Descr>(
+pub fn inspect_async_with_description<'a, F, Output, Args, Descr>(
     description: Descr,
     f: F,
-) -> Handler<'a, Input, Output, Descr>
+) -> Handler<'a, Output, Descr>
 where
-    F: Injectable<Input, (), Args> + Send + Sync + 'a,
-    Input: Send + 'a,
+    F: Injectable<(), Args> + Send + Sync + 'a,
     Output: 'a,
 {
     let f = Arc::new(f);

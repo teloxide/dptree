@@ -1,20 +1,19 @@
 use crate::{
-    di::{Asyncify, Injectable, Insert},
+    di::{Asyncify, Injectable},
     Handler, HandlerDescription,
 };
 
-impl<'a, Input, Output, Descr> Handler<'a, Input, Output, Descr>
+impl<'a, Output, Descr> Handler<'a, Output, Descr>
 where
-    Input: Send + 'a,
     Output: 'a,
     Descr: HandlerDescription,
 {
     /// Chain this handler with the filter predicate `pred`.
     #[must_use]
     #[track_caller]
-    pub fn filter<Pred, FnArgs>(self, pred: Pred) -> Handler<'a, Input, Output, Descr>
+    pub fn filter<Pred, FnArgs>(self, pred: Pred) -> Handler<'a, Output, Descr>
     where
-        Asyncify<Pred>: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
+        Asyncify<Pred>: Injectable<bool, FnArgs> + Send + Sync + 'a,
     {
         self.chain(crate::filter(pred))
     }
@@ -22,9 +21,9 @@ where
     /// Chain this handler with the async filter predicate `pred`.
     #[must_use]
     #[track_caller]
-    pub fn filter_async<Pred, FnArgs>(self, pred: Pred) -> Handler<'a, Input, Output, Descr>
+    pub fn filter_async<Pred, FnArgs>(self, pred: Pred) -> Handler<'a, Output, Descr>
     where
-        Pred: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
+        Pred: Injectable<bool, FnArgs> + Send + Sync + 'a,
     {
         self.chain(crate::filter_async(pred))
     }
@@ -32,11 +31,10 @@ where
     /// Chain this handler with the filter projection `proj`.
     #[must_use]
     #[track_caller]
-    pub fn filter_map<Proj, NewType, Args>(self, proj: Proj) -> Handler<'a, Input, Output, Descr>
+    pub fn filter_map<Proj, NewType, Args>(self, proj: Proj) -> Handler<'a, Output, Descr>
     where
-        Input: Insert<NewType> + Clone,
-        Asyncify<Proj>: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
-        NewType: Send + 'static,
+        Asyncify<Proj>: Injectable<Option<NewType>, Args> + Send + Sync + 'a,
+        NewType: Send + Sync + 'static,
     {
         self.chain(crate::filter_map(proj))
     }
@@ -44,14 +42,10 @@ where
     /// Chain this handler with the async filter projection `proj`.
     #[must_use]
     #[track_caller]
-    pub fn filter_map_async<Proj, NewType, Args>(
-        self,
-        proj: Proj,
-    ) -> Handler<'a, Input, Output, Descr>
+    pub fn filter_map_async<Proj, NewType, Args>(self, proj: Proj) -> Handler<'a, Output, Descr>
     where
-        Input: Insert<NewType> + Clone,
-        Proj: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
-        NewType: Send + 'static,
+        Proj: Injectable<Option<NewType>, Args> + Send + Sync + 'a,
+        NewType: Send + Sync + 'static,
     {
         self.chain(crate::filter_map_async(proj))
     }
@@ -59,11 +53,10 @@ where
     /// Chain this handler with the map projection `proj`.
     #[must_use]
     #[track_caller]
-    pub fn map<Proj, NewType, Args>(self, proj: Proj) -> Handler<'a, Input, Output, Descr>
+    pub fn map<Proj, NewType, Args>(self, proj: Proj) -> Handler<'a, Output, Descr>
     where
-        Input: Insert<NewType> + Clone,
-        Asyncify<Proj>: Injectable<Input, NewType, Args> + Send + Sync + 'a,
-        NewType: Send + 'static,
+        Asyncify<Proj>: Injectable<NewType, Args> + Send + Sync + 'a,
+        NewType: Send + Sync + 'static,
     {
         self.chain(crate::map(proj))
     }
@@ -71,11 +64,10 @@ where
     /// Chain this handler with the async map projection `proj`.
     #[must_use]
     #[track_caller]
-    pub fn map_async<Proj, NewType, Args>(self, proj: Proj) -> Handler<'a, Input, Output, Descr>
+    pub fn map_async<Proj, NewType, Args>(self, proj: Proj) -> Handler<'a, Output, Descr>
     where
-        Input: Insert<NewType> + Clone,
-        Proj: Injectable<Input, NewType, Args> + Send + Sync + 'a,
-        NewType: Send + 'static,
+        Proj: Injectable<NewType, Args> + Send + Sync + 'a,
+        NewType: Send + Sync + 'static,
     {
         self.chain(crate::map_async(proj))
     }
@@ -83,9 +75,9 @@ where
     /// Chain this handler with the inspection function `f`.
     #[must_use]
     #[track_caller]
-    pub fn inspect<F, Args>(self, f: F) -> Handler<'a, Input, Output, Descr>
+    pub fn inspect<F, Args>(self, f: F) -> Handler<'a, Output, Descr>
     where
-        Asyncify<F>: Injectable<Input, (), Args> + Send + Sync + 'a,
+        Asyncify<F>: Injectable<(), Args> + Send + Sync + 'a,
     {
         self.chain(crate::inspect(f))
     }
@@ -93,9 +85,9 @@ where
     /// Chain this handler with the async inspection function `f`.
     #[must_use]
     #[track_caller]
-    pub fn inspect_async<F, Args>(self, f: F) -> Handler<'a, Input, Output, Descr>
+    pub fn inspect_async<F, Args>(self, f: F) -> Handler<'a, Output, Descr>
     where
-        F: Injectable<Input, (), Args> + Send + Sync + 'a,
+        F: Injectable<(), Args> + Send + Sync + 'a,
     {
         self.chain(crate::inspect_async(f))
     }
@@ -103,9 +95,9 @@ where
     /// Chain this handler with the endpoint handler `f`.
     #[must_use]
     #[track_caller]
-    pub fn endpoint<F, FnArgs>(self, f: F) -> Handler<'a, Input, Output, Descr>
+    pub fn endpoint<F, FnArgs>(self, f: F) -> Handler<'a, Output, Descr>
     where
-        F: Injectable<Input, Output, FnArgs> + Send + Sync + 'a,
+        F: Injectable<Output, FnArgs> + Send + Sync + 'a,
         Output: 'static,
     {
         self.chain(crate::endpoint(f))

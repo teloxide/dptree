@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - The following functions now accept the `sig: HandlerRtSig` parameter [**BC**]:
    - `dptree::from_fn`
    - `dptree::from_fn_with_description`
+ - Always use `DependencyMap` instead of a generic `Input` type.
+
+### Removed
+
+ - The `di::{Insert, DependencySupplier}` traits.
 
 ## 0.3.0 - 2022-07-19
 

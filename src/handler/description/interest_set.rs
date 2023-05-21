@@ -45,7 +45,7 @@ impl<K: EventKind<S>, S> InterestSet<K, S> {
     /// use maplit::hashset;
     ///
     /// # enum K {} impl EventKind for K { fn full_set() -> std::collections::HashSet<Self> { hashset!{} } fn empty_set() -> std::collections::HashSet<Self> { hashset!{} } }
-    /// # let _: dptree::Handler<(), (), InterestSet<K>> =
+    /// # let _: dptree::Handler<(), InterestSet<K>> =
     /// filter_with_description(InterestSet::new_filter(hashset! {}), || {
     ///     println!("Filter called!"); // <-- bad
     ///
@@ -53,7 +53,7 @@ impl<K: EventKind<S>, S> InterestSet<K, S> {
     /// });
     ///
     /// # #[derive(Clone)] struct Db; impl Db { fn fetch_enabled(&self) -> bool { false } }
-    /// # let _: dptree::Handler<dptree::di::DependencyMap, (), InterestSet<K>> =
+    /// # let _: dptree::Handler<(), InterestSet<K>> =
     /// filter_with_description(InterestSet::new_filter(hashset! {}), |db: Db| {
     ///     let pass = db.fetch_enabled(); // <-- fine
     ///

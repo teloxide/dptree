@@ -52,8 +52,8 @@ use crate::{description, prelude::DependencyMap, HandlerDescription};
 /// This is very crucial when `b` is a filter: if it is chained, it decides
 /// whether or not to call `c`, but when it is branched, whether `c` is called
 /// depends solely on `a`.
-pub struct Handler<'a, Input, Output, Descr = description::Unspecified> {
-    data: Arc<HandlerData<Descr, DynF<'a, Input, Output>>>,
+pub struct Handler<'a, Output, Descr = description::Unspecified> {
+    data: Arc<HandlerData<Descr, DynF<'a, Output>>>,
 }
 
 struct HandlerData<Descr, F: ?Sized> {
@@ -97,27 +97,26 @@ pub struct Type {
     pub name: &'static str,
 }
 
-type DynF<'a, Input, Output> =
-    dyn Fn(Input, Cont<'a, Input, Output>) -> HandlerResult<'a, Input, Output> + Send + Sync + 'a;
+type DynF<'a, Output> =
+    dyn Fn(DependencyMap, Cont<'a, Output>) -> HandlerResult<'a, Output> + Send + Sync + 'a;
 
 /// A continuation representing the rest of a handler chain.
-pub type Cont<'a, Input, Output> =
-    Box<dyn FnOnce(Input) -> HandlerResult<'a, Input, Output> + Send + Sync + 'a>;
+pub type Cont<'a, Output> =
+    Box<dyn FnOnce(DependencyMap) -> HandlerResult<'a, Output> + Send + Sync + 'a>;
 
 /// An output type produced by a handler.
-pub type HandlerResult<'a, Input, Output> = BoxFuture<'a, ControlFlow<Output, Input>>;
+pub type HandlerResult<'a, Output> = BoxFuture<'a, ControlFlow<Output, DependencyMap>>;
 
 // `#[derive(Clone)]` obligates all type parameters to satisfy `Clone` as well,
 // but we do not need it here because of `Arc`.
-impl<'a, Input, Output, Descr> Clone for Handler<'a, Input, Output, Descr> {
+impl<'a, Output, Descr> Clone for Handler<'a, Output, Descr> {
     fn clone(&self) -> Self {
         Handler { data: Arc::clone(&self.data) }
     }
 }
 
-impl<'a, Input, Output, Descr> Handler<'a, Input, Output, Descr>
+impl<'a, Output, Descr> Handler<'a, Output, Descr>
 where
-    Input: Send + 'a,
     Output: 'a,
     Descr: HandlerDescription,
 {
@@ -154,7 +153,7 @@ where
     /// # async fn main() {
     /// use dptree::prelude::*;
     ///
-    /// let handler: Handler<_, _> =
+    /// let handler: Handler<_> =
     ///     dptree::filter(|x: i32| x > 0).chain(dptree::endpoint(|| async { "done" }));
     ///
     /// assert_eq!(handler.dispatch(dptree::deps![10]).await, ControlFlow::Break("done"));
@@ -271,7 +270,7 @@ where
     ///     GT,
     /// }
     ///
-    /// let dispatcher: Handler<_, _> = dptree::entry()
+    /// let dispatcher: Handler<_> = dptree::entry()
     ///     .branch(dptree::filter(|num: i32| num == 5).endpoint(|| async move { Output::Five }))
     ///     .branch(dptree::filter(|num: i32| num == 1).endpoint(|| async move { Output::One }))
     ///     .branch(dptree::filter(|num: i32| num > 2).endpoint(|| async move { Output::GT }));
@@ -368,7 +367,7 @@ where
     /// # async fn main() {
     /// use dptree::prelude::*;
     ///
-    /// let handler: Handler<_, _> = dptree::filter(|x: i32| x > 0);
+    /// let handler: Handler<_> = dptree::filter(|x: i32| x > 0);
     ///
     /// let output = handler.execute(dptree::deps![10], |_| async { ControlFlow::Break("done") }).await;
     /// assert_eq!(output, ControlFlow::Break("done"));
@@ -377,13 +376,13 @@ where
     /// ```
     pub async fn execute<Cont, ContFut>(
         self,
-        input: Input,
+        input: DependencyMap,
         cont: Cont,
-    ) -> ControlFlow<Output, Input>
+    ) -> ControlFlow<Output, DependencyMap>
     where
-        Cont: FnOnce(Input) -> ContFut,
+        Cont: FnOnce(DependencyMap) -> ContFut,
         Cont: Send + Sync + 'a,
-        ContFut: Future<Output = ControlFlow<Output, Input>> + Send + 'a,
+        ContFut: Future<Output = ControlFlow<Output, DependencyMap>> + Send + 'a,
     {
         (self.data.f)(input, Box::new(|event| Box::pin(cont(event)))).await
     }
@@ -397,7 +396,7 @@ where
     /// [`crate::type_check`] to type-check your handler against a container;
     /// otherwise, type checking will be delayed until the actual execution,
     /// which can make things harder to debug.
-    pub async fn dispatch(&self, input: Input) -> ControlFlow<Output, Input> {
+    pub async fn dispatch(&self, input: DependencyMap) -> ControlFlow<Output, DependencyMap> {
         self.clone().execute(input, |event| async move { ControlFlow::Continue(event) }).await
     }
 
@@ -449,14 +448,11 @@ impl Type {
 /// specialised functions: [`crate::endpoint`], [`crate::filter`],
 /// [`crate::filter_map`], etc.
 #[must_use]
-pub fn from_fn<'a, F, Fut, Input, Output, Descr>(
-    f: F,
-    sig: HandlerSignature,
-) -> Handler<'a, Input, Output, Descr>
+pub fn from_fn<'a, F, Fut, Output, Descr>(f: F, sig: HandlerSignature) -> Handler<'a, Output, Descr>
 where
-    F: Fn(Input, Cont<'a, Input, Output>) -> Fut,
+    F: Fn(DependencyMap, Cont<'a, Output>) -> Fut,
     F: Send + Sync + 'a,
-    Fut: Future<Output = ControlFlow<Output, Input>> + Send + 'a,
+    Fut: Future<Output = ControlFlow<Output, DependencyMap>> + Send + 'a,
     Descr: HandlerDescription,
 {
     from_fn_with_description(Descr::user_defined(), f, sig)
@@ -464,19 +460,19 @@ where
 
 /// [`from_fn`] with a custom description.
 #[must_use]
-pub fn from_fn_with_description<'a, F, Fut, Input, Output, Descr>(
+pub fn from_fn_with_description<'a, F, Fut, Output, Descr>(
     description: Descr,
     f: F,
     sig: HandlerSignature,
-) -> Handler<'a, Input, Output, Descr>
+) -> Handler<'a, Output, Descr>
 where
-    F: Fn(Input, Cont<'a, Input, Output>) -> Fut,
+    F: Fn(DependencyMap, Cont<'a, Output>) -> Fut,
     F: Send + Sync + 'a,
-    Fut: Future<Output = ControlFlow<Output, Input>> + Send + 'a,
+    Fut: Future<Output = ControlFlow<Output, DependencyMap>> + Send + 'a,
 {
     Handler {
         data: Arc::new(HandlerData {
-            f: move |event, cont| Box::pin(f(event, cont)) as HandlerResult<_, _>,
+            f: move |event, cont| Box::pin(f(event, cont)) as HandlerResult<_>,
             description,
             sig,
         }),
@@ -493,9 +489,8 @@ where
 /// The run-time type signature of this handler is `HandlerSignature::Entry`.
 #[must_use]
 #[track_caller]
-pub fn entry<'a, Input, Output, Descr>() -> Handler<'a, Input, Output, Descr>
+pub fn entry<'a, Output, Descr>() -> Handler<'a, Output, Descr>
 where
-    Input: Send + 'a,
     Output: 'a,
     Descr: HandlerDescription,
 {
@@ -528,8 +523,7 @@ where
 /// struct B;
 ///
 /// // Requires both `A` and `B` to be present in the container.
-/// let handler: Handler<DependencyMap, ()> =
-///     dptree::entry().filter(|_: A| true).endpoint(|_: B| async { () });
+/// let handler: Handler<()> = dptree::entry().filter(|_: A| true).endpoint(|_: B| async { () });
 ///
 /// // Ok.
 /// dptree::type_check(handler.sig(), &dptree::deps![A, B]);
@@ -563,7 +557,7 @@ pub fn type_check(sig: &HandlerSignature, container: &DependencyMap) {
 }
 
 #[cfg(test)]
-pub(crate) fn help_inference<I, O>(h: Handler<I, O>) -> Handler<I, O> {
+pub(crate) fn help_inference<Output>(h: Handler<Output>) -> Handler<Output> {
     h
 }
 
@@ -576,7 +570,6 @@ mod tests {
     use crate::{
         deps, description, filter_map, filter_map_with_description,
         handler::{endpoint, filter, filter_async},
-        prelude::DependencyMap,
     };
 
     use super::*;
@@ -590,8 +583,8 @@ mod tests {
         let location = Location::caller();
 
         let result = help_inference(from_fn(
-            |event, _cont: Cont<i32, &'static str>| async move {
-                assert_eq!(event, input);
+            |event, _cont: Cont<&'static str>| async move {
+                assert_eq!(event, deps![input]);
                 ControlFlow::Break(output)
             },
             HandlerSignature::Other {
@@ -602,7 +595,7 @@ mod tests {
                 ),
             },
         ))
-        .dispatch(input)
+        .dispatch(deps![input])
         .await;
 
         assert!(result == ControlFlow::Break(output));
@@ -617,8 +610,8 @@ mod tests {
         let location = Location::caller();
 
         let result = help_inference(from_fn(
-            |event: i32, _cont: Cont<i32, &'static str>| async move {
-                assert_eq!(event, input);
+            |event, _cont: Cont<&'static str>| async move {
+                assert_eq!(event, deps![input]);
                 ControlFlow::<Output, _>::Continue(event)
             },
             HandlerSignature::Other {
@@ -629,10 +622,10 @@ mod tests {
                 ),
             },
         ))
-        .dispatch(input)
+        .dispatch(deps![input])
         .await;
 
-        assert!(result == ControlFlow::Continue(input));
+        assert!(result == ControlFlow::Continue(deps![input]));
     }
 
     #[tokio::test]
@@ -640,9 +633,9 @@ mod tests {
         let input = 123;
         type Output = &'static str;
 
-        let result = help_inference(entry::<_, Output, _>()).dispatch(input).await;
+        let result = help_inference(entry::<Output, _>()).dispatch(deps![input]).await;
 
-        assert!(result == ControlFlow::Continue(input));
+        assert!(result == ControlFlow::Continue(deps![input]));
     }
 
     #[tokio::test]
@@ -655,7 +648,7 @@ mod tests {
 
         let result = help_inference(from_fn(
             |event, cont| {
-                assert!(event == input);
+                assert!(event == deps![input]);
                 cont(event)
             },
             HandlerSignature::Other {
@@ -666,8 +659,8 @@ mod tests {
                 ),
             },
         ))
-        .execute(input, |event| async move {
-            assert!(event == input);
+        .execute(deps![input], |event| async move {
+            assert!(event == deps![input]);
             ControlFlow::Break(output)
         })
         .await;
@@ -745,7 +738,7 @@ mod tests {
             C(u64),
         }
 
-        fn filter_a<Out>() -> Handler<'static, DependencyMap, Out, InterestSet<UpdateKind>>
+        fn filter_a<Out>() -> Handler<'static, Out, InterestSet<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
@@ -758,7 +751,7 @@ mod tests {
             )
         }
 
-        fn filter_b<Out>() -> Handler<'static, DependencyMap, Out, InterestSet<UpdateKind>>
+        fn filter_b<Out>() -> Handler<'static, Out, InterestSet<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
@@ -771,7 +764,7 @@ mod tests {
             )
         }
 
-        fn filter_c<Out>() -> Handler<'static, DependencyMap, Out, InterestSet<UpdateKind>>
+        fn filter_c<Out>() -> Handler<'static, Out, InterestSet<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
@@ -785,8 +778,7 @@ mod tests {
         }
 
         // User-defined filter that doesn't provide allowed updates
-        fn user_defined_filter<Out>(
-        ) -> Handler<'static, DependencyMap, Out, InterestSet<UpdateKind>>
+        fn user_defined_filter<Out>() -> Handler<'static, Out, InterestSet<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
@@ -798,7 +790,7 @@ mod tests {
 
         #[track_caller]
         fn assert(
-            handler: Handler<'static, DependencyMap, (), description::InterestSet<UpdateKind>>,
+            handler: Handler<'static, (), description::InterestSet<UpdateKind>>,
             allowed: HashSet<UpdateKind>,
         ) {
             assert_eq!(handler.description().observed, allowed);
@@ -917,7 +909,7 @@ mod tests {
         #[derive(Clone, Debug, Eq, PartialEq)]
         struct H;
 
-        let h: Handler<DependencyMap, H> = entry()
+        let h: Handler<H> = entry()
             .map(|/* In the final input types. */ _: A| B)
             .inspect(
                 |/* This type must be removed from the final input types because it is
@@ -981,7 +973,7 @@ mod tests {
         #[derive(Clone, Debug, Eq, PartialEq)]
         struct F;
 
-        let h: Handler<DependencyMap, F> = entry()
+        let h: Handler<F> = entry()
             .branch(
                 crate::inspect(|_: A| ()).map(|| B).map(|| C).map(|| D).endpoint(|| async { F }),
             )
@@ -1016,12 +1008,12 @@ mod tests {
     #[test]
     #[should_panic(expected = "Ill-typed handler chain: the second handler cannot be an entry")]
     fn chain_entry() {
-        let _: Handler<(), ()> = entry().chain(entry());
+        let _: Handler<()> = entry().chain(entry());
     }
 
     #[test]
     #[should_panic(expected = "Ill-typed handler branch: the second handler cannot be an entry")]
     fn branch_entry() {
-        let _: Handler<(), ()> = entry().branch(entry());
+        let _: Handler<()> = entry().branch(entry());
     }
 }

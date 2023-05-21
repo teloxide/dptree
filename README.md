@@ -9,7 +9,7 @@ An implementation of the [chain (tree) of responsibility] pattern.
 ```rust
 use dptree::prelude::*;
 
-type WebHandler = Endpoint<'static, DependencyMap, String>;
+type WebHandler = Endpoint<'static, String>;
 
 #[rustfmt::skip]
 #[tokio::main]

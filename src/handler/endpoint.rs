@@ -17,10 +17,9 @@ use std::{collections::HashSet, ops::ControlFlow, sync::Arc};
 /// input_types: F::input_types(), output_types: HashSet::from([]) }`.
 #[must_use]
 #[track_caller]
-pub fn endpoint<'a, F, Input, Output, FnArgs, Descr>(f: F) -> Endpoint<'a, Input, Output, Descr>
+pub fn endpoint<'a, F, Output, FnArgs, Descr>(f: F) -> Endpoint<'a, Output, Descr>
 where
-    F: Injectable<Input, Output, FnArgs> + Send + Sync + 'a,
-    Input: Send + 'a,
+    F: Injectable<Output, FnArgs> + Send + Sync + 'a,
     Output: 'static,
     Descr: HandlerDescription,
 {
@@ -44,8 +43,7 @@ where
 }
 
 /// A handler with no further handlers in a chain.
-pub type Endpoint<'a, Input, Output, Descr = description::Unspecified> =
-    Handler<'a, Input, Output, Descr>;
+pub type Endpoint<'a, Output, Descr = description::Unspecified> = Handler<'a, Output, Descr>;
 
 #[cfg(test)]
 mod tests {

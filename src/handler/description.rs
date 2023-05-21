@@ -39,7 +39,7 @@ pub use unspecified::Unspecified;
 /// }
 ///
 /// #[track_caller]
-/// fn assert_count(count: u32, handler: Handler<DependencyMap, (), CountBranches>) {
+/// fn assert_count(count: u32, handler: Handler<(), CountBranches>) {
 ///     assert_eq!(handler.description().0, count);
 /// }
 ///

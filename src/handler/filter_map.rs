@@ -1,5 +1,5 @@
 use crate::{
-    di::{Asyncify, Injectable, Insert},
+    di::{Asyncify, Injectable},
     from_fn_with_description, Handler, HandlerDescription, HandlerSignature, Type,
 };
 use std::{collections::HashSet, ops::ControlFlow, sync::Arc};
@@ -18,16 +18,14 @@ use std::{collections::HashSet, ops::ControlFlow, sync::Arc};
 /// HashSet::from([RtType::of::<NewType>()]) }`.
 #[must_use]
 #[track_caller]
-pub fn filter_map<'a, Projection, Input, Output, NewType, Args, Descr>(
+pub fn filter_map<'a, Projection, Output, NewType, Args, Descr>(
     proj: Projection,
-) -> Handler<'a, Input, Output, Descr>
+) -> Handler<'a, Output, Descr>
 where
-    Input: Clone,
-    Asyncify<Projection>: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
-    Input: Insert<NewType> + Send + 'a,
+    Asyncify<Projection>: Injectable<Option<NewType>, Args> + Send + Sync + 'a,
     Output: 'a,
     Descr: HandlerDescription,
-    NewType: Send + 'static,
+    NewType: Send + Sync + 'static,
 {
     filter_map_with_description(Descr::filter_map(), proj)
 }
@@ -35,16 +33,14 @@ where
 /// The asynchronous version of [`filter_map`].
 #[must_use]
 #[track_caller]
-pub fn filter_map_async<'a, Projection, Input, Output, NewType, Args, Descr>(
+pub fn filter_map_async<'a, Projection, Output, NewType, Args, Descr>(
     proj: Projection,
-) -> Handler<'a, Input, Output, Descr>
+) -> Handler<'a, Output, Descr>
 where
-    Input: Clone,
-    Projection: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
-    Input: Insert<NewType> + Send + 'a,
+    Projection: Injectable<Option<NewType>, Args> + Send + Sync + 'a,
     Output: 'a,
     Descr: HandlerDescription,
-    NewType: Send + 'static,
+    NewType: Send + Sync + 'static,
 {
     filter_map_async_with_description(Descr::filter_map_async(), proj)
 }
@@ -52,16 +48,14 @@ where
 /// [`filter_map`] with a custom description.
 #[must_use]
 #[track_caller]
-pub fn filter_map_with_description<'a, Projection, Input, Output, NewType, Args, Descr>(
+pub fn filter_map_with_description<'a, Projection, Output, NewType, Args, Descr>(
     description: Descr,
     proj: Projection,
-) -> Handler<'a, Input, Output, Descr>
+) -> Handler<'a, Output, Descr>
 where
-    Input: Clone,
-    Asyncify<Projection>: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
-    Input: Insert<NewType> + Send + 'a,
+    Asyncify<Projection>: Injectable<Option<NewType>, Args> + Send + Sync + 'a,
     Output: 'a,
-    NewType: Send + 'static,
+    NewType: Send + Sync + 'static,
 {
     filter_map_async_with_description(description, Asyncify(proj))
 }
@@ -69,22 +63,20 @@ where
 /// [`filter_map_async`] with a custom description.
 #[must_use]
 #[track_caller]
-pub fn filter_map_async_with_description<'a, Projection, Input, Output, NewType, Args, Descr>(
+pub fn filter_map_async_with_description<'a, Projection, Output, NewType, Args, Descr>(
     description: Descr,
     proj: Projection,
-) -> Handler<'a, Input, Output, Descr>
+) -> Handler<'a, Output, Descr>
 where
-    Input: Clone,
-    Projection: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
-    Input: Insert<NewType> + Send + 'a,
+    Projection: Injectable<Option<NewType>, Args> + Send + Sync + 'a,
     Output: 'a,
-    NewType: Send + 'static,
+    NewType: Send + Sync + 'static,
 {
     let proj = Arc::new(proj);
 
     from_fn_with_description(
         description,
-        move |container: Input, cont| {
+        move |container, cont| {
             let proj = Arc::clone(&proj);
 
             async move {

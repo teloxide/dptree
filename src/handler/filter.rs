@@ -18,12 +18,9 @@ use std::{collections::HashSet, ops::ControlFlow, sync::Arc};
 /// input_types: Pred::input_types(), output_types: HashSet::from([]) }`.
 #[must_use]
 #[track_caller]
-pub fn filter<'a, Pred, Input, Output, FnArgs, Descr>(
-    pred: Pred,
-) -> Handler<'a, Input, Output, Descr>
+pub fn filter<'a, Pred, Output, FnArgs, Descr>(pred: Pred) -> Handler<'a, Output, Descr>
 where
-    Asyncify<Pred>: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
-    Input: Send + 'a,
+    Asyncify<Pred>: Injectable<bool, FnArgs> + Send + Sync + 'a,
     Output: 'a,
     Descr: HandlerDescription,
 {
@@ -33,12 +30,9 @@ where
 /// The asynchronous version of [`filter`].
 #[must_use]
 #[track_caller]
-pub fn filter_async<'a, Pred, Input, Output, FnArgs, Descr>(
-    pred: Pred,
-) -> Handler<'a, Input, Output, Descr>
+pub fn filter_async<'a, Pred, Output, FnArgs, Descr>(pred: Pred) -> Handler<'a, Output, Descr>
 where
-    Pred: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
-    Input: Send + 'a,
+    Pred: Injectable<bool, FnArgs> + Send + Sync + 'a,
     Output: 'a,
     Descr: HandlerDescription,
 {
@@ -48,13 +42,12 @@ where
 /// [`filter`] with a custom description.
 #[must_use]
 #[track_caller]
-pub fn filter_with_description<'a, Pred, Input, Output, FnArgs, Descr>(
+pub fn filter_with_description<'a, Pred, Output, FnArgs, Descr>(
     description: Descr,
     pred: Pred,
-) -> Handler<'a, Input, Output, Descr>
+) -> Handler<'a, Output, Descr>
 where
-    Asyncify<Pred>: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
-    Input: Send + 'a,
+    Asyncify<Pred>: Injectable<bool, FnArgs> + Send + Sync + 'a,
     Output: 'a,
 {
     filter_async_with_description(description, Asyncify(pred))
@@ -63,13 +56,12 @@ where
 /// [`filter_async`] with a custom description.
 #[must_use]
 #[track_caller]
-pub fn filter_async_with_description<'a, Pred, Input, Output, FnArgs, Descr>(
+pub fn filter_async_with_description<'a, Pred, Output, FnArgs, Descr>(
     description: Descr,
     pred: Pred,
-) -> Handler<'a, Input, Output, Descr>
+) -> Handler<'a, Output, Descr>
 where
-    Pred: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
-    Input: Send + 'a,
+    Pred: Injectable<bool, FnArgs> + Send + Sync + 'a,
     Output: 'a,
 {
     let pred = Arc::new(pred);
