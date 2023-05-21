@@ -47,6 +47,7 @@ where
 
 /// [`filter`] with a custom description.
 #[must_use]
+#[track_caller]
 pub fn filter_with_description<'a, Pred, Input, Output, FnArgs, Descr>(
     description: Descr,
     pred: Pred,
@@ -61,6 +62,7 @@ where
 
 /// [`filter_async`] with a custom description.
 #[must_use]
+#[track_caller]
 pub fn filter_async_with_description<'a, Pred, Input, Output, FnArgs, Descr>(
     description: Descr,
     pred: Pred,
@@ -92,6 +94,7 @@ where
         HandlerSignature::Other {
             input_types: Pred::input_types(),
             output_types: HashSet::from([]),
+            obligations: Pred::obligations(),
         },
     )
 }

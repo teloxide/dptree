@@ -41,6 +41,7 @@ where
 
 /// [`inspect`] with a custom description.
 #[must_use]
+#[track_caller]
 pub fn inspect_with_description<'a, F, Input, Output, Args, Descr>(
     description: Descr,
     f: F,
@@ -55,6 +56,7 @@ where
 
 /// [`inspect_async`] with a custom description.
 #[must_use]
+#[track_caller]
 pub fn inspect_async_with_description<'a, F, Input, Output, Args, Descr>(
     description: Descr,
     f: F,
@@ -79,7 +81,11 @@ where
                 cont(x).await
             }
         },
-        HandlerSignature::Other { input_types: F::input_types(), output_types: HashSet::from([]) },
+        HandlerSignature::Other {
+            input_types: F::input_types(),
+            output_types: HashSet::from([]),
+            obligations: F::obligations(),
+        },
     )
 }
 

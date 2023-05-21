@@ -51,6 +51,7 @@ where
 
 /// [`filter_map`] with a custom description.
 #[must_use]
+#[track_caller]
 pub fn filter_map_with_description<'a, Projection, Input, Output, NewType, Args, Descr>(
     description: Descr,
     proj: Projection,
@@ -67,6 +68,7 @@ where
 
 /// [`filter_map_async`] with a custom description.
 #[must_use]
+#[track_caller]
 pub fn filter_map_async_with_description<'a, Projection, Input, Output, NewType, Args, Descr>(
     description: Descr,
     proj: Projection,
@@ -106,6 +108,7 @@ where
         HandlerSignature::Other {
             input_types: Projection::input_types(),
             output_types: HashSet::from([Type::of::<NewType>()]),
+            obligations: Projection::obligations(),
         },
     )
 }

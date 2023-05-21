@@ -58,17 +58,17 @@ fn not_found_handler() -> WebHandler {
 ## Features
 
  - ✔️ Declarative handlers: `dptree::{endpoint, filter, filter_map, ...}`.
- - ✔️ A lightweight functional design using a form of [continuation-passing style (CPS)] internally.
+ - ✔️ A lightweight functional design without typical OOP hodgepodge.
  - ✔️ [Dependency injection (DI)] out-of-the-box.
- - ✔️ Supports both handler _chaining_ and _branching_ operations.
+ - ✔️ Startup-time [type checking] of run-time dependencies via `dptree::type_check`.
  - ✔️ Handler introspection facilities.
- - ✔️ Battle-tested: dptree is used in [teloxide] as a framework for Telegram update dispatching.
- - ✔️ Runtime-agnostic: uses only the [futures] crate.
+ - ✔️ Battle-tested: dptree is used in [`teloxide`] as a framework for Telegram update dispatching.
+ - ✔️ Runtime-agnostic: uses only the [`futures`] crate.
 
-[continuation-passing style (CPS)]: https://en.wikipedia.org/wiki/Continuation-passing_style
 [Dependency injection (DI)]: https://en.wikipedia.org/wiki/Dependency_injection
-[teloxide]: https://github.com/teloxide/teloxide
-[futures]: https://github.com/rust-lang/futures-rs
+[type checking]: https://github.com/teloxide/dptree/blob/master/examples/diagnostics.rs
+[`teloxide`]: https://github.com/teloxide/teloxide
+[`futures`]: https://github.com/rust-lang/futures-rs
 
 ## Explanation
 
@@ -100,13 +100,12 @@ We decided to use a [continuation-passing style (CPS)] internally and expose nea
 
 ### DI
 
-In Rust, it is possible to express type-safe DI that checks all types statically. However, this would require complex type-level manipulations (like those in the [frunk] library). [@p0lunin] and I ([@Hirrolot]) decided not to trade comprehensible error messages for compile-time safety, since we had a plenty of experience that the uninitiated users simply cannot understand what is wrong with their code, owing to the utterly inadequate diagnostic messages from rustc.
+In Rust, it is possible to express type-safe DI that checks all types statically. However, this would require complex type-level manipulations, such as those in the [`frunk`] library. We decided not to trade comprehensible error messages for compile-time safety, since we had a plenty of experience that the uninitiated users simply cannot understand what is wrong with their code, owing to the utterly inadequate diagnostic messages from rustc.
 
-The approach taken by `dptree` is to implement run-time type checking instead, via `dptree::type_check`, to make sure that all required types are provided _before_ execution. If `dptree::type_check` is _not_ called, type checking will be delayed until execution (this is not recommended). This approach works much like static type checking when you build your whole dispatch tree at a program startup; the downside is that the panic message raised by `dptree::type_check` does not show the exact location to be fixed, only a final type mismatch message (the types in question are shown though!).
+The approach taken by `dptree` is to implement run-time type checking instead, via `dptree::type_check`, to make sure that all required types are provided _before_ execution. If `dptree::type_check` is _not_ called, type checking will be delayed until execution (this is not recommended). This approach works much like static type checking when you build your whole dispatch tree at a program startup; the panic message raised by `dptree::type_check` even [shows the exact locations] in user code that require insatisfied dependencies!
 
-[frunk]: https://github.com/lloydmeta/frunk
-[@p0lunin]: https://github.com/p0lunin
-[@Hirrolot]: https://github.com/Hirrolot
+[shows the exact locations]: https://github.com/teloxide/dptree/blob/master/examples/diagnostics.rs
+[`frunk`]: https://github.com/lloydmeta/frunk
 
 ## Troubleshooting
 

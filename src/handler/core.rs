@@ -1,5 +1,11 @@
 use std::{
-    any::TypeId, collections::HashSet, fmt::Write, future::Future, ops::ControlFlow, sync::Arc,
+    any::TypeId,
+    collections::{HashMap, HashSet},
+    fmt::Write,
+    future::Future,
+    ops::ControlFlow,
+    panic::Location,
+    sync::Arc,
 };
 
 use futures::future::BoxFuture;
@@ -72,6 +78,9 @@ pub enum HandlerSignature {
         input_types: HashSet<Type>,
         /// The set of types that this handler passes down the chain.
         output_types: HashSet<Type>,
+        /// The set of "obligations", i.e., code locations where specific input
+        /// types are required.
+        obligations: HashMap<Type, &'static Location<'static>>,
     },
 }
 
@@ -172,26 +181,42 @@ where
                 HandlerSignature::Other {
                     input_types: self_input_types,
                     output_types: self_output_types,
+                    obligations: self_obligations,
                 },
                 HandlerSignature::Other {
                     input_types: next_input_types,
                     output_types: next_output_types,
+                    obligations: next_obligations,
                 },
-            ) => HandlerSignature::Other {
-                /// Since the first handler can call the second one, take the
-                /// union of (the first handler's input types) and (the
-                /// difference between the second handler's input types and the
-                /// first handler's output types). The difference is needed
-                /// because the first handler can pass values to the second one.
-                input_types: self_input_types
-                    .union(&next_input_types.difference(self_output_types).cloned().collect())
-                    .cloned()
-                    .collect(),
+            ) => {
+                // The set of "unsatisfied" input types of the second handler.
+                let next_input_types: HashSet<_> =
+                    next_input_types.difference(self_output_types).cloned().collect();
+                let next_obligations = next_obligations
+                    .clone()
+                    .into_iter()
+                    .filter(|(ty, _loc)| next_input_types.contains(ty));
 
-                /// Since the first handler can call the second one, take the
-                /// union of their output types.
-                output_types: self_output_types.union(next_output_types).cloned().collect(),
-            },
+                HandlerSignature::Other {
+                    // Since the first handler can call the second one, take the union of (the first
+                    // handler's input types) and (the difference between the second handler's input
+                    // types and the first handler's output types). The difference is needed because
+                    // the first handler can pass values to the second one.
+                    input_types: self_input_types.union(&next_input_types).cloned().collect(),
+
+                    // Since the first handler can call the second one, take the union of their
+                    // output types.
+                    output_types: self_output_types.union(next_output_types).cloned().collect(),
+
+                    // Take only the most "recent" obligations that occur in user code; the first
+                    // handler's obligations take priority over those of the second one.
+                    obligations: self_obligations
+                        .clone()
+                        .into_iter()
+                        .chain(next_obligations)
+                        .collect(),
+                }
+            }
         };
 
         from_fn_with_description(
@@ -277,10 +302,12 @@ where
                 HandlerSignature::Other {
                     input_types: self_input_types,
                     output_types: self_output_types,
+                    obligations: self_obligations,
                 },
                 HandlerSignature::Other {
                     input_types: next_input_types,
                     output_types: next_output_types,
+                    obligations: next_obligations,
                 },
             ) => {
                 HandlerSignature::Other {
@@ -293,6 +320,14 @@ where
                     output_types: next_output_types
                         .intersection(self_output_types)
                         .cloned()
+                        .collect(),
+
+                    // Take only the most "recent" obligations that occur in user code; the first
+                    // handler's obligations take priority over those of the second one.
+                    obligations: self_obligations
+                        .clone()
+                        .into_iter()
+                        .chain(next_obligations.clone())
                         .collect(),
                 }
             }
@@ -377,15 +412,18 @@ where
     }
 }
 
-fn print_rt_types<'a>(types: impl IntoIterator<Item = &'a Type>) -> String {
+fn print_types<'a>(
+    types: impl IntoIterator<Item = &'a Type>,
+    f: impl Fn(&Type) -> String,
+) -> String {
     let mut res = String::new();
     let mut types = types.into_iter();
 
     if let Some(ty) = types.next() {
-        write!(res, "{}", ty.name).unwrap();
+        write!(res, "{}", f(ty)).unwrap();
     }
     for ty in types {
-        write!(res, ", {}", ty.name).unwrap();
+        write!(res, "\n    {}", f(ty)).unwrap();
     }
 
     res
@@ -475,7 +513,9 @@ where
 ///
 /// # Panics
 ///
-/// If `container` does not contain all the types that the handler accepts.
+/// If `container` does not contain all the types that the handler accepts; in
+/// this case, helpful diagnostic information about missing types and code
+/// locations is displayed.
 ///
 /// # Examples
 ///
@@ -500,7 +540,7 @@ where
 pub fn type_check(sig: &HandlerSignature, container: &DependencyMap) {
     match sig {
         HandlerSignature::Entry => {}
-        HandlerSignature::Other { input_types, output_types: _ } => {
+        HandlerSignature::Other { input_types, output_types: _, obligations } => {
             let container_types = container
                 .map
                 .iter()
@@ -511,9 +551,11 @@ pub fn type_check(sig: &HandlerSignature, container: &DependencyMap) {
                 panic!(
                     "This handler accepts the following types:\n    {}\n, but only the following \
                      types are provided:\n    {}\nThe missing types are:\n    {}",
-                    print_rt_types(input_types),
-                    print_rt_types(&container_types),
-                    print_rt_types(input_types.difference(&container_types))
+                    print_types(input_types, |ty| ty.name.to_owned()),
+                    print_types(&container_types, |ty| ty.name.to_owned()),
+                    print_types(input_types.difference(&container_types), |ty| {
+                        format!("{} from {}", ty.name, obligations[ty])
+                    },)
                 );
             }
         }
@@ -527,9 +569,9 @@ pub(crate) fn help_inference<I, O>(h: Handler<I, O>) -> Handler<I, O> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
+    use std::{collections::HashSet, iter::FromIterator};
 
-    use maplit::hashset;
+    use maplit::{hashmap, hashset};
 
     use crate::{
         deps, description, filter_map, filter_map_with_description,
@@ -544,14 +586,20 @@ mod tests {
         let input = 123;
         let output = "ABC";
 
+        let input_types = vec![Type::of::<i32>()];
+        let location = Location::caller();
+
         let result = help_inference(from_fn(
             |event, _cont: Cont<i32, &'static str>| async move {
                 assert_eq!(event, input);
                 ControlFlow::Break(output)
             },
             HandlerSignature::Other {
-                input_types: HashSet::from([Type::of::<i32>()]),
-                output_types: HashSet::from([]),
+                input_types: HashSet::from_iter(input_types.iter().cloned()),
+                output_types: hashset! {},
+                obligations: HashMap::from_iter(
+                    input_types.iter().cloned().map(|ty| (ty, location)),
+                ),
             },
         ))
         .dispatch(input)
@@ -565,14 +613,20 @@ mod tests {
         let input = 123;
         type Output = &'static str;
 
+        let input_types = vec![Type::of::<i32>()];
+        let location = Location::caller();
+
         let result = help_inference(from_fn(
             |event: i32, _cont: Cont<i32, &'static str>| async move {
                 assert_eq!(event, input);
                 ControlFlow::<Output, _>::Continue(event)
             },
             HandlerSignature::Other {
-                input_types: HashSet::from([Type::of::<i32>()]),
-                output_types: HashSet::from([Type::of::<i32>()]),
+                input_types: HashSet::from_iter(input_types.iter().cloned()),
+                output_types: hashset! {Type::of::<i32>()},
+                obligations: HashMap::from_iter(
+                    input_types.iter().cloned().map(|ty| (ty, location)),
+                ),
             },
         ))
         .dispatch(input)
@@ -596,14 +650,20 @@ mod tests {
         let input = 123;
         let output = "ABC";
 
+        let input_types = vec![Type::of::<i32>()];
+        let location = Location::caller();
+
         let result = help_inference(from_fn(
             |event, cont| {
                 assert!(event == input);
                 cont(event)
             },
             HandlerSignature::Other {
-                input_types: HashSet::from([Type::of::<i32>()]),
-                output_types: HashSet::from([Type::of::<i32>()]),
+                input_types: HashSet::from_iter(input_types.iter().cloned()),
+                output_types: hashset! {Type::of::<i32>()},
+                obligations: HashMap::from_iter(
+                    input_types.iter().cloned().map(|ty| (ty, location)),
+                ),
             },
         ))
         .execute(input, |event| async move {
@@ -792,19 +852,23 @@ mod tests {
         type_check(&HandlerSignature::Entry, &deps);
 
         // The case for the same handler's input types and those in the container.
+        let input_types = vec![Type::of::<A>(), Type::of::<B>(), Type::of::<C>()];
         type_check(
             &HandlerSignature::Other {
-                input_types: HashSet::from([Type::of::<A>(), Type::of::<B>(), Type::of::<C>()]),
-                output_types: HashSet::from([]),
+                input_types: HashSet::from_iter(input_types.iter().cloned()),
+                output_types: hashset! {},
+                obligations: hashmap! { /* Must not be used. */ },
             },
             &deps,
         );
 
         // The case for handler's input types and a superset thereof in the container.
+        let input_types = vec![Type::of::<A>(), Type::of::<B>()];
         type_check(
             &HandlerSignature::Other {
-                input_types: HashSet::from([Type::of::<A>(), Type::of::<B>()]),
-                output_types: HashSet::from([]),
+                input_types: HashSet::from_iter(input_types.iter().cloned()),
+                output_types: hashset! {},
+                obligations: hashmap! { /* Must not be used. */ },
             },
             &deps,
         );
@@ -821,10 +885,13 @@ mod tests {
         #[derive(Clone)]
         struct C;
 
+        let input_types = vec![Type::of::<A>(), Type::of::<B>(), Type::of::<C>()];
+
         type_check(
             &HandlerSignature::Other {
-                input_types: HashSet::from([Type::of::<A>(), Type::of::<B>(), Type::of::<C>()]),
-                output_types: HashSet::from([]),
+                input_types: HashSet::from_iter(input_types.iter().cloned()),
+                output_types: hashset! {},
+                obligations: hashmap! { /* Must not be used. */ },
             },
             // `C` is required but not provided.
             &deps![A, B],
@@ -869,19 +936,27 @@ mod tests {
                 |_: B, _: D, /* Must propagate. */ _: G| async { H },
             );
 
-        assert_eq!(
-            h.sig(),
-            &HandlerSignature::Other {
-                input_types: HashSet::from([
-                    Type::of::<A>(),
-                    Type::of::<C>(),
-                    Type::of::<E>(),
-                    Type::of::<F>(),
-                    Type::of::<G>()
-                ]),
-                output_types: HashSet::from([Type::of::<B>(), Type::of::<D>()])
-            }
-        );
+        let input_types = hashset! {
+                Type::of::<A>(),
+                Type::of::<C>(),
+                Type::of::<E>(),
+                Type::of::<F>(),
+                Type::of::<G>(),
+        };
+        let output_types = hashset! {Type::of::<B>(), Type::of::<D>()};
+
+        if let HandlerSignature::Other {
+            input_types: actual_input_types,
+            output_types: actual_output_types,
+            obligations,
+        } = h.sig()
+        {
+            assert_eq!(actual_input_types, &input_types);
+            assert_eq!(actual_output_types, &output_types);
+            assert_eq!(obligations.keys().cloned().collect::<HashSet<_, _>>(), input_types);
+        } else {
+            panic!("Expected `HandlerSignature::Other`");
+        }
 
         let deps = deps![A, C, E, F, G];
 
@@ -912,15 +987,23 @@ mod tests {
             )
             .branch(crate::inspect(|_: E| ()).map(|| B).map(|| D).endpoint(|| async { F }));
 
-        assert_eq!(
-            h.sig(),
-            &HandlerSignature::Other {
-                // The union of the input types of both branches.
-                input_types: HashSet::from([Type::of::<A>(), Type::of::<E>(),]),
-                // The intersection of the output types of both branches.
-                output_types: HashSet::from([Type::of::<B>(), Type::of::<D>()])
-            }
-        );
+        // The union of the input types of both branches.
+        let input_types = hashset! {Type::of::<A>(), Type::of::<E>()};
+        // The intersection of the output types of both branches.
+        let output_types = hashset! {Type::of::<B>(), Type::of::<D>()};
+
+        if let HandlerSignature::Other {
+            input_types: actual_input_types,
+            output_types: actual_output_types,
+            obligations,
+        } = h.sig()
+        {
+            assert_eq!(actual_input_types, &input_types);
+            assert_eq!(actual_output_types, &output_types);
+            assert_eq!(obligations.keys().cloned().collect::<HashSet<_, _>>(), input_types);
+        } else {
+            panic!("Expected `HandlerSignature::Other`");
+        }
 
         let deps = deps![A, E];
 

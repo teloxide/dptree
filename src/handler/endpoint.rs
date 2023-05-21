@@ -35,7 +35,11 @@ where
                 f().map(ControlFlow::Break).await
             }
         },
-        HandlerSignature::Other { input_types: F::input_types(), output_types: HashSet::from([]) },
+        HandlerSignature::Other {
+            input_types: F::input_types(),
+            output_types: HashSet::from([]),
+            obligations: F::obligations(),
+        },
     )
 }
 

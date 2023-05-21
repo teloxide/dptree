@@ -20,6 +20,7 @@ use std::{
     fmt::{Debug, Formatter, Write},
     future::Future,
     ops::Deref,
+    panic::Location,
     sync::Arc,
 };
 
@@ -205,6 +206,18 @@ where
     /// Returns the set of types that this function depends on. Used only for
     /// run-time "type checking".
     fn input_types() -> HashSet<Type>;
+
+    /// Returns the map of obligations of this function.
+    ///
+    /// The map contains all types from [`Self::input_types`] as keys, each one
+    /// corresponding to the current [`Location::caller`].
+    ///
+    /// [`Location::caller`]: std::panic::Location::caller
+    #[track_caller]
+    fn obligations() -> HashMap<Type, &'static Location<'static>> {
+        let location = Location::caller();
+        Self::input_types().into_iter().map(|ty| (ty, location)).collect()
+    }
 }
 
 /// A function with all dependencies satisfied.
