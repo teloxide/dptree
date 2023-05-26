@@ -877,11 +877,9 @@ mod tests {
         #[derive(Clone)]
         struct C;
 
-        let input_types = vec![Type::of::<A>(), Type::of::<B>(), Type::of::<C>()];
-
         type_check(
             &HandlerSignature::Other {
-                input_types: HashSet::from_iter(input_types.iter().cloned()),
+                input_types: HashSet::from([Type::of::<A>(), Type::of::<B>(), Type::of::<C>()]),
                 output_types: hashset! {},
                 obligations: hashmap! { /* Must not be used. */ },
             },

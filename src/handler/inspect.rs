@@ -11,7 +11,7 @@ use std::{collections::HashSet, sync::Arc};
 /// # Signature
 ///
 /// The run-time type signature of this handler is `HandlerSignature::Other {
-/// input_types: F::input_types(), output_types: HashSet::from([]) }`.
+/// input_types: F::input_types(), output_types: HashSet::new() }`.
 ///
 /// [`map`]: crate::map
 #[must_use]
@@ -79,7 +79,7 @@ where
         },
         HandlerSignature::Other {
             input_types: F::input_types(),
-            output_types: HashSet::from([]),
+            output_types: HashSet::new(),
             obligations: F::obligations(),
         },
     )

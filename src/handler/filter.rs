@@ -15,7 +15,7 @@ use std::{collections::HashSet, ops::ControlFlow, sync::Arc};
 /// # Signature
 ///
 /// The run-time type signature of this handler is `HandlerSignature::Other {
-/// input_types: Pred::input_types(), output_types: HashSet::from([]) }`.
+/// input_types: Pred::input_types(), output_types: HashSet::new() }`.
 #[must_use]
 #[track_caller]
 pub fn filter<'a, Pred, Output, FnArgs, Descr>(pred: Pred) -> Handler<'a, Output, Descr>
@@ -85,7 +85,7 @@ where
         },
         HandlerSignature::Other {
             input_types: Pred::input_types(),
-            output_types: HashSet::from([]),
+            output_types: HashSet::new(),
             obligations: Pred::obligations(),
         },
     )

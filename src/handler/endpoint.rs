@@ -14,7 +14,7 @@ use std::{collections::HashSet, ops::ControlFlow, sync::Arc};
 /// # Signature
 ///
 /// The run-time type signature of this handler is `HandlerSignature::Other {
-/// input_types: F::input_types(), output_types: HashSet::from([]) }`.
+/// input_types: F::input_types(), output_types: HashSet::new() }`.
 #[must_use]
 #[track_caller]
 pub fn endpoint<'a, F, Output, FnArgs, Descr>(f: F) -> Endpoint<'a, Output, Descr>
@@ -36,7 +36,7 @@ where
         },
         HandlerSignature::Other {
             input_types: F::input_types(),
-            output_types: HashSet::from([]),
+            output_types: HashSet::new(),
             obligations: F::obligations(),
         },
     )
