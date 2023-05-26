@@ -21,7 +21,7 @@ async fn main() {
     repl(state, dispatcher).await
 }
 
-async fn repl(mut state: CommandState, dispatcher: Handler<'static, Store, CommandState>) {
+async fn repl(mut state: CommandState, dispatcher: Handler<'static, CommandState>) {
     loop {
         println!("|| Current state is {}", state);
         print!(">> ");
@@ -96,8 +96,7 @@ impl Event {
     }
 }
 
-type Store = dptree::di::DependencyMap;
-type Transition = Endpoint<'static, Store, TransitionOut>;
+type Transition = Endpoint<'static, TransitionOut>;
 type TransitionOut = CommandState;
 
 mod transitions {
@@ -124,7 +123,7 @@ mod transitions {
     }
 }
 
-type FsmHandler = Handler<'static, Store, TransitionOut>;
+type FsmHandler = Handler<'static, TransitionOut>;
 
 fn active_handler() -> FsmHandler {
     dptree::case![CommandState::Active].branch(transitions::pause()).branch(transitions::end())

@@ -8,8 +8,8 @@ pub use unspecified::Unspecified;
 
 /// Handler description.
 ///
-/// This trait allows information to flow "back up" the tree, allowing to check
-/// its structure.
+/// This trait allows information to flow "back up" the tree, allowing a user to
+/// check its structure.
 ///
 /// ## Examples
 ///
@@ -39,12 +39,12 @@ pub use unspecified::Unspecified;
 /// }
 ///
 /// #[track_caller]
-/// fn assert_count(count: u32, handler: Handler<DependencyMap, (), CountBranches>) {
+/// fn assert_count(count: u32, handler: Handler<(), CountBranches>) {
 ///     assert_eq!(handler.description().0, count);
 /// }
 ///
 /// assert_count(0, dptree::entry());
-/// assert_count(1, dptree::entry().branch(dptree::entry()));
+/// assert_count(1, dptree::entry().branch(dptree::inspect(|| ())));
 /// assert_count(
 ///     5,
 ///     dptree::entry()
@@ -53,7 +53,7 @@ pub use unspecified::Unspecified;
 ///                 .branch(dptree::entry().branch(dptree::filter(|| true)))
 ///                 .branch(dptree::entry().chain(dptree::filter(|| false))),
 ///         )
-///         .branch(dptree::entry()),
+///         .branch(dptree::inspect(|| ())),
 /// );
 /// ```
 pub trait HandlerDescription: Sized + Send + Sync + 'static {

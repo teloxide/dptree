@@ -1,6 +1,6 @@
 use dptree::prelude::*;
 
-type WebHandler = Endpoint<'static, DependencyMap, String>;
+type WebHandler = Endpoint<'static, String>;
 
 #[rustfmt::skip]
 #[tokio::main]

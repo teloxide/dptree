@@ -39,7 +39,7 @@ async fn main() {
     repl(dispatcher, store).await
 }
 
-async fn repl(dispatcher: Handler<'static, DependencyMap, String>, store: Arc<AtomicI32>) -> ! {
+async fn repl(dispatcher: Handler<'static, String>, store: Arc<AtomicI32>) -> ! {
     loop {
         print!(">> ");
         std::io::stdout().flush().unwrap();
@@ -80,7 +80,7 @@ impl Event {
     }
 }
 
-type CommandHandler = Endpoint<'static, DependencyMap, String>;
+type CommandHandler = Endpoint<'static, String>;
 
 fn ping_handler() -> CommandHandler {
     dptree::filter_async(|event: Event| async move { matches!(event, Event::Ping) })
