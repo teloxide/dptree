@@ -7,7 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## unreleased
 
 ### Added
-- The handlers now can accept up to 12 parameters instead of 9
+
+ - The handlers now can accept up to 12 parameters instead of 9.
 
 ## 0.3.0 - 2022-07-19
 
