@@ -189,7 +189,7 @@ where
 ///
 /// 1. For each function parameter of type `T`, `Input` must satisfy
 /// `DependencySupplier<T>`.
-/// 2. The function must be of 0-9 arguments.
+/// 2. The function must be of 0-12 arguments.
 /// 3. The function must return [`Future`].
 pub trait Injectable<Input, Output, FnArgs> {
     fn inject<'a>(&'a self, container: &'a Input) -> CompiledFn<'a, Output>;
@@ -245,15 +245,18 @@ macro_rules! impl_into_di {
 }
 
 impl_into_di!();
-impl_into_di!(A);
-impl_into_di!(A, B);
-impl_into_di!(A, B, C);
-impl_into_di!(A, B, C, D);
-impl_into_di!(A, B, C, D, E);
-impl_into_di!(A, B, C, D, E, F);
-impl_into_di!(A, B, C, D, E, F, G);
-impl_into_di!(A, B, C, D, E, F, G, H);
-impl_into_di!(A, B, C, D, E, F, G, H, I);
+impl_into_di!(T1);
+impl_into_di!(T1, T2);
+impl_into_di!(T1, T2, T3);
+impl_into_di!(T1, T2, T3, T4);
+impl_into_di!(T1, T2, T3, T4, T5);
+impl_into_di!(T1, T2, T3, T4, T5, T6);
+impl_into_di!(T1, T2, T3, T4, T5, T6, T7);
+impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8);
+impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9);
+impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
+impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
+impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
 
 /// Constructs [`DependencyMap`] with a list of dependencies.
 ///
