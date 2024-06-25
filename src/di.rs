@@ -258,6 +258,8 @@ impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9);
 
 #[cfg(feature = "di-params-15")]
 mod di_params_15 {
+    use super::*;
+
     impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
     impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
     impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
