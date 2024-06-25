@@ -189,8 +189,7 @@ where
 ///
 /// 1. For each function parameter of type `T`, `Input` must satisfy
 /// `DependencySupplier<T>`.
-/// 2. The function must be of 0-9 arguments. With the `di-params-15` feature
-///    the upper limit is increased up to the 15
+/// 2. The function must be of 0-12 arguments.
 /// 3. The function must return [`Future`].
 pub trait Injectable<Input, Output, FnArgs> {
     fn inject<'a>(&'a self, container: &'a Input) -> CompiledFn<'a, Output>;
@@ -255,18 +254,9 @@ impl_into_di!(T1, T2, T3, T4, T5, T6);
 impl_into_di!(T1, T2, T3, T4, T5, T6, T7);
 impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8);
 impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9);
-
-#[cfg(feature = "di-params-15")]
-mod di_params_15 {
-    use super::*;
-
-    impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
-    impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
-    impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
-    impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13);
-    impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14);
-    impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15);
-}
+impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
+impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
+impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
 
 /// Constructs [`DependencyMap`] with a list of dependencies.
 ///
