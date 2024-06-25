@@ -12,6 +12,9 @@ license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+di-params-15 = []
+
 [dependencies]
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
 

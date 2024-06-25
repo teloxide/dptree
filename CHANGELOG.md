@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## unreleased
 
+### Added
+- feature `di-params-15` which increases the upper limit of supported arguments in handlers from 9 to 15
+
 ## 0.3.0 - 2022-07-19
 
 ### Added
