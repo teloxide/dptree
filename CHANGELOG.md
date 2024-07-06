@@ -8,7 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
- - The handlers now can accept up to 12 parameters instead of 9.
+ - The handlers now can accept up to 12 parameters instead of 9. ([PR 28](https://github.com/teloxide/dptree/pull/28))
+ - `DependencyMap::try_get` method ([PR 29](https://github.com/teloxide/dptree/pull/29))
 
 ## 0.3.0 - 2022-07-19
 
