@@ -21,6 +21,8 @@ use std::{
     sync::Arc,
 };
 
+use crate::error::Error;
+
 /// A DI container from which we can extract a value of a given type.
 ///
 /// There are two possible ways to handle the situation when your container
@@ -134,6 +136,16 @@ impl DependencyMap {
         self.map
             .remove(&TypeId::of::<T>())
             .map(|dep| dep.inner.downcast().expect("Values are stored by TypeId"))
+    }
+
+    /// Tries to get a value
+    pub fn try_get<V: Send + Sync + 'static>(&self) -> Result<Arc<V>, Error> {
+        let key = TypeId::of::<V>();
+        self.map
+            .get(&key)
+            .ok_or(Error::ValueNotFound { type_id: key, type_name: std::any::type_name::<V>() })
+            .cloned()
+            .map(|v| v.inner.downcast().unwrap())
     }
 
     fn available_types(&self) -> String {
@@ -314,5 +326,27 @@ mod tests {
         assert_eq!(map.get(), Arc::new(42i32));
         assert_eq!(map.get(), Arc::new("hello world"));
         assert_eq!(map.get(), Arc::new(true));
+    }
+
+    #[test]
+    fn try_get() {
+        let mut map = DependencyMap::new();
+        assert_eq!(
+            map.try_get::<i32>(),
+            Err(Error::ValueNotFound {
+                type_id: TypeId::of::<i32>(),
+                type_name: std::any::type_name::<i32>()
+            })
+        );
+        map.insert(42i32);
+        assert_eq!(map.try_get(), Ok(Arc::new(42i32)));
+
+        assert_eq!(
+            map.try_get::<f32>(),
+            Err(Error::ValueNotFound {
+                type_id: TypeId::of::<f32>(),
+                type_name: std::any::type_name::<f32>()
+            })
+        )
     }
 }

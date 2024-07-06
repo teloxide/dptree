@@ -14,6 +14,7 @@ license = "MIT"
 
 [dependencies]
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
+thiserror = "1.0.61"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync"] }
