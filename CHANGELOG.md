@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - `from_fn`
    - `from_fn_with_description`
  - Always use `di::DependencyMap` instead of a generic `Input` type.
+ - The handlers now can accept up to 12 parameters instead of 9.
 
 ### Removed
 

@@ -168,7 +168,7 @@ impl DependencyMap {
 
 /// Converts functions into [`CompiledFn`].
 ///
-/// For a function to be convertible into [`CompiledFn`], it must be of 0-9
+/// For a function to be convertible into [`CompiledFn`], it must be of 0-12
 /// arguments and return [`Future`].
 pub trait Injectable<Output, FnArgs>
 where
@@ -191,7 +191,6 @@ where
         let location = Location::caller();
         Self::input_types().into_iter().map(|ty| (ty, location)).collect()
     }
-}
 
 /// A function with all dependencies satisfied.
 pub type CompiledFn<'a, Output> = Arc<dyn Fn() -> BoxFuture<'a, Output> + Send + Sync + 'a>;
@@ -252,15 +251,18 @@ macro_rules! impl_into_di {
 }
 
 impl_into_di!();
-impl_into_di!(A);
-impl_into_di!(A, B);
-impl_into_di!(A, B, C);
-impl_into_di!(A, B, C, D);
-impl_into_di!(A, B, C, D, E);
-impl_into_di!(A, B, C, D, E, F);
-impl_into_di!(A, B, C, D, E, F, G);
-impl_into_di!(A, B, C, D, E, F, G, H);
-impl_into_di!(A, B, C, D, E, F, G, H, I);
+impl_into_di!(T1);
+impl_into_di!(T1, T2);
+impl_into_di!(T1, T2, T3);
+impl_into_di!(T1, T2, T3, T4);
+impl_into_di!(T1, T2, T3, T4, T5);
+impl_into_di!(T1, T2, T3, T4, T5, T6);
+impl_into_di!(T1, T2, T3, T4, T5, T6, T7);
+impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8);
+impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9);
+impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
+impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
+impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
 
 /// Constructs [`DependencyMap`] with a list of dependencies.
 ///
