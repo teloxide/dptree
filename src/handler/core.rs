@@ -173,7 +173,9 @@ where
             (_, HandlerSignature::Entry) => {
                 panic!("Ill-typed handler chain: the second handler cannot be an entry")
             }
-            (HandlerSignature::Entry, HandlerSignature::Other { .. }) => next.data.sig.clone(),
+            (HandlerSignature::Entry, other_sig @ HandlerSignature::Other { .. }) => {
+                other_sig.clone()
+            }
             (
                 HandlerSignature::Other {
                     input_types: self_input_types,
@@ -294,7 +296,9 @@ where
             (_, HandlerSignature::Entry) => {
                 panic!("Ill-typed handler branch: the second handler cannot be an entry")
             }
-            (HandlerSignature::Entry, HandlerSignature::Other { .. }) => next.data.sig.clone(),
+            (HandlerSignature::Entry, other_sig @ HandlerSignature::Other { .. }) => {
+                other_sig.clone()
+            }
             (
                 HandlerSignature::Other {
                     input_types: self_input_types,
