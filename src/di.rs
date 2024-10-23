@@ -6,51 +6,40 @@
 //!
 //! Currently, the only container is [`DependencyMap`]. It implements the DI
 //! pattern completely, but be careful: it can panic when you do not provide
-//! necessary types. See more in its documentation.
+//! necessary types. Most the times, it is profitable to use
+//! [`crate::type_check`] to make sure that all types are provided _before_
+//! executing a particular handler.
 //!
 //! [dependency injection]: https://en.wikipedia.org/wiki/Dependency_injection
 //! [this discussion on StackOverflow]: https://stackoverflow.com/questions/130794/what-is-dependency-injection
+
 use futures::future::{ready, BoxFuture};
 
 use std::{
     any::{Any, TypeId},
-    collections::HashMap,
+    collections::{BTreeMap, BTreeSet},
     fmt::{Debug, Formatter, Write},
     future::Future,
-    ops::Deref,
+    iter::FromIterator,
+    panic::Location,
     sync::Arc,
 };
 
-/// A DI container from which we can extract a value of a given type.
-///
-/// There are two possible ways to handle the situation when your container
-/// cannot return a value of specified type:
-///
-/// 1. Do not implement [`DependencySupplier`] for the type. It often requires
-/// some type-level manipulations.
-/// 2. Runtime panic. Be careful in this case: check whether you add your type
-/// to the container.
-///
-/// A concrete solution is left to a particular implementation.
-pub trait DependencySupplier<Value> {
-    /// Get the value.
-    ///
-    /// We assume that all values are stored in `Arc<_>`.
-    fn get(&self) -> Arc<Value>;
-}
+use crate::Type;
 
 /// A DI container with multiple dependencies.
 ///
 /// This DI container stores types by their corresponding type identifiers. It
 /// cannot prove at compile-time that a type of a requested value exists within
 /// the container, so if you do not provide necessary types but they were
-/// requested, it will panic.
+/// requested, it will panic. However, you can use [`crate::type_check`] to make
+/// sure that all types are provided _before_ executing a particular handler.
 ///
 /// # Examples
 ///
 /// ```
-/// # use std::sync::Arc;
-/// use dptree::di::{DependencyMap, DependencySupplier};
+/// use dptree::di::DependencyMap;
+/// use std::sync::Arc;
 ///
 /// let mut container = DependencyMap::new();
 /// container.insert(5_i32);
@@ -69,30 +58,35 @@ pub trait DependencySupplier<Value> {
 /// When a value is not found within the container, it will panic:
 ///
 /// ```should_panic
-/// # use std::sync::Arc;
-/// use dptree::di::{DependencyMap, DependencySupplier};
+/// use dptree::di::DependencyMap;
+/// use std::sync::Arc;
+///
 /// let mut container = DependencyMap::new();
 /// container.insert(10i32);
 /// container.insert(true);
 /// container.insert("static str");
 ///
-/// // thread 'main' panicked at 'alloc::string::String was requested, but not provided. Available types:
-/// //    &str
-/// //    bool
-/// //    i32
-/// // ', /media/hirrolot/772CF8924BEBB279/Documents/Rust/dptree/src/di.rs:150:17
-/// // note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+/// // `alloc::string::String` was requested, but not provided. Available types:
+/// //     `i32`
+/// //     `&str`
+/// //     `bool`
 /// let string: Arc<String> = container.get();
 /// ```
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct DependencyMap {
-    map: HashMap<TypeId, Dependency>,
+    pub(crate) map: BTreeMap<TypeId, Dependency>,
 }
 
 #[derive(Clone)]
-struct Dependency {
-    type_name: &'static str,
+pub(crate) struct Dependency {
+    pub(crate) type_name: &'static str,
     inner: Arc<dyn Any + Send + Sync>,
+}
+
+impl Debug for Dependency {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Dependency").field("type_name", &self.type_name).finish_non_exhaustive()
+    }
 }
 
 impl PartialEq for DependencyMap {
@@ -136,33 +130,20 @@ impl DependencyMap {
             .map(|dep| dep.inner.downcast().expect("Values are stored by TypeId"))
     }
 
-    fn available_types(&self) -> String {
-        let mut list = String::new();
-
-        for dep in self.map.values() {
-            writeln!(list, "    {}", dep.type_name).unwrap();
-        }
-
-        list
-    }
-}
-
-impl Debug for DependencyMap {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        f.debug_struct("DependencyMap").finish()
-    }
-}
-
-impl<V> DependencySupplier<V> for DependencyMap
-where
-    V: Send + Sync + 'static,
-{
-    fn get(&self) -> Arc<V> {
+    /// Retrieves the value of type `V` from this container.
+    ///
+    /// ## Panics
+    ///
+    /// If the container has no value of type `V`.
+    pub fn get<V>(&self) -> Arc<V>
+    where
+        V: Send + Sync + 'static,
+    {
         self.map
             .get(&TypeId::of::<V>())
             .unwrap_or_else(|| {
                 panic!(
-                    "{} was requested, but not provided. Available types:\n{}",
+                    "`{}` was requested, but not provided. Available types:\n{}",
                     std::any::type_name::<V>(),
                     self.available_types()
                 )
@@ -172,27 +153,43 @@ where
             .downcast::<V>()
             .expect("Checked by .unwrap_or_else()")
     }
-}
 
-impl<V, S> DependencySupplier<V> for Arc<S>
-where
-    S: DependencySupplier<V>,
-{
-    fn get(&self) -> Arc<V> {
-        self.deref().get()
+    fn available_types(&self) -> String {
+        let mut list = String::new();
+
+        for dep in self.map.values() {
+            writeln!(list, "    `{}`", dep.type_name).unwrap();
+        }
+
+        list
     }
 }
 
 /// Converts functions into [`CompiledFn`].
 ///
-/// The function must follow some rules, to be usable with DI:
-///
-/// 1. For each function parameter of type `T`, `Input` must satisfy
-/// `DependencySupplier<T>`.
-/// 2. The function must be of 0-12 arguments.
-/// 3. The function must return [`Future`].
-pub trait Injectable<Input, Output, FnArgs> {
-    fn inject<'a>(&'a self, container: &'a Input) -> CompiledFn<'a, Output>;
+/// For a function to be convertible into [`CompiledFn`], it must be of 0-12
+/// arguments and return [`Future`].
+pub trait Injectable<Output, FnArgs>
+where
+    Output: 'static,
+{
+    fn inject<'a>(&'a self, container: &'a DependencyMap) -> CompiledFn<'a, Output>;
+
+    /// Returns the set of types that this function depends on. Used only for
+    /// run-time "type checking".
+    fn input_types() -> BTreeSet<Type>;
+
+    /// Returns the map of obligations of this function.
+    ///
+    /// The map contains all types from [`Self::input_types`] as keys, each one
+    /// corresponding to the current [`Location::caller`].
+    ///
+    /// [`Location::caller`]: std::panic::Location::caller
+    #[track_caller]
+    fn obligations() -> BTreeMap<Type, &'static Location<'static>> {
+        let location = Location::caller();
+        Self::input_types().into_iter().map(|ty| (ty, location)).collect()
+    }
 }
 
 /// A function with all dependencies satisfied.
@@ -203,42 +200,51 @@ pub struct Asyncify<F>(pub F);
 
 macro_rules! impl_into_di {
     ($($generic:ident),*) => {
-        impl<Func, Input, Output, Fut, $($generic),*> Injectable<Input, Output, ($($generic,)*)> for Func
+        impl<Func, Output, Fut, $($generic),*> Injectable<Output, ($($generic,)*)> for Func
         where
-            Input: $(DependencySupplier<$generic> +)*,
-            Input: Send + Sync,
             Func: Fn($($generic),*) -> Fut + Send + Sync + 'static,
             Fut: Future<Output = Output> + Send + 'static,
-            $($generic: Clone + Send + Sync),*
+            Output: 'static,
+            $($generic: Clone + Send + Sync + 'static),*
         {
             #[allow(non_snake_case)]
             #[allow(unused_variables)]
-            fn inject<'a>(&'a self, container: &'a Input) -> CompiledFn<'a, Output> {
+            fn inject<'a>(&'a self, container: &'a DependencyMap) -> CompiledFn<'a, Output> {
                 Arc::new(move || {
                     $(let $generic = std::borrow::Borrow::<$generic>::borrow(&container.get()).clone();)*
                     let fut = self( $( $generic ),* );
                     Box::pin(fut)
                 })
             }
+
+            fn input_types() -> BTreeSet<Type> {
+                BTreeSet::from_iter(vec![
+                    $(Type::of::<$generic>()),*
+                ])
+            }
         }
 
-        impl<Func, Input, Output, $($generic),*> Injectable<Input, Output, ($($generic,)*)> for Asyncify<Func>
+        impl<Func, Output, $($generic),*> Injectable<Output, ($($generic,)*)> for Asyncify<Func>
         where
-            Input: $(DependencySupplier<$generic> +)*,
-            Input: Send + Sync,
             Func: Fn($($generic),*) -> Output + Send + Sync + 'static,
             Output: Send + 'static,
-            $($generic: Clone + Send + Sync),*
+            $($generic: Clone + Send + Sync + 'static),*
         {
             #[allow(non_snake_case)]
             #[allow(unused_variables)]
-            fn inject<'a>(&'a self, container: &'a Input) -> CompiledFn<'a, Output> {
+            fn inject<'a>(&'a self, container: &'a DependencyMap) -> CompiledFn<'a, Output> {
                 let Asyncify(this) = self;
                 Arc::new(move || {
                     $(let $generic = std::borrow::Borrow::<$generic>::borrow(&container.get()).clone();)*
                     let out = this( $( $generic ),* );
                     Box::pin(ready(out))
                 })
+            }
+
+            fn input_types() -> BTreeSet<Type> {
+                BTreeSet::from_iter(vec![
+                    $(Type::of::<$generic>()),*
+                ])
             }
         }
     };
@@ -263,7 +269,7 @@ impl_into_di!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
 /// # Examples
 ///
 /// ```
-/// use dptree::di::{DependencyMap, DependencySupplier};
+/// use dptree::di::DependencyMap;
 ///
 /// let map = dptree::deps![123, "abc", true];
 ///
@@ -285,18 +291,6 @@ macro_rules! deps {
             $(map.insert($dep);)*
             map
         }
-    }
-}
-
-/// Insert some value to a container.
-pub trait Insert<Value> {
-    /// Inserts `value` into itself, returning the previous value, if exists.
-    fn insert(&mut self, value: Value) -> Option<Arc<Value>>;
-}
-
-impl<T: Send + Sync + 'static> Insert<T> for DependencyMap {
-    fn insert(&mut self, value: T) -> Option<Arc<T>> {
-        DependencyMap::insert(self, value)
     }
 }
 

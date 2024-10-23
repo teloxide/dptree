@@ -1,8 +1,23 @@
-use std::{future::Future, ops::ControlFlow, sync::Arc};
+// In order not to break the unit tests if this file is edited, we place this
+// constant right at the beginning.
+#[cfg(test)]
+const FIXED_LOCATION: &Location = Location::caller();
+
+use crate::{description, prelude::DependencyMap, HandlerDescription};
+
+use std::{
+    any::TypeId,
+    cmp::Ordering,
+    collections::{BTreeMap, BTreeSet},
+    fmt::Write,
+    future::Future,
+    hash::{Hash, Hasher},
+    ops::ControlFlow,
+    panic::Location,
+    sync::Arc,
+};
 
 use futures::future::BoxFuture;
-
-use crate::{description, HandlerDescription};
 
 /// An instance that receives an input and decides whether to break a chain or
 /// pass the value further.
@@ -44,36 +59,98 @@ use crate::{description, HandlerDescription};
 /// This is very crucial when `b` is a filter: if it is chained, it decides
 /// whether or not to call `c`, but when it is branched, whether `c` is called
 /// depends solely on `a`.
-pub struct Handler<'a, Input, Output, Descr = description::Unspecified> {
-    data: Arc<HandlerData<Descr, DynF<'a, Input, Output>>>,
+pub struct Handler<'a, Output, Descr = description::Unspecified> {
+    data: Arc<HandlerData<Descr, DynFn<'a, Output>>>,
 }
 
 struct HandlerData<Descr, F: ?Sized> {
     description: Descr,
+    sig: HandlerSignature,
     f: F,
 }
 
-type DynF<'a, Input, Output> =
-    dyn Fn(Input, Cont<'a, Input, Output>) -> HandlerResult<'a, Input, Output> + Send + Sync + 'a;
+/// A run-time handler signature. Used only for run-time type inference and
+/// checking of handler chains.
+///
+/// See [`crate::type_check`].
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum HandlerSignature {
+    /// The signature corresponding to [`crate::entry`].
+    Entry,
+    /// The handler signature with exact input and output types.
+    Other {
+        /// The map from types that this handler accepts to locations where they
+        /// are required in source code.
+        obligations: BTreeMap<Type, &'static Location<'static>>,
+
+        /// The set of types that this handler passes down the chain.
+        outcomes: BTreeSet<Type>,
+    },
+}
+
+/// A run-time representation of a type. Used only for run-time type inference
+/// and checking of handler chains.
+///
+/// See [`crate::type_check`].
+#[derive(Clone, Copy, Debug)]
+pub struct Type {
+    /// The unique type identifier.
+    pub id: TypeId,
+
+    /// The type name used for printing.
+    pub name: &'static str,
+}
+
+impl Hash for Type {
+    /// Hashing is done by type identifiers (type names are ignored).
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
+
+impl PartialEq for Type {
+    /// Equality is done by type identifiers (type names are ignored).
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for Type {}
+
+impl PartialOrd for Type {
+    /// The partial order is done by type names for better diagnostics.
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Type {
+    /// The total order is done by type names for better diagnostics.
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.name.cmp(other.name)
+    }
+}
+
+type DynFn<'a, Output> =
+    dyn Fn(DependencyMap, Cont<'a, Output>) -> HandlerResult<'a, Output> + Send + Sync + 'a;
 
 /// A continuation representing the rest of a handler chain.
-pub type Cont<'a, Input, Output> =
-    Box<dyn FnOnce(Input) -> HandlerResult<'a, Input, Output> + Send + Sync + 'a>;
+pub type Cont<'a, Output> =
+    Box<dyn FnOnce(DependencyMap) -> HandlerResult<'a, Output> + Send + Sync + 'a>;
 
 /// An output type produced by a handler.
-pub type HandlerResult<'a, Input, Output> = BoxFuture<'a, ControlFlow<Output, Input>>;
+pub type HandlerResult<'a, Output> = BoxFuture<'a, ControlFlow<Output, DependencyMap>>;
 
 // `#[derive(Clone)]` obligates all type parameters to satisfy `Clone` as well,
 // but we do not need it here because of `Arc`.
-impl<'a, Input, Output, Descr> Clone for Handler<'a, Input, Output, Descr> {
+impl<Output, Descr> Clone for Handler<'_, Output, Descr> {
     fn clone(&self) -> Self {
         Handler { data: Arc::clone(&self.data) }
     }
 }
 
-impl<'a, Input, Output, Descr> Handler<'a, Input, Output, Descr>
+impl<'a, Output, Descr> Handler<'a, Output, Descr>
 where
-    Input: Send + 'a,
     Output: 'a,
     Descr: HandlerDescription,
 {
@@ -83,6 +160,25 @@ where
     /// chaining and
     /// branching"](#the-difference-between-chaining-and-branching).
     ///
+    /// # Type inference algorithm
+    ///
+    /// This method makes use of [`HandlerSignature`] (stored in every handler)
+    /// to perform run-time type inference of the resulting handler
+    /// signature; this information is used by [`crate::type_check`] to make
+    /// sure that all required types are provided _before_ execution.
+    ///
+    /// The algorithm is as follows:
+    ///  1. If the second handler's signature is [`HandlerSignature::Entry`],
+    ///     then **panic**.
+    ///  2. If the first handler's signature is [`HandlerSignature::Entry`] and
+    ///     that of the second one is [`HandlerSignature::Other`], then the
+    ///     signature of the resulting handler is taken from the second one.
+    ///  3. If the first handler's signature is [`HandlerSignature::Other`] and
+    ///     that the second one is also [`HandlerSignature::Other`], then the
+    ///     signature of the resulting handler is `HandlerSignature::Other {
+    ///     obligations: self_obligations UNION (next_obligations DIFFERENCE
+    ///     self_outcomes), outcomes: self_outcomes UNION next_outcomes }`.
+    ///
     /// # Examples
     ///
     /// ```
@@ -90,7 +186,7 @@ where
     /// # async fn main() {
     /// use dptree::prelude::*;
     ///
-    /// let handler: Handler<_, _> =
+    /// let handler: Handler<_> =
     ///     dptree::filter(|x: i32| x > 0).chain(dptree::endpoint(|| async { "done" }));
     ///
     /// assert_eq!(handler.dispatch(dptree::deps![10]).await, ControlFlow::Break("done"));
@@ -108,12 +204,48 @@ where
     pub fn chain(self, next: Self) -> Self {
         let required_update_kinds_set = self.description().merge_chain(next.description());
 
-        from_fn_with_description(required_update_kinds_set, move |event, cont| {
-            let this = self.clone();
-            let next = next.clone();
+        let new_sig = match (&self.data.sig, &next.data.sig) {
+            (_, HandlerSignature::Entry) => {
+                panic!("Ill-typed handler chain: the second handler cannot be an entry")
+            }
+            (HandlerSignature::Entry, other_sig @ HandlerSignature::Other { .. }) => {
+                other_sig.clone()
+            }
+            (
+                HandlerSignature::Other { obligations: self_obligations, outcomes: self_outcomes },
+                HandlerSignature::Other { obligations: next_obligations, outcomes: next_outcomes },
+            ) => {
+                HandlerSignature::Other {
+                    // Take the union of (the first handler's input types) and (the difference
+                    // between the second handler's input types and the first handler's output
+                    // types). The difference is needed because the first handler can pass values to
+                    // the second one by calling it. The first handler's obligations take priority
+                    // over those of the second one.
+                    obligations: next_obligations
+                        .clone()
+                        .into_iter()
+                        .filter(|(ty, _location)| !self_outcomes.contains(ty))
+                        .chain(self_obligations.clone())
+                        .collect(),
 
-            this.execute(event, |event| next.execute(event, cont))
-        })
+                    // Since the first handler can call the second one, take the union of their
+                    // output types. If the second handler is not called, the dependency map will
+                    // not be touched, so there will be no type errors.
+                    outcomes: self_outcomes.union(next_outcomes).cloned().collect(),
+                }
+            }
+        };
+
+        from_fn_with_description(
+            required_update_kinds_set,
+            move |event, cont| {
+                let this = self.clone();
+                let next = next.clone();
+
+                this.execute(event, |event| next.execute(event, cont))
+            },
+            new_sig,
+        )
     }
 
     /// Chain two handlers to make a tree of responsibility.
@@ -121,6 +253,25 @@ where
     /// Chaining is different from branching. See ["The difference between
     /// chaining and
     /// branching"](#the-difference-between-chaining-and-branching).
+    ///
+    /// # Type inference algorithm
+    ///
+    /// This method makes use of [`HandlerSignature`] (stored in every handler)
+    /// to perform run-time type inference of the resulting handler
+    /// signature; this information is used by [`crate::type_check`] to make
+    /// sure that all required types are provided _before_ execution.
+    ///
+    /// The algorithm is as follows:
+    ///  1. If the second handler's signature is [`HandlerSignature::Entry`],
+    ///     then **panic**.
+    ///  2. If the first handler's signature is [`HandlerSignature::Entry`] and
+    ///     that of the second one is [`HandlerSignature::Other`], then the
+    ///     signature of the resulting handler is taken from the second one.
+    ///  3. If the first handler's signature is [`HandlerSignature::Other`] and
+    ///     that the second one is also [`HandlerSignature::Other`], then the
+    ///     signature of the resulting handler is `HandlerSignature::Other {
+    ///     obligations: self_obligations UNION next_obligations, outcomes:
+    ///     next_outcomes INTERSECTION self_outcomes }`.
     ///
     /// # Examples
     ///
@@ -137,7 +288,7 @@ where
     ///     GT,
     /// }
     ///
-    /// let dispatcher: Handler<_, _> = dptree::entry()
+    /// let dispatcher: Handler<_> = dptree::entry()
     ///     .branch(dptree::filter(|num: i32| num == 5).endpoint(|| async move { Output::Five }))
     ///     .branch(dptree::filter(|num: i32| num == 1).endpoint(|| async move { Output::One }))
     ///     .branch(dptree::filter(|num: i32| num > 2).endpoint(|| async move { Output::GT }));
@@ -159,17 +310,49 @@ where
     {
         let required_update_kinds_set = self.description().merge_branch(next.description());
 
-        from_fn_with_description(required_update_kinds_set, move |event, cont| {
-            let this = self.clone();
-            let next = next.clone();
+        let new_sig = match (&self.data.sig, &next.data.sig) {
+            (_, HandlerSignature::Entry) => {
+                panic!("Ill-typed handler branch: the second handler cannot be an entry")
+            }
+            (HandlerSignature::Entry, other_sig @ HandlerSignature::Other { .. }) => {
+                other_sig.clone()
+            }
+            (
+                HandlerSignature::Other { obligations: self_obligations, outcomes: self_outcomes },
+                HandlerSignature::Other { obligations: next_obligations, outcomes: next_outcomes },
+            ) => {
+                HandlerSignature::Other {
+                    // Take the union of the input types of both handlers, because either of them
+                    // (or both) can end up being executed. The first handler's obligations take
+                    // priority over those of the second one.
+                    obligations: next_obligations
+                        .clone()
+                        .into_iter()
+                        .chain(self_obligations.clone())
+                        .collect(),
 
-            this.execute(event, |event| async move {
-                match next.dispatch(event).await {
-                    ControlFlow::Continue(event) => cont(event).await,
-                    done => done,
+                    // Since any of the two handlers can end up being executed, take the
+                    // intersection of the output types of both handlers.
+                    outcomes: next_outcomes.intersection(self_outcomes).cloned().collect(),
                 }
-            })
-        })
+            }
+        };
+
+        from_fn_with_description(
+            required_update_kinds_set,
+            move |event, cont| {
+                let this = self.clone();
+                let next = next.clone();
+
+                this.execute(event, |event| async move {
+                    match next.dispatch(event).await {
+                        ControlFlow::Continue(event) => cont(event).await,
+                        done => done,
+                    }
+                })
+            },
+            new_sig,
+        )
     }
 
     /// Executes this handler with a continuation.
@@ -178,6 +361,11 @@ where
     /// write your own handler implementation. If you wish to execute handler
     /// without a continuation, take a look at the [`Handler::dispatch`] method.
     ///
+    /// **NOTE**: If you are using [`DependencyMap`], you should first call
+    /// [`crate::type_check`] to type-check your handler against a container;
+    /// otherwise, type checking will be delayed until the actual execution,
+    /// which can make things harder to debug.
+    ///
     /// # Examples
     ///
     /// ```
@@ -185,7 +373,7 @@ where
     /// # async fn main() {
     /// use dptree::prelude::*;
     ///
-    /// let handler: Handler<_, _> = dptree::filter(|x: i32| x > 0);
+    /// let handler: Handler<_> = dptree::filter(|x: i32| x > 0);
     ///
     /// let output = handler.execute(dptree::deps![10], |_| async { ControlFlow::Break("done") }).await;
     /// assert_eq!(output, ControlFlow::Break("done"));
@@ -194,62 +382,105 @@ where
     /// ```
     pub async fn execute<Cont, ContFut>(
         self,
-        container: Input,
+        input: DependencyMap,
         cont: Cont,
-    ) -> ControlFlow<Output, Input>
+    ) -> ControlFlow<Output, DependencyMap>
     where
-        Cont: FnOnce(Input) -> ContFut,
+        Cont: FnOnce(DependencyMap) -> ContFut,
         Cont: Send + Sync + 'a,
-        ContFut: Future<Output = ControlFlow<Output, Input>> + Send + 'a,
+        ContFut: Future<Output = ControlFlow<Output, DependencyMap>> + Send + 'a,
     {
-        (self.data.f)(container, Box::new(|event| Box::pin(cont(event)))).await
+        (self.data.f)(input, Box::new(|event| Box::pin(cont(event)))).await
     }
 
     /// Executes this handler.
     ///
     /// Returns [`ControlFlow::Break`] when executed successfully,
     /// [`ControlFlow::Continue`] otherwise.
-    pub async fn dispatch(&self, container: Input) -> ControlFlow<Output, Input> {
-        self.clone().execute(container, |event| async move { ControlFlow::Continue(event) }).await
+    ///
+    /// **NOTE**: If you are using [`DependencyMap`], you should first call
+    /// [`crate::type_check`] to type-check your handler against a container;
+    /// otherwise, type checking will be delayed until the actual execution,
+    /// which can make things harder to debug.
+    pub async fn dispatch(&self, input: DependencyMap) -> ControlFlow<Output, DependencyMap> {
+        self.clone().execute(input, |event| async move { ControlFlow::Continue(event) }).await
     }
 
     /// Returns the set of updates that can be processed by this handler.
     pub fn description(&self) -> &Descr {
         &self.data.description
     }
+
+    /// Returns this handler's run-time type signature.
+    pub fn sig(&self) -> &HandlerSignature {
+        &self.data.sig
+    }
+}
+
+fn print_types<'a>(
+    types: impl IntoIterator<Item = &'a Type>,
+    f: impl Fn(&Type) -> String,
+) -> String {
+    let mut res = String::new();
+    let mut types = types.into_iter();
+
+    if let Some(ty) = types.next() {
+        write!(res, "{}", f(ty)).unwrap();
+    }
+    for ty in types {
+        write!(res, "\n    {}", f(ty)).unwrap();
+    }
+
+    res
+}
+
+impl Type {
+    /// Constructs [`Type`] from a static type.
+    #[must_use]
+    pub fn of<T>() -> Self
+    where
+        T: 'static,
+    {
+        Self { id: TypeId::of::<T>(), name: std::any::type_name::<T>() }
+    }
 }
 
 /// Constructs a handler from a function.
+///
+/// `sig` is the run-time handler signature used for type inference and
+/// checking.
 ///
 /// Most of the time, you do not want to use this function. Take a look at more
 /// specialised functions: [`crate::endpoint`], [`crate::filter`],
 /// [`crate::filter_map`], etc.
 #[must_use]
-pub fn from_fn<'a, F, Fut, Input, Output, Descr>(f: F) -> Handler<'a, Input, Output, Descr>
+pub fn from_fn<'a, F, Fut, Output, Descr>(f: F, sig: HandlerSignature) -> Handler<'a, Output, Descr>
 where
-    F: Fn(Input, Cont<'a, Input, Output>) -> Fut,
+    F: Fn(DependencyMap, Cont<'a, Output>) -> Fut,
     F: Send + Sync + 'a,
-    Fut: Future<Output = ControlFlow<Output, Input>> + Send + 'a,
+    Fut: Future<Output = ControlFlow<Output, DependencyMap>> + Send + 'a,
     Descr: HandlerDescription,
 {
-    from_fn_with_description(Descr::user_defined(), f)
+    from_fn_with_description(Descr::user_defined(), f, sig)
 }
 
 /// [`from_fn`] with a custom description.
 #[must_use]
-pub fn from_fn_with_description<'a, F, Fut, Input, Output, Descr>(
+pub fn from_fn_with_description<'a, F, Fut, Output, Descr>(
     description: Descr,
     f: F,
-) -> Handler<'a, Input, Output, Descr>
+    sig: HandlerSignature,
+) -> Handler<'a, Output, Descr>
 where
-    F: Fn(Input, Cont<'a, Input, Output>) -> Fut,
+    F: Fn(DependencyMap, Cont<'a, Output>) -> Fut,
     F: Send + Sync + 'a,
-    Fut: Future<Output = ControlFlow<Output, Input>> + Send + 'a,
+    Fut: Future<Output = ControlFlow<Output, DependencyMap>> + Send + 'a,
 {
     Handler {
         data: Arc::new(HandlerData {
-            f: move |event, cont| Box::pin(f(event, cont)) as HandlerResult<_, _>,
+            f: move |event, cont| Box::pin(f(event, cont)) as HandlerResult<_>,
             description,
+            sig,
         }),
     }
 }
@@ -258,46 +489,125 @@ where
 ///
 /// This function is only used to specify other handlers upon it (see the root
 /// examples).
+///
+/// # Signature
+///
+/// The run-time type signature of this handler is `HandlerSignature::Entry`.
 #[must_use]
 #[track_caller]
-pub fn entry<'a, Input, Output, Descr>() -> Handler<'a, Input, Output, Descr>
+pub fn entry<'a, Output, Descr>() -> Handler<'a, Output, Descr>
 where
-    Input: Send + 'a,
     Output: 'a,
     Descr: HandlerDescription,
 {
-    from_fn_with_description(Descr::entry(), |event, cont| cont(event))
+    from_fn_with_description(Descr::entry(), |event, cont| cont(event), HandlerSignature::Entry)
+}
+
+/// Performs run-time type checking.
+///
+/// If you are using [`DependencyMap`], you should call this function _before_
+/// executing the handler via [`Handler::execute`] or [`Handler::dispatch`]. If
+/// you do _not_ call this function before execution, type checking will be
+/// delayed until the actual execution, which can make things harder to debug.
+///
+/// `sig` can be obtained from [`Handler::sig`].
+///
+/// # Panics
+///
+/// If `container` does not contain all the types that the handler accepts; in
+/// this case, helpful diagnostic information about missing types and code
+/// locations is displayed.
+///
+/// # Examples
+///
+/// ```should_panic
+/// use dptree::prelude::*;
+///
+/// #[derive(Clone)]
+/// struct A;
+/// #[derive(Clone)]
+/// struct B;
+///
+/// // Requires both `A` and `B` to be present in the container.
+/// let handler: Handler<()> = dptree::entry().filter(|_: A| true).endpoint(|_: B| async { () });
+///
+/// // Ok.
+/// dptree::type_check(handler.sig(), &dptree::deps![A, B]);
+///
+/// // Panics with a proper message.
+/// dptree::type_check(handler.sig(), &dptree::deps![A /* Missing `B` */]);
+/// ```
+pub fn type_check(sig: &HandlerSignature, container: &DependencyMap) {
+    match sig {
+        HandlerSignature::Entry => {}
+        HandlerSignature::Other { obligations, outcomes: _ } => {
+            let container_types = container
+                .map
+                .iter()
+                .map(|(type_id, dep)| Type { id: *type_id, name: dep.type_name })
+                .collect::<BTreeSet<_>>();
+
+            if obligations.iter().any(|(ty, _location)| !container_types.contains(ty)) {
+                panic!(
+                    "This handler accepts the following types:\n    {}\n, but only the following \
+                     types are provided:\n    {}\nThe missing types are:\n    {}",
+                    print_types(obligations.keys(), |ty| format!("`{}`", ty.name)),
+                    print_types(&container_types, |ty| format!("`{}`", ty.name)),
+                    print_types(
+                        obligations.iter().filter_map(|(ty, _location)| {
+                            if !container_types.contains(ty) {
+                                Some(ty)
+                            } else {
+                                None
+                            }
+                        }),
+                        |ty| { format!("`{}` from {}", ty.name, obligations[ty]) },
+                    )
+                );
+            }
+        }
+    }
 }
 
 #[cfg(test)]
-pub(crate) fn help_inference<I, O>(h: Handler<I, O>) -> Handler<I, O> {
+pub(crate) fn help_inference<Output>(h: Handler<Output>) -> Handler<Output> {
     h
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
-    use maplit::hashset;
+    use super::*;
 
     use crate::{
         deps, description, filter_map, filter_map_with_description,
         handler::{endpoint, filter, filter_async},
-        prelude::DependencyMap,
     };
 
-    use super::*;
+    use std::{collections::HashSet, iter::FromIterator};
+
+    use maplit::{btreemap, btreeset, hashset};
 
     #[tokio::test]
     async fn test_from_fn_break() {
         let input = 123;
         let output = "ABC";
 
-        let result = help_inference(from_fn(|event, _cont: Cont<i32, &'static str>| async move {
-            assert_eq!(event, input);
-            ControlFlow::Break(output)
-        }))
-        .dispatch(input)
+        let input_types = [Type::of::<i32>()];
+        let location = Location::caller();
+
+        let result = help_inference(from_fn(
+            |event, _cont: Cont<&'static str>| async move {
+                assert_eq!(event, deps![input]);
+                ControlFlow::Break(output)
+            },
+            HandlerSignature::Other {
+                obligations: BTreeMap::from_iter(
+                    input_types.iter().cloned().map(|ty| (ty, location)),
+                ),
+                outcomes: btreeset! {},
+            },
+        ))
+        .dispatch(deps![input])
         .await;
 
         assert!(result == ControlFlow::Break(output));
@@ -308,15 +618,25 @@ mod tests {
         let input = 123;
         type Output = &'static str;
 
-        let result =
-            help_inference(from_fn(|event: i32, _cont: Cont<i32, &'static str>| async move {
-                assert_eq!(event, input);
-                ControlFlow::<Output, _>::Continue(event)
-            }))
-            .dispatch(input)
-            .await;
+        let input_types = [Type::of::<i32>()];
+        let location = Location::caller();
 
-        assert!(result == ControlFlow::Continue(input));
+        let result = help_inference(from_fn(
+            |event, _cont: Cont<&'static str>| async move {
+                assert_eq!(event, deps![input]);
+                ControlFlow::<Output, _>::Continue(event)
+            },
+            HandlerSignature::Other {
+                obligations: BTreeMap::from_iter(
+                    input_types.iter().cloned().map(|ty| (ty, location)),
+                ),
+                outcomes: btreeset! {Type::of::<i32>()},
+            },
+        ))
+        .dispatch(deps![input])
+        .await;
+
+        assert!(result == ControlFlow::Continue(deps![input]));
     }
 
     #[tokio::test]
@@ -324,9 +644,9 @@ mod tests {
         let input = 123;
         type Output = &'static str;
 
-        let result = help_inference(entry::<_, Output, _>()).dispatch(input).await;
+        let result = help_inference(entry::<Output, _>()).dispatch(deps![input]).await;
 
-        assert!(result == ControlFlow::Continue(input));
+        assert!(result == ControlFlow::Continue(deps![input]));
     }
 
     #[tokio::test]
@@ -334,12 +654,23 @@ mod tests {
         let input = 123;
         let output = "ABC";
 
-        let result = help_inference(from_fn(|event, cont| {
-            assert!(event == input);
-            cont(event)
-        }))
-        .execute(input, |event| async move {
-            assert!(event == input);
+        let input_types = [Type::of::<i32>()];
+        let location = Location::caller();
+
+        let result = help_inference(from_fn(
+            |event, cont| {
+                assert!(event == deps![input]);
+                cont(event)
+            },
+            HandlerSignature::Other {
+                obligations: BTreeMap::from_iter(
+                    input_types.iter().cloned().map(|ty| (ty, location)),
+                ),
+                outcomes: btreeset! {Type::of::<i32>()},
+            },
+        ))
+        .execute(deps![input], |event| async move {
+            assert!(event == deps![input]);
             ControlFlow::Break(output)
         })
         .await;
@@ -417,7 +748,7 @@ mod tests {
             C(u64),
         }
 
-        fn filter_a<Out>() -> Handler<'static, DependencyMap, Out, InterestSet<UpdateKind>>
+        fn filter_a<Out>() -> Handler<'static, Out, InterestSet<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
@@ -430,7 +761,7 @@ mod tests {
             )
         }
 
-        fn filter_b<Out>() -> Handler<'static, DependencyMap, Out, InterestSet<UpdateKind>>
+        fn filter_b<Out>() -> Handler<'static, Out, InterestSet<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
@@ -443,7 +774,7 @@ mod tests {
             )
         }
 
-        fn filter_c<Out>() -> Handler<'static, DependencyMap, Out, InterestSet<UpdateKind>>
+        fn filter_c<Out>() -> Handler<'static, Out, InterestSet<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
@@ -457,8 +788,7 @@ mod tests {
         }
 
         // User-defined filter that doesn't provide allowed updates
-        fn user_defined_filter<Out>(
-        ) -> Handler<'static, DependencyMap, Out, InterestSet<UpdateKind>>
+        fn user_defined_filter<Out>() -> Handler<'static, Out, InterestSet<UpdateKind>>
         where
             Out: Send + Sync + 'static,
         {
@@ -470,7 +800,7 @@ mod tests {
 
         #[track_caller]
         fn assert(
-            handler: Handler<'static, DependencyMap, (), description::InterestSet<UpdateKind>>,
+            handler: Handler<'static, (), description::InterestSet<UpdateKind>>,
             allowed: HashSet<UpdateKind>,
         ) {
             assert_eq!(handler.description().observed, allowed);
@@ -507,5 +837,228 @@ mod tests {
 
         // Chained non-overlapping filters do not allow anything.
         assert(filter_a().chain(filter_b()).endpoint(|| async {}), hashset! {});
+    }
+
+    #[tokio::test]
+    async fn type_check_success() {
+        #[derive(Clone)]
+        struct A;
+        #[derive(Clone)]
+        struct B;
+        #[derive(Clone)]
+        struct C;
+
+        macro_rules! test {
+            ($($key:ty),*) => {
+                type_check(
+                    &HandlerSignature::Other {
+                        obligations: btreemap! {
+                            $(Type::of::<$key>() => Location::caller(),)*
+                        },
+                        outcomes: btreeset! {},
+                    },
+                    &deps![A, B, C],
+                );
+            };
+        }
+
+        // Type-checking an entry must succeed.
+        type_check(&HandlerSignature::Entry, &deps![]);
+
+        // Type-checking subsets of provided types must succeed.
+        test!(A, B, C);
+        test!(A, B);
+        test!(A, C);
+        test!(B, C);
+        test!(A);
+        test!(B);
+        test!(C);
+    }
+
+    #[test]
+    #[should_panic(expected = "This handler accepts the following types:
+    `dptree::handler::core::tests::type_check_panic::A`
+    `dptree::handler::core::tests::type_check_panic::B`
+    `dptree::handler::core::tests::type_check_panic::C`
+, but only the following types are provided:
+    `dptree::handler::core::tests::type_check_panic::A`
+    `dptree::handler::core::tests::type_check_panic::B`
+The missing types are:
+    `dptree::handler::core::tests::type_check_panic::C` from src/handler/core.rs:4:35")]
+    fn type_check_panic() {
+        #[derive(Clone)]
+        struct A;
+        #[derive(Clone)]
+        struct B;
+        #[derive(Clone)]
+        struct C;
+
+        type_check(
+            &HandlerSignature::Other {
+                obligations: btreemap! {
+                    Type::of::<A>() => Location::caller(),
+                    Type::of::<B>() => Location::caller(),
+                    Type::of::<C>() => FIXED_LOCATION,
+                },
+                outcomes: btreeset! {},
+            },
+            // `C` is required but not provided.
+            &deps![A, B],
+        );
+    }
+
+    #[tokio::test]
+    async fn type_infer_check_chained_combinators() {
+        #[derive(Clone)]
+        struct A;
+        #[derive(Clone)]
+        struct B;
+        #[derive(Clone)]
+        struct C;
+        #[derive(Clone)]
+        struct D;
+        #[derive(Clone)]
+        struct E;
+        #[derive(Clone)]
+        struct F;
+        #[derive(Clone)]
+        struct G;
+        #[derive(Clone, Debug, Eq, PartialEq)]
+        struct H;
+
+        let h: Handler<H> = entry()
+            .map(|/* In the final input types. */ _: A| B)
+            .inspect(
+                |/* This type must be removed from the final input types because it is
+                  * provided by the `.map` above. */
+                 _: B,
+                 /* This type must "propagate" to the final input types. */
+                 _: E| (),
+            )
+            .filter_map(|/* In the final input types. */ _: C| Some(D))
+            .filter(
+                |/* This type is provided by the `.filter_map` above. */ _: D,
+                 /* Must propagate. */ _: F| true,
+            )
+            .endpoint(
+                /* `B` and `D` are provided at this point. */
+                |_: B, _: D, /* Must propagate. */ _: G| async { H },
+            );
+
+        let input_types =
+            [Type::of::<A>(), Type::of::<C>(), Type::of::<E>(), Type::of::<F>(), Type::of::<G>()];
+        let outcomes = btreeset! {Type::of::<B>(), Type::of::<D>()};
+
+        if let HandlerSignature::Other {
+            obligations: actual_obligations,
+            outcomes: actual_outcomes,
+        } = h.sig()
+        {
+            assert_eq!(
+                actual_obligations.keys().collect::<Vec<_>>(),
+                input_types.iter().collect::<Vec<_>>()
+            );
+            assert_eq!(actual_outcomes, &outcomes);
+        } else {
+            panic!("Expected `HandlerSignature::Other`");
+        }
+
+        let deps = deps![A, C, E, F, G];
+
+        type_check(h.sig(), &deps);
+
+        // Must not panic during execution.
+        assert_eq!(h.dispatch(deps).await, ControlFlow::Break(H));
+    }
+
+    #[tokio::test]
+    async fn type_infer_check_branched_combinators() {
+        #[derive(Clone)]
+        struct A;
+        #[derive(Clone)]
+        struct B;
+        #[derive(Clone)]
+        struct C;
+        #[derive(Clone)]
+        struct D;
+        #[derive(Clone)]
+        struct E;
+        #[derive(Clone, Debug, Eq, PartialEq)]
+        struct F;
+
+        let h: Handler<F> = entry()
+            .branch(
+                crate::inspect(|_: A| ()).map(|| B).map(|| C).map(|| D).endpoint(|| async { F }),
+            )
+            .branch(crate::inspect(|_: E| ()).map(|| B).map(|| D).endpoint(|| async { F }));
+
+        // The union of the input types of both branches.
+        let input_types = btreeset! {Type::of::<A>(), Type::of::<E>()};
+        // The intersection of the output types of both branches.
+        let output_types = btreeset! {Type::of::<B>(), Type::of::<D>()};
+
+        if let HandlerSignature::Other {
+            obligations: actual_obligations,
+            outcomes: actual_outcomes,
+        } = h.sig()
+        {
+            assert_eq!(
+                actual_obligations.keys().collect::<Vec<_>>(),
+                input_types.iter().collect::<Vec<_>>()
+            );
+            assert_eq!(actual_outcomes, &output_types);
+        } else {
+            panic!("Expected `HandlerSignature::Other`");
+        }
+
+        let deps = deps![A, E];
+
+        type_check(h.sig(), &deps);
+
+        // Must not panic during execution.
+        assert_eq!(h.dispatch(deps).await, ControlFlow::Break(F));
+    }
+
+    #[tokio::test]
+    async fn obligations_priority() {
+        #[derive(Clone)]
+        struct A;
+        #[derive(Clone)]
+        struct B;
+        #[derive(Clone, Debug, Eq, PartialEq)]
+        struct C;
+
+        fn test<T: 'static>(h: Handler<C>, column: u32) {
+            if let HandlerSignature::Other { obligations, outcomes: _ } = h.sig() {
+                let (_ty, &location) = obligations
+                    .iter()
+                    .find(|(ty, _location)| ty.id == TypeId::of::<T>())
+                    .expect("Missing obligation");
+                assert_eq!(location.column(), column);
+            } else {
+                panic!("Expected `HandlerSignature::Other`");
+            }
+        }
+
+        #[rustfmt::skip]
+        let h: Handler<C> = entry().map(|_: A| ()).endpoint(|_: A, _: B| async { C });
+        test::<A>(h, 37);
+
+        #[rustfmt::skip]
+        let h: Handler<C> =
+            entry().branch(endpoint(|_: A| async { C })).branch(endpoint(|_: A, _: B| async { C }));
+        test::<A>(h, 28);
+    }
+
+    #[test]
+    #[should_panic(expected = "Ill-typed handler chain: the second handler cannot be an entry")]
+    fn chain_entry() {
+        let _: Handler<()> = entry().chain(entry());
+    }
+
+    #[test]
+    #[should_panic(expected = "Ill-typed handler branch: the second handler cannot be an entry")]
+    fn branch_entry() {
+        let _: Handler<()> = entry().branch(entry());
     }
 }

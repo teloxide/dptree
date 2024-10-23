@@ -1,8 +1,9 @@
 use crate::{
-    di::{Asyncify, Injectable, Insert},
-    from_fn_with_description, Handler, HandlerDescription,
+    di::{Asyncify, Injectable},
+    from_fn_with_description, Handler, HandlerDescription, HandlerSignature, Type,
 };
-use std::{ops::ControlFlow, sync::Arc};
+
+use std::{collections::BTreeSet, iter::FromIterator, ops::ControlFlow, sync::Arc};
 
 /// Constructs a handler that optionally passes a value of a new type further.
 ///
@@ -10,18 +11,21 @@ use std::{ops::ControlFlow, sync::Arc};
 /// container and passed further in a handler chain. If the function returns
 /// `None`, then the handler will return [`ControlFlow::Continue`] with the old
 /// container.
+///
+/// # Run-time signature
+///
+/// - Obligations: `Projection::obligations()`
+/// - Outcomes: `BTreeSet::from_iter(vec![Type::of::<NewType>()])`
 #[must_use]
 #[track_caller]
-pub fn filter_map<'a, Projection, Input, Output, NewType, Args, Descr>(
+pub fn filter_map<'a, Projection, Output, NewType, Args, Descr>(
     proj: Projection,
-) -> Handler<'a, Input, Output, Descr>
+) -> Handler<'a, Output, Descr>
 where
-    Input: Clone,
-    Asyncify<Projection>: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
-    Input: Insert<NewType> + Send + 'a,
+    Asyncify<Projection>: Injectable<Option<NewType>, Args> + Send + Sync + 'a,
     Output: 'a,
     Descr: HandlerDescription,
-    NewType: Send,
+    NewType: Send + Sync + 'static,
 {
     filter_map_with_description(Descr::filter_map(), proj)
 }
@@ -29,72 +33,75 @@ where
 /// The asynchronous version of [`filter_map`].
 #[must_use]
 #[track_caller]
-pub fn filter_map_async<'a, Projection, Input, Output, NewType, Args, Descr>(
+pub fn filter_map_async<'a, Projection, Output, NewType, Args, Descr>(
     proj: Projection,
-) -> Handler<'a, Input, Output, Descr>
+) -> Handler<'a, Output, Descr>
 where
-    Input: Clone,
-    Projection: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
-    Input: Insert<NewType> + Send + 'a,
+    Projection: Injectable<Option<NewType>, Args> + Send + Sync + 'a,
     Output: 'a,
     Descr: HandlerDescription,
-    NewType: Send,
+    NewType: Send + Sync + 'static,
 {
     filter_map_async_with_description(Descr::filter_map_async(), proj)
 }
 
 /// [`filter_map`] with a custom description.
 #[must_use]
-pub fn filter_map_with_description<'a, Projection, Input, Output, NewType, Args, Descr>(
+#[track_caller]
+pub fn filter_map_with_description<'a, Projection, Output, NewType, Args, Descr>(
     description: Descr,
     proj: Projection,
-) -> Handler<'a, Input, Output, Descr>
+) -> Handler<'a, Output, Descr>
 where
-    Input: Clone,
-    Asyncify<Projection>: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
-    Input: Insert<NewType> + Send + 'a,
+    Asyncify<Projection>: Injectable<Option<NewType>, Args> + Send + Sync + 'a,
     Output: 'a,
-    NewType: Send,
+    NewType: Send + Sync + 'static,
 {
     filter_map_async_with_description(description, Asyncify(proj))
 }
 
 /// [`filter_map_async`] with a custom description.
 #[must_use]
-pub fn filter_map_async_with_description<'a, Projection, Input, Output, NewType, Args, Descr>(
+#[track_caller]
+pub fn filter_map_async_with_description<'a, Projection, Output, NewType, Args, Descr>(
     description: Descr,
     proj: Projection,
-) -> Handler<'a, Input, Output, Descr>
+) -> Handler<'a, Output, Descr>
 where
-    Input: Clone,
-    Projection: Injectable<Input, Option<NewType>, Args> + Send + Sync + 'a,
-    Input: Insert<NewType> + Send + 'a,
+    Projection: Injectable<Option<NewType>, Args> + Send + Sync + 'a,
     Output: 'a,
-    NewType: Send,
+    NewType: Send + Sync + 'static,
 {
     let proj = Arc::new(proj);
 
-    from_fn_with_description(description, move |container: Input, cont| {
-        let proj = Arc::clone(&proj);
+    from_fn_with_description(
+        description,
+        move |container, cont| {
+            let proj = Arc::clone(&proj);
 
-        async move {
-            let proj = proj.inject(&container);
-            let res = proj().await;
-            std::mem::drop(proj);
+            async move {
+                let proj = proj.inject(&container);
+                let res = proj().await;
+                std::mem::drop(proj);
 
-            match res {
-                Some(new_type) => {
-                    let mut intermediate = container.clone();
-                    intermediate.insert(new_type);
-                    match cont(intermediate).await {
-                        ControlFlow::Continue(_) => ControlFlow::Continue(container),
-                        ControlFlow::Break(result) => ControlFlow::Break(result),
+                match res {
+                    Some(new_type) => {
+                        let mut intermediate = container.clone();
+                        intermediate.insert(new_type);
+                        match cont(intermediate).await {
+                            ControlFlow::Continue(_) => ControlFlow::Continue(container),
+                            ControlFlow::Break(result) => ControlFlow::Break(result),
+                        }
                     }
+                    None => ControlFlow::Continue(container),
                 }
-                None => ControlFlow::Continue(container),
             }
-        }
-    })
+        },
+        HandlerSignature::Other {
+            obligations: Projection::obligations(),
+            outcomes: BTreeSet::from_iter(vec![Type::of::<NewType>()]),
+        },
+    )
 }
 
 #[cfg(test)]
