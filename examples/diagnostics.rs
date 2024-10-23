@@ -17,13 +17,13 @@ async fn main() {
     dptree::type_check(h.sig(), &dptree::deps![B, D]);
 }
 
-// thread 'main' panicked at src/handler/core.rs:549:17:
+// thread 'main' panicked at src/handler/core.rs:551:17:
 // This handler accepts the following types:
-//     diagnostics::A
-//     diagnostics::C
+//     `diagnostics::A`
+//     `diagnostics::C`
 // , but only the following types are provided:
-//     diagnostics::B
-//     diagnostics::D
+//     `diagnostics::B`
+//     `diagnostics::D`
 // The missing types are:
-//     diagnostics::A from examples/diagnostics.rs:14:41
-//     diagnostics::C from examples/diagnostics.rs:14:55
+//     `diagnostics::A` from examples/diagnostics.rs:14:41
+//     `diagnostics::C` from examples/diagnostics.rs:14:55
