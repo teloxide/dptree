@@ -59,7 +59,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 /// whether or not to call `c`, but when it is branched, whether `c` is called
 /// depends solely on `a`.
 pub struct Handler<'a, Output, Descr = description::Unspecified> {
-    data: Arc<HandlerData<Descr, DynF<'a, Output>>>,
+    data: Arc<HandlerData<Descr, DynFn<'a, Output>>>,
 }
 
 struct HandlerData<Descr, F: ?Sized> {
@@ -114,7 +114,7 @@ impl PartialEq for Type {
 
 impl Eq for Type {}
 
-type DynF<'a, Output> =
+type DynFn<'a, Output> =
     dyn Fn(DependencyMap, Cont<'a, Output>) -> HandlerResult<'a, Output> + Send + Sync + 'a;
 
 /// A continuation representing the rest of a handler chain.
