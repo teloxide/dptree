@@ -18,7 +18,7 @@ use rustc_hash::FxHashSet;
 ///
 /// The run-time type signature of this handler is `HandlerSignature::Other {
 /// input_types: Projection::input_types(), output_types:
-/// FxHashSet::from([RtType::of::<NewType>()]) }`.
+/// FxHashSet::from_iter(vec![Type::of::<NewType>()]) }`.
 #[must_use]
 #[track_caller]
 pub fn filter_map<'a, Projection, Output, NewType, Args, Descr>(
