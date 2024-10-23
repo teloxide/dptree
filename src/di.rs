@@ -191,6 +191,7 @@ where
         let location = Location::caller();
         Self::input_types().into_iter().map(|ty| (ty, location)).collect()
     }
+}
 
 /// A function with all dependencies satisfied.
 pub type CompiledFn<'a, Output> = Arc<dyn Fn() -> BoxFuture<'a, Output> + Send + Sync + 'a>;
