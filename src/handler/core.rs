@@ -5,7 +5,15 @@ const FIXED_LOCATION: &'static Location = Location::caller();
 
 use crate::{description, prelude::DependencyMap, HandlerDescription};
 
-use std::{any::TypeId, fmt::Write, future::Future, ops::ControlFlow, panic::Location, sync::Arc};
+use std::{
+    any::TypeId,
+    fmt::Write,
+    future::Future,
+    hash::{Hash, Hasher},
+    ops::ControlFlow,
+    panic::Location,
+    sync::Arc,
+};
 
 use futures::future::BoxFuture;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -86,7 +94,7 @@ pub enum HandlerSignature {
 /// and checking of handler chains.
 ///
 /// See [`crate::type_check`].
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug)]
 pub struct Type {
     /// The unique type identifier.
     pub id: TypeId,
@@ -94,6 +102,20 @@ pub struct Type {
     /// The type name used for printing.
     pub name: &'static str,
 }
+
+impl Hash for Type {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
+
+impl PartialEq for Type {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for Type {}
 
 type DynF<'a, Output> =
     dyn Fn(DependencyMap, Cont<'a, Output>) -> HandlerResult<'a, Output> + Send + Sync + 'a;
