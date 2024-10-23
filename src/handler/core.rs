@@ -102,12 +102,14 @@ pub struct Type {
 }
 
 impl Hash for Type {
+    /// Hashing is done by type identifiers (type names are ignored).
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.id.hash(state);
     }
 }
 
 impl PartialEq for Type {
+    /// Equality is done by type identifiers (type names are ignored).
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
     }
