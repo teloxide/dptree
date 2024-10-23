@@ -14,10 +14,10 @@
 //! [this discussion on StackOverflow]: https://stackoverflow.com/questions/130794/what-is-dependency-injection
 
 use futures::future::{ready, BoxFuture};
-use rustc_hash::{FxHashMap, FxHashSet};
 
 use std::{
     any::{Any, TypeId},
+    collections::{BTreeMap, BTreeSet},
     fmt::{Debug, Formatter, Write},
     future::Future,
     iter::FromIterator,
@@ -38,8 +38,8 @@ use crate::Type;
 /// # Examples
 ///
 /// ```
-/// # use std::sync::Arc;
 /// use dptree::di::DependencyMap;
+/// use std::sync::Arc;
 ///
 /// let mut container = DependencyMap::new();
 /// container.insert(5_i32);
@@ -58,24 +58,23 @@ use crate::Type;
 /// When a value is not found within the container, it will panic:
 ///
 /// ```should_panic
-/// # use std::sync::Arc;
 /// use dptree::di::DependencyMap;
+/// use std::sync::Arc;
+///
 /// let mut container = DependencyMap::new();
 /// container.insert(10i32);
 /// container.insert(true);
 /// container.insert("static str");
 ///
-/// // thread 'main' panicked at 'alloc::string::String was requested, but not provided. Available types:
-/// //    &str
-/// //    bool
-/// //    i32
-/// // ', /media/hirrolot/772CF8924BEBB279/Documents/Rust/dptree/src/di.rs:150:17
-/// // note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+/// // alloc::string::String was requested, but not provided. Available types:
+/// //     i32
+/// //     &str
+/// //     bool
 /// let string: Arc<String> = container.get();
 /// ```
 #[derive(Default, Clone, Debug)]
 pub struct DependencyMap {
-    pub(crate) map: FxHashMap<TypeId, Dependency>,
+    pub(crate) map: BTreeMap<TypeId, Dependency>,
 }
 
 #[derive(Clone)]
@@ -178,7 +177,7 @@ where
 
     /// Returns the set of types that this function depends on. Used only for
     /// run-time "type checking".
-    fn input_types() -> FxHashSet<Type>;
+    fn input_types() -> BTreeSet<Type>;
 
     /// Returns the map of obligations of this function.
     ///
@@ -187,7 +186,7 @@ where
     ///
     /// [`Location::caller`]: std::panic::Location::caller
     #[track_caller]
-    fn obligations() -> FxHashMap<Type, &'static Location<'static>> {
+    fn obligations() -> BTreeMap<Type, &'static Location<'static>> {
         let location = Location::caller();
         Self::input_types().into_iter().map(|ty| (ty, location)).collect()
     }
@@ -218,8 +217,8 @@ macro_rules! impl_into_di {
                 })
             }
 
-            fn input_types() -> FxHashSet<Type> {
-                FxHashSet::from_iter(vec![
+            fn input_types() -> BTreeSet<Type> {
+                BTreeSet::from_iter(vec![
                     $(Type::of::<$generic>()),*
                 ])
             }
@@ -242,8 +241,8 @@ macro_rules! impl_into_di {
                 })
             }
 
-            fn input_types() -> FxHashSet<Type> {
-                FxHashSet::from_iter(vec![
+            fn input_types() -> BTreeSet<Type> {
+                BTreeSet::from_iter(vec![
                     $(Type::of::<$generic>()),*
                 ])
             }

@@ -3,9 +3,7 @@ use crate::{
     from_fn_with_description, Handler, HandlerDescription, HandlerSignature,
 };
 
-use std::sync::Arc;
-
-use rustc_hash::FxHashSet;
+use std::{collections::BTreeSet, sync::Arc};
 
 /// Constructs a handler that inspects current state. Like [`map`] but does not
 /// add return value of `f` to the container.
@@ -13,7 +11,7 @@ use rustc_hash::FxHashSet;
 /// # Run-time signature
 ///
 /// - Obligations: `F::obligations()`
-/// - Outcomes: `FxHashSet::default()`
+/// - Outcomes: `BTreeSet::default()`
 ///
 /// [`map`]: crate::map
 #[must_use]
@@ -79,7 +77,7 @@ where
                 cont(x).await
             }
         },
-        HandlerSignature::Other { obligations: F::obligations(), outcomes: FxHashSet::default() },
+        HandlerSignature::Other { obligations: F::obligations(), outcomes: BTreeSet::default() },
     )
 }
 

@@ -3,10 +3,9 @@ use crate::{
     HandlerSignature,
 };
 
-use std::{ops::ControlFlow, sync::Arc};
+use std::{collections::BTreeSet, ops::ControlFlow, sync::Arc};
 
 use futures::FutureExt;
-use rustc_hash::FxHashSet;
 
 /// Constructs a handler that has no further handlers in a chain.
 ///
@@ -17,7 +16,7 @@ use rustc_hash::FxHashSet;
 /// # Run-time signature
 ///
 /// - Obligations: `F::obligations()`
-/// - Outcomes: `FxHashSet::default()`
+/// - Outcomes: `BTreeSet::default()`
 #[must_use]
 #[track_caller]
 pub fn endpoint<'a, F, Output, FnArgs, Descr>(f: F) -> Endpoint<'a, Output, Descr>
@@ -37,7 +36,7 @@ where
                 f().map(ControlFlow::Break).await
             }
         },
-        HandlerSignature::Other { obligations: F::obligations(), outcomes: FxHashSet::default() },
+        HandlerSignature::Other { obligations: F::obligations(), outcomes: BTreeSet::default() },
     )
 }
 

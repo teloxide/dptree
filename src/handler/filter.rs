@@ -5,9 +5,7 @@ use crate::{
     HandlerDescription, HandlerSignature,
 };
 
-use std::{ops::ControlFlow, sync::Arc};
-
-use rustc_hash::FxHashSet;
+use std::{collections::BTreeSet, ops::ControlFlow, sync::Arc};
 
 /// Constructs a handler that filters input with the predicate `pred`.
 ///
@@ -18,7 +16,7 @@ use rustc_hash::FxHashSet;
 /// # Run-time signature
 ///
 /// - Obligations: `Pred::obligations()`
-/// - Outcomes: `FxHashSet::default()`
+/// - Outcomes: `BTreeSet::default()`
 #[must_use]
 #[track_caller]
 pub fn filter<'a, Pred, Output, FnArgs, Descr>(pred: Pred) -> Handler<'a, Output, Descr>
@@ -86,10 +84,7 @@ where
                 }
             }
         },
-        HandlerSignature::Other {
-            obligations: Pred::obligations(),
-            outcomes: FxHashSet::default(),
-        },
+        HandlerSignature::Other { obligations: Pred::obligations(), outcomes: BTreeSet::default() },
     )
 }
 

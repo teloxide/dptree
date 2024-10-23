@@ -7,6 +7,8 @@ use crate::{description, prelude::DependencyMap, HandlerDescription};
 
 use std::{
     any::TypeId,
+    cmp::Ordering,
+    collections::{BTreeMap, BTreeSet},
     fmt::Write,
     future::Future,
     hash::{Hash, Hasher},
@@ -16,7 +18,6 @@ use std::{
 };
 
 use futures::future::BoxFuture;
-use rustc_hash::{FxHashMap, FxHashSet};
 
 /// An instance that receives an input and decides whether to break a chain or
 /// pass the value further.
@@ -80,10 +81,10 @@ pub enum HandlerSignature {
     Other {
         /// The map from types that this handler accepts to locations where they
         /// are required in source code.
-        obligations: FxHashMap<Type, &'static Location<'static>>,
+        obligations: BTreeMap<Type, &'static Location<'static>>,
 
         /// The set of types that this handler passes down the chain.
-        outcomes: FxHashSet<Type>,
+        outcomes: BTreeSet<Type>,
     },
 }
 
@@ -113,6 +114,20 @@ impl PartialEq for Type {
 }
 
 impl Eq for Type {}
+
+impl PartialOrd for Type {
+    /// The partial order is done by type names for better diagnostics.
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.name.partial_cmp(&other.name)
+    }
+}
+
+impl Ord for Type {
+    /// The total order is done by type names for better diagnostics.
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.name.cmp(&other.name)
+    }
+}
 
 type DynFn<'a, Output> =
     dyn Fn(DependencyMap, Cont<'a, Output>) -> HandlerResult<'a, Output> + Send + Sync + 'a;
@@ -528,7 +543,7 @@ pub fn type_check(sig: &HandlerSignature, container: &DependencyMap) {
                 .map
                 .iter()
                 .map(|(type_id, dep)| Type { id: *type_id, name: dep.type_name })
-                .collect::<FxHashSet<_>>();
+                .collect::<BTreeSet<_>>();
 
             if obligations.iter().any(|(ty, _location)| !container_types.contains(ty)) {
                 panic!(
@@ -559,28 +574,16 @@ pub(crate) fn help_inference<Output>(h: Handler<Output>) -> Handler<Output> {
 
 #[cfg(test)]
 mod tests {
-    use std::iter::FromIterator;
+    use super::*;
 
     use crate::{
         deps, description, filter_map, filter_map_with_description,
         handler::{endpoint, filter, filter_async},
     };
 
-    use super::*;
+    use std::{collections::HashSet, iter::FromIterator};
 
-    #[cfg(test)]
-    macro_rules! hashset {
-        ($($key:expr),* $(,)?) => {
-            FxHashSet::from_iter(vec![$($key,)*])
-        };
-    }
-
-    #[cfg(test)]
-    macro_rules! hashmap {
-        ($($key:expr => $value:expr),* $(,)?) => {
-            FxHashMap::from_iter(vec![$(($key, $value),)*])
-        };
-    }
+    use maplit::{btreemap, btreeset, hashset};
 
     #[tokio::test]
     async fn test_from_fn_break() {
@@ -596,10 +599,10 @@ mod tests {
                 ControlFlow::Break(output)
             },
             HandlerSignature::Other {
-                obligations: FxHashMap::from_iter(
+                obligations: BTreeMap::from_iter(
                     input_types.iter().cloned().map(|ty| (ty, location)),
                 ),
-                outcomes: hashset! {},
+                outcomes: btreeset! {},
             },
         ))
         .dispatch(deps![input])
@@ -622,10 +625,10 @@ mod tests {
                 ControlFlow::<Output, _>::Continue(event)
             },
             HandlerSignature::Other {
-                obligations: FxHashMap::from_iter(
+                obligations: BTreeMap::from_iter(
                     input_types.iter().cloned().map(|ty| (ty, location)),
                 ),
-                outcomes: hashset! {Type::of::<i32>()},
+                outcomes: btreeset! {Type::of::<i32>()},
             },
         ))
         .dispatch(deps![input])
@@ -658,10 +661,10 @@ mod tests {
                 cont(event)
             },
             HandlerSignature::Other {
-                obligations: FxHashMap::from_iter(
+                obligations: BTreeMap::from_iter(
                     input_types.iter().cloned().map(|ty| (ty, location)),
                 ),
-                outcomes: hashset! {Type::of::<i32>()},
+                outcomes: btreeset! {Type::of::<i32>()},
             },
         ))
         .execute(deps![input], |event| async move {
@@ -726,11 +729,11 @@ mod tests {
         }
 
         impl EventKind for UpdateKind {
-            fn full_set() -> FxHashSet<Self> {
+            fn full_set() -> HashSet<Self> {
                 hashset! { A, B, C }
             }
 
-            fn empty_set() -> FxHashSet<Self> {
+            fn empty_set() -> HashSet<Self> {
                 hashset! {}
             }
         }
@@ -796,7 +799,7 @@ mod tests {
         #[track_caller]
         fn assert(
             handler: Handler<'static, (), description::InterestSet<UpdateKind>>,
-            allowed: FxHashSet<UpdateKind>,
+            allowed: HashSet<UpdateKind>,
         ) {
             assert_eq!(handler.description().observed, allowed);
         }
@@ -847,10 +850,10 @@ mod tests {
             ($($key:ty),*) => {
                 type_check(
                     &HandlerSignature::Other {
-                        obligations: hashmap! {
+                        obligations: btreemap! {
                             $(Type::of::<$key>() => Location::caller(),)*
                         },
-                        outcomes: hashset! {},
+                        outcomes: btreeset! {},
                     },
                     &deps![A, B, C],
                 );
@@ -872,9 +875,9 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "This handler accepts the following types:
+    dptree::handler::core::tests::type_check_panic::A
     dptree::handler::core::tests::type_check_panic::B
     dptree::handler::core::tests::type_check_panic::C
-    dptree::handler::core::tests::type_check_panic::A
 , but only the following types are provided:
     dptree::handler::core::tests::type_check_panic::A
     dptree::handler::core::tests::type_check_panic::B
@@ -890,12 +893,12 @@ The missing types are:
 
         type_check(
             &HandlerSignature::Other {
-                obligations: hashmap! {
+                obligations: btreemap! {
                     Type::of::<A>() => Location::caller(),
                     Type::of::<B>() => Location::caller(),
                     Type::of::<C>() => FIXED_LOCATION,
                 },
-                outcomes: hashset! {},
+                outcomes: btreeset! {},
             },
             // `C` is required but not provided.
             &deps![A, B],
@@ -941,13 +944,13 @@ The missing types are:
             );
 
         let input_types = vec![
-            Type::of::<C>(),
-            Type::of::<G>(),
             Type::of::<A>(),
-            Type::of::<F>(),
+            Type::of::<C>(),
             Type::of::<E>(),
+            Type::of::<F>(),
+            Type::of::<G>(),
         ];
-        let outcomes = hashset! {Type::of::<B>(), Type::of::<D>()};
+        let outcomes = btreeset! {Type::of::<B>(), Type::of::<D>()};
 
         if let HandlerSignature::Other {
             obligations: actual_obligations,
@@ -993,9 +996,9 @@ The missing types are:
             .branch(crate::inspect(|_: E| ()).map(|| B).map(|| D).endpoint(|| async { F }));
 
         // The union of the input types of both branches.
-        let input_types = hashset! {Type::of::<A>(), Type::of::<E>()};
+        let input_types = btreeset! {Type::of::<A>(), Type::of::<E>()};
         // The intersection of the output types of both branches.
-        let output_types = hashset! {Type::of::<B>(), Type::of::<D>()};
+        let output_types = btreeset! {Type::of::<B>(), Type::of::<D>()};
 
         if let HandlerSignature::Other {
             obligations: actual_obligations,

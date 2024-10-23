@@ -14,10 +14,10 @@ license = "MIT"
 
 [dependencies]
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
-rustc-hash = "2"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync"] }
+maplit = "1"
 
 [package.metadata.docs.rs]
 all-features = true

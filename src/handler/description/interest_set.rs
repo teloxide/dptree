@@ -2,10 +2,8 @@ use crate::HandlerDescription;
 
 use std::{
     collections::HashSet,
-    hash::{BuildHasher, Hash},
+    hash::{BuildHasher, Hash, RandomState},
 };
-
-use rustc_hash::FxBuildHasher;
 
 /// Description for a handler that describes what event kinds are interesting to
 /// the handler.
@@ -14,7 +12,7 @@ use rustc_hash::FxBuildHasher;
 /// `dptree`. In this case you should keep updates that are in the `observed`
 /// set.
 #[derive(Debug, Clone)]
-pub struct InterestSet<K, S = FxBuildHasher> {
+pub struct InterestSet<K, S = RandomState> {
     /// Event kinds that are of interested for a given handler.
     ///
     /// I.e. the ones that can cause meaningful side-effects.
@@ -28,7 +26,7 @@ pub struct InterestSet<K, S = FxBuildHasher> {
 ///
 /// Usually this would be implemented by a field-less enumeration of all update
 /// kinds.
-pub trait EventKind<S = FxBuildHasher>: Sized {
+pub trait EventKind<S = RandomState>: Sized {
     /// Set of all event kinds.
     fn full_set() -> HashSet<Self, S>;
 
@@ -44,11 +42,11 @@ impl<K: EventKind<S>, S> InterestSet<K, S> {
     /// example:
     /// ```
     /// use dptree::{description::{InterestSet, EventKind}, filter_with_description};
-    /// use rustc_hash::FxHashSet;
+    /// use std::collections::HashSet;
     ///
-    /// # enum K {} impl EventKind for K { fn full_set() -> FxHashSet<Self> { FxHashSet::default() } fn empty_set() -> FxHashSet<Self> { FxHashSet::default() } }
+    /// # enum K {} impl EventKind for K { fn full_set() -> HashSet<Self> { HashSet::default() } fn empty_set() -> HashSet<Self> { HashSet::default() } }
     /// # let _: dptree::Handler<(), InterestSet<K>> =
-    /// filter_with_description(InterestSet::new_filter(FxHashSet::default()), || {
+    /// filter_with_description(InterestSet::new_filter(HashSet::new()), || {
     ///     println!("Filter called!"); // <-- bad
     ///
     ///     false
@@ -56,7 +54,7 @@ impl<K: EventKind<S>, S> InterestSet<K, S> {
     ///
     /// # #[derive(Clone)] struct Db; impl Db { fn fetch_enabled(&self) -> bool { false } }
     /// # let _: dptree::Handler<(), InterestSet<K>> =
-    /// filter_with_description(InterestSet::new_filter(FxHashSet::default()), |db: Db| {
+    /// filter_with_description(InterestSet::new_filter(HashSet::new()), |db: Db| {
     ///     let pass = db.fetch_enabled(); // <-- fine
     ///
     ///     pass

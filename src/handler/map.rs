@@ -3,9 +3,7 @@ use crate::{
     from_fn_with_description, Handler, HandlerDescription, HandlerSignature, Type,
 };
 
-use std::{iter::FromIterator, ops::ControlFlow, sync::Arc};
-
-use rustc_hash::FxHashSet;
+use std::{collections::BTreeSet, iter::FromIterator, ops::ControlFlow, sync::Arc};
 
 /// Constructs a handler that passes a value of a new type further.
 ///
@@ -17,7 +15,7 @@ use rustc_hash::FxHashSet;
 /// # Run-time signature
 ///
 /// - Obligations: `Projection::obligations()`
-/// - Outcomes: `FxHashSet::from_iter(vec![Type::of::<NewType>()])`
+/// - Outcomes: `BTreeSet::from_iter(vec![Type::of::<NewType>()])`
 #[must_use]
 #[track_caller]
 pub fn map<'a, Projection, Output, NewType, Args, Descr>(
@@ -98,7 +96,7 @@ where
         },
         HandlerSignature::Other {
             obligations: Projection::obligations(),
-            outcomes: FxHashSet::from_iter(vec![Type::of::<NewType>()]),
+            outcomes: BTreeSet::from_iter(vec![Type::of::<NewType>()]),
         },
     )
 }
