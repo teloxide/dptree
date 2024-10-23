@@ -120,14 +120,14 @@ impl Eq for Type {}
 impl PartialOrd for Type {
     /// The partial order is done by type names for better diagnostics.
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.name.partial_cmp(&other.name)
+        Some(self.cmp(other))
     }
 }
 
 impl Ord for Type {
     /// The total order is done by type names for better diagnostics.
     fn cmp(&self, other: &Self) -> Ordering {
-        self.name.cmp(&other.name)
+        self.name.cmp(other.name)
     }
 }
 
@@ -143,7 +143,7 @@ pub type HandlerResult<'a, Output> = BoxFuture<'a, ControlFlow<Output, Dependenc
 
 // `#[derive(Clone)]` obligates all type parameters to satisfy `Clone` as well,
 // but we do not need it here because of `Arc`.
-impl<'a, Output, Descr> Clone for Handler<'a, Output, Descr> {
+impl<Output, Descr> Clone for Handler<'_, Output, Descr> {
     fn clone(&self) -> Self {
         Handler { data: Arc::clone(&self.data) }
     }
@@ -169,15 +169,15 @@ where
     ///
     /// The algorithm is as follows:
     ///  1. If the second handler's signature is [`HandlerSignature::Entry`],
-    /// then **panic**.
+    ///     then **panic**.
     ///  2. If the first handler's signature is [`HandlerSignature::Entry`] and
-    /// that of the second one is [`HandlerSignature::Other`], then the
-    /// signature of the resulting handler is taken from the second one.
+    ///     that of the second one is [`HandlerSignature::Other`], then the
+    ///     signature of the resulting handler is taken from the second one.
     ///  3. If the first handler's signature is [`HandlerSignature::Other`] and
-    /// that the second one is also [`HandlerSignature::Other`], then the
-    /// signature of the resulting handler is `HandlerSignature::Other {
-    /// obligations: self_obligations UNION (next_obligations DIFFERENCE
-    /// self_outcomes), outcomes: self_outcomes UNION next_outcomes }`.
+    ///     that the second one is also [`HandlerSignature::Other`], then the
+    ///     signature of the resulting handler is `HandlerSignature::Other {
+    ///     obligations: self_obligations UNION (next_obligations DIFFERENCE
+    ///     self_outcomes), outcomes: self_outcomes UNION next_outcomes }`.
     ///
     /// # Examples
     ///
@@ -263,15 +263,15 @@ where
     ///
     /// The algorithm is as follows:
     ///  1. If the second handler's signature is [`HandlerSignature::Entry`],
-    /// then **panic**.
+    ///     then **panic**.
     ///  2. If the first handler's signature is [`HandlerSignature::Entry`] and
-    /// that of the second one is [`HandlerSignature::Other`], then the
-    /// signature of the resulting handler is taken from the second one.
+    ///     that of the second one is [`HandlerSignature::Other`], then the
+    ///     signature of the resulting handler is taken from the second one.
     ///  3. If the first handler's signature is [`HandlerSignature::Other`] and
-    /// that the second one is also [`HandlerSignature::Other`], then the
-    /// signature of the resulting handler is `HandlerSignature::Other {
-    /// obligations: self_obligations UNION next_obligations, outcomes:
-    /// next_outcomes INTERSECTION self_outcomes }`.
+    ///     that the second one is also [`HandlerSignature::Other`], then the
+    ///     signature of the resulting handler is `HandlerSignature::Other {
+    ///     obligations: self_obligations UNION next_obligations, outcomes:
+    ///     next_outcomes INTERSECTION self_outcomes }`.
     ///
     /// # Examples
     ///
