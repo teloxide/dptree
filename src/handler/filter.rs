@@ -15,10 +15,10 @@ use rustc_hash::FxHashSet;
 /// If it returns `true`, a continuation of the handler will be called,
 /// otherwise the handler returns [`ControlFlow::Continue`].
 ///
-/// # Signature
+/// # Run-time signature
 ///
-/// The run-time type signature of this handler is `HandlerSignature::Other {
-/// input_types: Pred::input_types(), output_types: FxHashSet::default() }`.
+/// - Obligations: `Pred::obligations()`
+/// - Outcomes: `FxHashSet::default()`
 #[must_use]
 #[track_caller]
 pub fn filter<'a, Pred, Output, FnArgs, Descr>(pred: Pred) -> Handler<'a, Output, Descr>
@@ -87,9 +87,8 @@ where
             }
         },
         HandlerSignature::Other {
-            input_types: Pred::input_types(),
-            output_types: FxHashSet::default(),
             obligations: Pred::obligations(),
+            outcomes: FxHashSet::default(),
         },
     )
 }

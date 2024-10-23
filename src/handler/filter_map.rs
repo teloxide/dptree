@@ -14,11 +14,10 @@ use rustc_hash::FxHashSet;
 /// `None`, then the handler will return [`ControlFlow::Continue`] with the old
 /// container.
 ///
-/// # Signature
+/// # Run-time signature
 ///
-/// The run-time type signature of this handler is `HandlerSignature::Other {
-/// input_types: Projection::input_types(), output_types:
-/// FxHashSet::from_iter(vec![Type::of::<NewType>()]) }`.
+/// - Obligations: `Projection::obligations()`
+/// - Outcomes: `FxHashSet::from_iter(vec![Type::of::<NewType>()])`
 #[must_use]
 #[track_caller]
 pub fn filter_map<'a, Projection, Output, NewType, Args, Descr>(
@@ -101,9 +100,8 @@ where
             }
         },
         HandlerSignature::Other {
-            input_types: Projection::input_types(),
-            output_types: FxHashSet::from_iter(vec![Type::of::<NewType>()]),
             obligations: Projection::obligations(),
+            outcomes: FxHashSet::from_iter(vec![Type::of::<NewType>()]),
         },
     )
 }

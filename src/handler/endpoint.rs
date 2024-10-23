@@ -14,10 +14,10 @@ use rustc_hash::FxHashSet;
 /// completion. So, you can use it when your chain of responsibility must end
 /// up, and handle an incoming event.
 ///
-/// # Signature
+/// # Run-time signature
 ///
-/// The run-time type signature of this handler is `HandlerSignature::Other {
-/// input_types: F::input_types(), output_types: FxHashSet::new() }`.
+/// - Obligations: `F::obligations()`
+/// - Outcomes: `FxHashSet::default()`
 #[must_use]
 #[track_caller]
 pub fn endpoint<'a, F, Output, FnArgs, Descr>(f: F) -> Endpoint<'a, Output, Descr>
@@ -37,11 +37,7 @@ where
                 f().map(ControlFlow::Break).await
             }
         },
-        HandlerSignature::Other {
-            input_types: F::input_types(),
-            output_types: FxHashSet::default(),
-            obligations: F::obligations(),
-        },
+        HandlerSignature::Other { obligations: F::obligations(), outcomes: FxHashSet::default() },
     )
 }
 

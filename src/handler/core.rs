@@ -78,15 +78,12 @@ pub enum HandlerSignature {
     Entry,
     /// The handler signature with exact input and output types.
     Other {
-        /// The set of types that the handler accepts. In the case of a DI
-        /// container, this is the set of types that this handler retrieves from
-        /// the container.
-        input_types: FxHashSet<Type>,
-        /// The set of types that this handler passes down the chain.
-        output_types: FxHashSet<Type>,
-        /// The set of "obligations", i.e., code locations where specific input
-        /// types are required.
+        /// The map from types that this handler accepts to locations where they
+        /// are required in source code.
         obligations: FxHashMap<Type, &'static Location<'static>>,
+
+        /// The set of types that this handler passes down the chain.
+        outcomes: FxHashSet<Type>,
     },
 }
 
@@ -162,9 +159,8 @@ where
     ///  3. If the first handler's signature is [`HandlerSignature::Other`] and
     /// that the second one is also [`HandlerSignature::Other`], then the
     /// signature of the resulting handler is `HandlerSignature::Other {
-    /// input_types: self_input_types UNION (next_input_types DIFFERENCE
-    /// self_output_types), output_types: self_output_types UNION
-    /// next_output_types }`.
+    /// obligations: self_obligations UNION (next_obligations DIFFERENCE
+    /// self_outcomes), outcomes: self_outcomes UNION next_outcomes }`.
     ///
     /// # Examples
     ///
@@ -199,44 +195,30 @@ where
                 other_sig.clone()
             }
             (
-                HandlerSignature::Other {
-                    input_types: self_input_types,
-                    output_types: self_output_types,
-                    obligations: self_obligations,
-                },
-                HandlerSignature::Other {
-                    input_types: next_input_types,
-                    output_types: next_output_types,
-                    obligations: next_obligations,
-                },
+                HandlerSignature::Other { obligations: self_obligations, outcomes: self_outcomes },
+                HandlerSignature::Other { obligations: next_obligations, outcomes: next_outcomes },
             ) => {
-                // The set of "unsatisfied" input types of the second handler.
-                let next_input_types: FxHashSet<_> =
-                    next_input_types.difference(self_output_types).cloned().collect();
-                let next_obligations = next_obligations
-                    .clone()
-                    .into_iter()
-                    .filter(|(ty, _loc)| next_input_types.contains(ty));
-
                 HandlerSignature::Other {
-                    // Since the first handler can call the second one, take the union of (the first
-                    // handler's input types) and (the difference between the second handler's input
-                    // types and the first handler's output types). The difference is needed because
-                    // the first handler can pass values to the second one.
-                    input_types: self_input_types.union(&next_input_types).cloned().collect(),
+                    // Take the union of (the first handler's input types) and (the difference
+                    // between the second handler's input types and the first handler's output
+                    // types). The difference is needed because the first handler can pass values to
+                    // the second one by calling it. The first handler's obligations take priority
+                    // over those of the second one.
+                    obligations: self_obligations
+                        .clone()
+                        .into_iter()
+                        .chain(
+                            next_obligations
+                                .clone()
+                                .into_iter()
+                                .filter(|(ty, _location)| !self_outcomes.contains(ty)),
+                        )
+                        .collect(),
 
                     // Since the first handler can call the second one, take the union of their
                     // output types. If the second handler is not called, the dependency map will
                     // not be touched, so there will be no type errors.
-                    output_types: self_output_types.union(next_output_types).cloned().collect(),
-
-                    // Take only the most "recent" obligations that occur in user code; the first
-                    // handler's obligations take priority over those of the second one.
-                    obligations: self_obligations
-                        .clone()
-                        .into_iter()
-                        .chain(next_obligations)
-                        .collect(),
+                    outcomes: self_outcomes.union(next_outcomes).cloned().collect(),
                 }
             }
         };
@@ -275,8 +257,8 @@ where
     ///  3. If the first handler's signature is [`HandlerSignature::Other`] and
     /// that the second one is also [`HandlerSignature::Other`], then the
     /// signature of the resulting handler is `HandlerSignature::Other {
-    /// input_types: self_input_types UNION next_input_types, output_types:
-    /// next_output_types INTERSECTION self_output_types }`.
+    /// obligations: self_obligations UNION next_obligations, outcomes:
+    /// next_outcomes INTERSECTION self_outcomes }`.
     ///
     /// # Examples
     ///
@@ -323,36 +305,22 @@ where
                 other_sig.clone()
             }
             (
-                HandlerSignature::Other {
-                    input_types: self_input_types,
-                    output_types: self_output_types,
-                    obligations: self_obligations,
-                },
-                HandlerSignature::Other {
-                    input_types: next_input_types,
-                    output_types: next_output_types,
-                    obligations: next_obligations,
-                },
+                HandlerSignature::Other { obligations: self_obligations, outcomes: self_outcomes },
+                HandlerSignature::Other { obligations: next_obligations, outcomes: next_outcomes },
             ) => {
                 HandlerSignature::Other {
-                    // Since any of the two handlers can end up being executed, take the union of
-                    // the input types of both handlers.
-                    input_types: self_input_types.union(next_input_types).cloned().collect(),
-
-                    // Since any of the two handlers can end up being executed, take the
-                    // intersection of the output types of both handlers.
-                    output_types: next_output_types
-                        .intersection(self_output_types)
-                        .cloned()
-                        .collect(),
-
-                    // Take only the most "recent" obligations that occur in user code; the first
-                    // handler's obligations take priority over those of the second one.
+                    // Take the union of the input types of both handlers, because either of them
+                    // (or both) can end up being executed. The first handler's obligations take
+                    // priority over those of the second one.
                     obligations: self_obligations
                         .clone()
                         .into_iter()
                         .chain(next_obligations.clone())
                         .collect(),
+
+                    // Since any of the two handlers can end up being executed, take the
+                    // intersection of the output types of both handlers.
+                    outcomes: next_outcomes.intersection(self_outcomes).cloned().collect(),
                 }
             }
         };
@@ -559,22 +527,29 @@ where
 pub fn type_check(sig: &HandlerSignature, container: &DependencyMap) {
     match sig {
         HandlerSignature::Entry => {}
-        HandlerSignature::Other { input_types, output_types: _, obligations } => {
+        HandlerSignature::Other { obligations, outcomes: _ } => {
             let container_types = container
                 .map
                 .iter()
                 .map(|(type_id, dep)| Type { id: *type_id, name: dep.type_name })
                 .collect::<FxHashSet<_>>();
 
-            if !input_types.is_subset(&container_types) {
+            if obligations.iter().any(|(ty, _location)| !container_types.contains(ty)) {
                 panic!(
                     "This handler accepts the following types:\n    {}\n, but only the following \
                      types are provided:\n    {}\nThe missing types are:\n    {}",
-                    print_types(input_types, |ty| ty.name.to_owned()),
+                    print_types(obligations.keys(), |ty| ty.name.to_owned()),
                     print_types(&container_types, |ty| ty.name.to_owned()),
-                    print_types(input_types.difference(&container_types), |ty| {
-                        format!("{} from {}", ty.name, obligations[ty])
-                    },)
+                    print_types(
+                        obligations.iter().filter_map(|(ty, _location)| {
+                            if !container_types.contains(ty) {
+                                Some(ty)
+                            } else {
+                                None
+                            }
+                        }),
+                        |ty| { format!("{} from {}", ty.name, obligations[ty]) },
+                    )
                 );
             }
         }
@@ -625,11 +600,10 @@ mod tests {
                 ControlFlow::Break(output)
             },
             HandlerSignature::Other {
-                input_types: FxHashSet::from_iter(input_types.iter().cloned()),
-                output_types: hashset! {},
                 obligations: FxHashMap::from_iter(
                     input_types.iter().cloned().map(|ty| (ty, location)),
                 ),
+                outcomes: hashset! {},
             },
         ))
         .dispatch(deps![input])
@@ -652,11 +626,10 @@ mod tests {
                 ControlFlow::<Output, _>::Continue(event)
             },
             HandlerSignature::Other {
-                input_types: FxHashSet::from_iter(input_types.iter().cloned()),
-                output_types: hashset! {Type::of::<i32>()},
                 obligations: FxHashMap::from_iter(
                     input_types.iter().cloned().map(|ty| (ty, location)),
                 ),
+                outcomes: hashset! {Type::of::<i32>()},
             },
         ))
         .dispatch(deps![input])
@@ -689,11 +662,10 @@ mod tests {
                 cont(event)
             },
             HandlerSignature::Other {
-                input_types: FxHashSet::from_iter(input_types.iter().cloned()),
-                output_types: hashset! {Type::of::<i32>()},
                 obligations: FxHashMap::from_iter(
                     input_types.iter().cloned().map(|ty| (ty, location)),
                 ),
+                outcomes: hashset! {Type::of::<i32>()},
             },
         ))
         .execute(deps![input], |event| async move {
@@ -867,7 +839,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_type_check() {
+    async fn type_check_success() {
         #[derive(Clone)]
         struct A;
         #[derive(Clone)]
@@ -875,32 +847,31 @@ mod tests {
         #[derive(Clone)]
         struct C;
 
-        let deps = deps![A, B, C];
+        macro_rules! test {
+            ($($key:ty),*) => {
+                type_check(
+                    &HandlerSignature::Other {
+                        obligations: hashmap! {
+                            $(Type::of::<$key>() => Location::caller(),)*
+                        },
+                        outcomes: hashset! {},
+                    },
+                    &deps![A, B, C],
+                );
+            };
+        }
 
-        // Type checking an entry must always succeed.
-        type_check(&HandlerSignature::Entry, &deps);
+        // Type-checking an entry must succeed.
+        type_check(&HandlerSignature::Entry, &deps![]);
 
-        // The case for the same handler's input types and those in the container.
-        let input_types = vec![Type::of::<A>(), Type::of::<B>(), Type::of::<C>()];
-        type_check(
-            &HandlerSignature::Other {
-                input_types: FxHashSet::from_iter(input_types.iter().cloned()),
-                output_types: hashset! {},
-                obligations: hashmap! { /* Must not be used. */ },
-            },
-            &deps,
-        );
-
-        // The case for handler's input types and a superset thereof in the container.
-        let input_types = vec![Type::of::<A>(), Type::of::<B>()];
-        type_check(
-            &HandlerSignature::Other {
-                input_types: FxHashSet::from_iter(input_types.iter().cloned()),
-                output_types: hashset! {},
-                obligations: hashmap! { /* Must not be used. */ },
-            },
-            &deps,
-        );
+        // Type-checking subsets of provided types must succeed.
+        test!(A, B, C);
+        test!(A, B);
+        test!(A, C);
+        test!(B, C);
+        test!(A);
+        test!(B);
+        test!(C);
     }
 
     #[test]
@@ -923,9 +894,12 @@ The missing types are:
 
         type_check(
             &HandlerSignature::Other {
-                input_types: hashset! { Type::of::<A>(), Type::of::<B>(), Type::of::<C>() },
-                output_types: hashset! {},
-                obligations: hashmap! { Type::of::<C>() => FIXED_LOCATION },
+                obligations: hashmap! {
+                    Type::of::<A>() => Location::caller(),
+                    Type::of::<B>() => Location::caller(),
+                    Type::of::<C>() => FIXED_LOCATION,
+                },
+                outcomes: hashset! {},
             },
             // `C` is required but not provided.
             &deps![A, B],
@@ -977,17 +951,18 @@ The missing types are:
             Type::of::<F>(),
             Type::of::<G>(),
         };
-        let output_types = hashset! {Type::of::<B>(), Type::of::<D>()};
+        let outcomes = hashset! {Type::of::<B>(), Type::of::<D>()};
 
         if let HandlerSignature::Other {
-            input_types: actual_input_types,
-            output_types: actual_output_types,
-            obligations,
+            obligations: actual_obligations,
+            outcomes: actual_outcomes,
         } = h.sig()
         {
-            assert_eq!(actual_input_types, &input_types);
-            assert_eq!(actual_output_types, &output_types);
-            assert_eq!(obligations.keys().cloned().collect::<FxHashSet<_>>(), input_types);
+            assert_eq!(
+                actual_obligations.keys().collect::<Vec<_>>(),
+                input_types.iter().collect::<Vec<_>>()
+            );
+            assert_eq!(actual_outcomes, &outcomes);
         } else {
             panic!("Expected `HandlerSignature::Other`");
         }
@@ -1027,14 +1002,15 @@ The missing types are:
         let output_types = hashset! {Type::of::<B>(), Type::of::<D>()};
 
         if let HandlerSignature::Other {
-            input_types: actual_input_types,
-            output_types: actual_output_types,
-            obligations,
+            obligations: actual_obligations,
+            outcomes: actual_outcomes,
         } = h.sig()
         {
-            assert_eq!(actual_input_types, &input_types);
-            assert_eq!(actual_output_types, &output_types);
-            assert_eq!(obligations.keys().cloned().collect::<FxHashSet<_>>(), input_types);
+            assert_eq!(
+                actual_obligations.keys().collect::<Vec<_>>(),
+                input_types.iter().collect::<Vec<_>>()
+            );
+            assert_eq!(actual_outcomes, &output_types);
         } else {
             panic!("Expected `HandlerSignature::Other`");
         }

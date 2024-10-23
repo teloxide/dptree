@@ -10,10 +10,10 @@ use rustc_hash::FxHashSet;
 /// Constructs a handler that inspects current state. Like [`map`] but does not
 /// add return value of `f` to the container.
 ///
-/// # Signature
+/// # Run-time signature
 ///
-/// The run-time type signature of this handler is `HandlerSignature::Other {
-/// input_types: F::input_types(), output_types: FxHashSet::default() }`.
+/// - Obligations: `F::obligations()`
+/// - Outcomes: `FxHashSet::default()`
 ///
 /// [`map`]: crate::map
 #[must_use]
@@ -79,11 +79,7 @@ where
                 cont(x).await
             }
         },
-        HandlerSignature::Other {
-            input_types: F::input_types(),
-            output_types: FxHashSet::default(),
-            obligations: F::obligations(),
-        },
+        HandlerSignature::Other { obligations: F::obligations(), outcomes: FxHashSet::default() },
     )
 }
 
