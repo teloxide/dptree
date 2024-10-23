@@ -2,7 +2,10 @@ use crate::{
     di::{Asyncify, Injectable},
     from_fn_with_description, Handler, HandlerDescription, HandlerSignature, Type,
 };
-use std::{collections::HashSet, ops::ControlFlow, sync::Arc};
+
+use std::{iter::FromIterator, ops::ControlFlow, sync::Arc};
+
+use rustc_hash::FxHashSet;
 
 /// Constructs a handler that optionally passes a value of a new type further.
 ///
@@ -15,7 +18,7 @@ use std::{collections::HashSet, ops::ControlFlow, sync::Arc};
 ///
 /// The run-time type signature of this handler is `HandlerSignature::Other {
 /// input_types: Projection::input_types(), output_types:
-/// HashSet::from([RtType::of::<NewType>()]) }`.
+/// FxHashSet::from([RtType::of::<NewType>()]) }`.
 #[must_use]
 #[track_caller]
 pub fn filter_map<'a, Projection, Output, NewType, Args, Descr>(
@@ -99,7 +102,7 @@ where
         },
         HandlerSignature::Other {
             input_types: Projection::input_types(),
-            output_types: HashSet::from([Type::of::<NewType>()]),
+            output_types: FxHashSet::from_iter(vec![Type::of::<NewType>()]),
             obligations: Projection::obligations(),
         },
     )

@@ -1,9 +1,11 @@
+use crate::HandlerDescription;
+
 use std::{
-    collections::{hash_map::RandomState, HashSet},
+    collections::HashSet,
     hash::{BuildHasher, Hash},
 };
 
-use crate::HandlerDescription;
+use rustc_hash::FxBuildHasher;
 
 /// Description for a handler that describes what event kinds are interesting to
 /// the handler.
@@ -12,7 +14,7 @@ use crate::HandlerDescription;
 /// `dptree`. In this case you should keep updates that are in the `observed`
 /// set.
 #[derive(Debug, Clone)]
-pub struct InterestSet<K, S = RandomState> {
+pub struct InterestSet<K, S = FxBuildHasher> {
     /// Event kinds that are of interested for a given handler.
     ///
     /// I.e. the ones that can cause meaningful side-effects.
@@ -26,7 +28,7 @@ pub struct InterestSet<K, S = RandomState> {
 ///
 /// Usually this would be implemented by a field-less enumeration of all update
 /// kinds.
-pub trait EventKind<S = RandomState>: Sized {
+pub trait EventKind<S = FxBuildHasher>: Sized {
     /// Set of all event kinds.
     fn full_set() -> HashSet<Self, S>;
 
@@ -42,11 +44,11 @@ impl<K: EventKind<S>, S> InterestSet<K, S> {
     /// example:
     /// ```
     /// use dptree::{description::{InterestSet, EventKind}, filter_with_description};
-    /// use maplit::hashset;
+    /// use rustc_hash::FxHashSet;
     ///
-    /// # enum K {} impl EventKind for K { fn full_set() -> std::collections::HashSet<Self> { hashset!{} } fn empty_set() -> std::collections::HashSet<Self> { hashset!{} } }
+    /// # enum K {} impl EventKind for K { fn full_set() -> FxHashSet<Self> { FxHashSet::default() } fn empty_set() -> FxHashSet<Self> { FxHashSet::default() } }
     /// # let _: dptree::Handler<(), InterestSet<K>> =
-    /// filter_with_description(InterestSet::new_filter(hashset! {}), || {
+    /// filter_with_description(InterestSet::new_filter(FxHashSet::default()), || {
     ///     println!("Filter called!"); // <-- bad
     ///
     ///     false
@@ -54,7 +56,7 @@ impl<K: EventKind<S>, S> InterestSet<K, S> {
     ///
     /// # #[derive(Clone)] struct Db; impl Db { fn fetch_enabled(&self) -> bool { false } }
     /// # let _: dptree::Handler<(), InterestSet<K>> =
-    /// filter_with_description(InterestSet::new_filter(hashset! {}), |db: Db| {
+    /// filter_with_description(InterestSet::new_filter(FxHashSet::default()), |db: Db| {
     ///     let pass = db.fetch_enabled(); // <-- fine
     ///
     ///     pass

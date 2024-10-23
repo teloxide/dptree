@@ -4,7 +4,10 @@ use crate::{
     handler::core::Handler,
     HandlerDescription, HandlerSignature,
 };
-use std::{collections::HashSet, ops::ControlFlow, sync::Arc};
+
+use std::{ops::ControlFlow, sync::Arc};
+
+use rustc_hash::FxHashSet;
 
 /// Constructs a handler that filters input with the predicate `pred`.
 ///
@@ -15,7 +18,7 @@ use std::{collections::HashSet, ops::ControlFlow, sync::Arc};
 /// # Signature
 ///
 /// The run-time type signature of this handler is `HandlerSignature::Other {
-/// input_types: Pred::input_types(), output_types: HashSet::new() }`.
+/// input_types: Pred::input_types(), output_types: FxHashSet::default() }`.
 #[must_use]
 #[track_caller]
 pub fn filter<'a, Pred, Output, FnArgs, Descr>(pred: Pred) -> Handler<'a, Output, Descr>
@@ -85,7 +88,7 @@ where
         },
         HandlerSignature::Other {
             input_types: Pred::input_types(),
-            output_types: HashSet::new(),
+            output_types: FxHashSet::default(),
             obligations: Pred::obligations(),
         },
     )

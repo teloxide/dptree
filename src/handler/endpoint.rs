@@ -2,8 +2,11 @@ use crate::{
     description, di::Injectable, from_fn_with_description, Handler, HandlerDescription,
     HandlerSignature,
 };
+
+use std::{ops::ControlFlow, sync::Arc};
+
 use futures::FutureExt;
-use std::{collections::HashSet, ops::ControlFlow, sync::Arc};
+use rustc_hash::FxHashSet;
 
 /// Constructs a handler that has no further handlers in a chain.
 ///
@@ -14,7 +17,7 @@ use std::{collections::HashSet, ops::ControlFlow, sync::Arc};
 /// # Signature
 ///
 /// The run-time type signature of this handler is `HandlerSignature::Other {
-/// input_types: F::input_types(), output_types: HashSet::new() }`.
+/// input_types: F::input_types(), output_types: FxHashSet::new() }`.
 #[must_use]
 #[track_caller]
 pub fn endpoint<'a, F, Output, FnArgs, Descr>(f: F) -> Endpoint<'a, Output, Descr>
@@ -36,7 +39,7 @@ where
         },
         HandlerSignature::Other {
             input_types: F::input_types(),
-            output_types: HashSet::new(),
+            output_types: FxHashSet::default(),
             obligations: F::obligations(),
         },
     )

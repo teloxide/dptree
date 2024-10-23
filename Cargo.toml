@@ -1,7 +1,7 @@
 [package]
 name = "dptree"
 version = "0.3.0"
-authors = ["p0lunin <dmytro.polunin@gmail.com>", "Hirrolot <hirrolot@gmail.com>"]
+authors = ["p0lunin <dmytro.polunin@gmail.com>", "hirrolot <hirrolot@gmail.com>"]
 edition = "2018"
 description = "An asynchronous event dispatch mechanism for Rust"
 repository = "https://github.com/teloxide/dptree"
@@ -14,10 +14,10 @@ license = "MIT"
 
 [dependencies]
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
+rustc-hash = "2"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync"] }
-maplit = "1"
 
 [package.metadata.docs.rs]
 all-features = true

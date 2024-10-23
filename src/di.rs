@@ -12,13 +12,15 @@
 //!
 //! [dependency injection]: https://en.wikipedia.org/wiki/Dependency_injection
 //! [this discussion on StackOverflow]: https://stackoverflow.com/questions/130794/what-is-dependency-injection
+
 use futures::future::{ready, BoxFuture};
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use std::{
     any::{Any, TypeId},
-    collections::{HashMap, HashSet},
     fmt::{Debug, Formatter, Write},
     future::Future,
+    iter::FromIterator,
     panic::Location,
     sync::Arc,
 };
@@ -73,7 +75,7 @@ use crate::Type;
 /// ```
 #[derive(Default, Clone)]
 pub struct DependencyMap {
-    pub(crate) map: HashMap<TypeId, Dependency>,
+    pub(crate) map: FxHashMap<TypeId, Dependency>,
 }
 
 #[derive(Clone)]
@@ -176,7 +178,7 @@ where
 
     /// Returns the set of types that this function depends on. Used only for
     /// run-time "type checking".
-    fn input_types() -> HashSet<Type>;
+    fn input_types() -> FxHashSet<Type>;
 
     /// Returns the map of obligations of this function.
     ///
@@ -185,7 +187,7 @@ where
     ///
     /// [`Location::caller`]: std::panic::Location::caller
     #[track_caller]
-    fn obligations() -> HashMap<Type, &'static Location<'static>> {
+    fn obligations() -> FxHashMap<Type, &'static Location<'static>> {
         let location = Location::caller();
         Self::input_types().into_iter().map(|ty| (ty, location)).collect()
     }
@@ -216,8 +218,8 @@ macro_rules! impl_into_di {
                 })
             }
 
-            fn input_types() -> HashSet<Type> {
-                HashSet::from([
+            fn input_types() -> FxHashSet<Type> {
+                FxHashSet::from_iter(vec![
                     $(Type::of::<$generic>()),*
                 ])
             }
@@ -240,8 +242,8 @@ macro_rules! impl_into_di {
                 })
             }
 
-            fn input_types() -> HashSet<Type> {
-                HashSet::from([
+            fn input_types() -> FxHashSet<Type> {
+                FxHashSet::from_iter(vec![
                     $(Type::of::<$generic>()),*
                 ])
             }

@@ -1,16 +1,14 @@
-use std::{
-    any::TypeId,
-    collections::{HashMap, HashSet},
-    fmt::Write,
-    future::Future,
-    ops::ControlFlow,
-    panic::Location,
-    sync::Arc,
-};
-
-use futures::future::BoxFuture;
+// In order not to break the unit tests if this file is edited, we place this
+// constant right at the beginning.
+#[cfg(test)]
+const FIXED_LOCATION: &'static Location = Location::caller();
 
 use crate::{description, prelude::DependencyMap, HandlerDescription};
+
+use std::{any::TypeId, fmt::Write, future::Future, ops::ControlFlow, panic::Location, sync::Arc};
+
+use futures::future::BoxFuture;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 /// An instance that receives an input and decides whether to break a chain or
 /// pass the value further.
@@ -75,12 +73,12 @@ pub enum HandlerSignature {
         /// The set of types that the handler accepts. In the case of a DI
         /// container, this is the set of types that this handler retrieves from
         /// the container.
-        input_types: HashSet<Type>,
+        input_types: FxHashSet<Type>,
         /// The set of types that this handler passes down the chain.
-        output_types: HashSet<Type>,
+        output_types: FxHashSet<Type>,
         /// The set of "obligations", i.e., code locations where specific input
         /// types are required.
-        obligations: HashMap<Type, &'static Location<'static>>,
+        obligations: FxHashMap<Type, &'static Location<'static>>,
     },
 }
 
@@ -189,7 +187,7 @@ where
                 },
             ) => {
                 // The set of "unsatisfied" input types of the second handler.
-                let next_input_types: HashSet<_> =
+                let next_input_types: FxHashSet<_> =
                     next_input_types.difference(self_output_types).cloned().collect();
                 let next_obligations = next_obligations
                     .clone()
@@ -539,7 +537,7 @@ pub fn type_check(sig: &HandlerSignature, container: &DependencyMap) {
                 .map
                 .iter()
                 .map(|(type_id, dep)| Type { id: *type_id, name: dep.type_name })
-                .collect::<HashSet<_>>();
+                .collect::<FxHashSet<_>>();
 
             if !input_types.is_subset(&container_types) {
                 panic!(
@@ -563,9 +561,7 @@ pub(crate) fn help_inference<Output>(h: Handler<Output>) -> Handler<Output> {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashSet, iter::FromIterator};
-
-    use maplit::{hashmap, hashset};
+    use std::iter::FromIterator;
 
     use crate::{
         deps, description, filter_map, filter_map_with_description,
@@ -573,6 +569,20 @@ mod tests {
     };
 
     use super::*;
+
+    #[cfg(test)]
+    macro_rules! hashset {
+        ($($key:expr),* $(,)?) => {
+            FxHashSet::from_iter(vec![$($key,)*])
+        };
+    }
+
+    #[cfg(test)]
+    macro_rules! hashmap {
+        ($($key:expr => $value:expr),* $(,)?) => {
+            FxHashMap::from_iter(vec![$(($key, $value),)*])
+        };
+    }
 
     #[tokio::test]
     async fn test_from_fn_break() {
@@ -588,9 +598,9 @@ mod tests {
                 ControlFlow::Break(output)
             },
             HandlerSignature::Other {
-                input_types: HashSet::from_iter(input_types.iter().cloned()),
+                input_types: FxHashSet::from_iter(input_types.iter().cloned()),
                 output_types: hashset! {},
-                obligations: HashMap::from_iter(
+                obligations: FxHashMap::from_iter(
                     input_types.iter().cloned().map(|ty| (ty, location)),
                 ),
             },
@@ -615,9 +625,9 @@ mod tests {
                 ControlFlow::<Output, _>::Continue(event)
             },
             HandlerSignature::Other {
-                input_types: HashSet::from_iter(input_types.iter().cloned()),
+                input_types: FxHashSet::from_iter(input_types.iter().cloned()),
                 output_types: hashset! {Type::of::<i32>()},
-                obligations: HashMap::from_iter(
+                obligations: FxHashMap::from_iter(
                     input_types.iter().cloned().map(|ty| (ty, location)),
                 ),
             },
@@ -652,9 +662,9 @@ mod tests {
                 cont(event)
             },
             HandlerSignature::Other {
-                input_types: HashSet::from_iter(input_types.iter().cloned()),
+                input_types: FxHashSet::from_iter(input_types.iter().cloned()),
                 output_types: hashset! {Type::of::<i32>()},
-                obligations: HashMap::from_iter(
+                obligations: FxHashMap::from_iter(
                     input_types.iter().cloned().map(|ty| (ty, location)),
                 ),
             },
@@ -721,11 +731,11 @@ mod tests {
         }
 
         impl EventKind for UpdateKind {
-            fn full_set() -> HashSet<Self> {
+            fn full_set() -> FxHashSet<Self> {
                 hashset! { A, B, C }
             }
 
-            fn empty_set() -> HashSet<Self> {
+            fn empty_set() -> FxHashSet<Self> {
                 hashset! {}
             }
         }
@@ -791,7 +801,7 @@ mod tests {
         #[track_caller]
         fn assert(
             handler: Handler<'static, (), description::InterestSet<UpdateKind>>,
-            allowed: HashSet<UpdateKind>,
+            allowed: FxHashSet<UpdateKind>,
         ) {
             assert_eq!(handler.description().observed, allowed);
         }
@@ -847,7 +857,7 @@ mod tests {
         let input_types = vec![Type::of::<A>(), Type::of::<B>(), Type::of::<C>()];
         type_check(
             &HandlerSignature::Other {
-                input_types: HashSet::from_iter(input_types.iter().cloned()),
+                input_types: FxHashSet::from_iter(input_types.iter().cloned()),
                 output_types: hashset! {},
                 obligations: hashmap! { /* Must not be used. */ },
             },
@@ -858,7 +868,7 @@ mod tests {
         let input_types = vec![Type::of::<A>(), Type::of::<B>()];
         type_check(
             &HandlerSignature::Other {
-                input_types: HashSet::from_iter(input_types.iter().cloned()),
+                input_types: FxHashSet::from_iter(input_types.iter().cloned()),
                 output_types: hashset! {},
                 obligations: hashmap! { /* Must not be used. */ },
             },
@@ -867,8 +877,15 @@ mod tests {
     }
 
     #[test]
-    // Cannot specify the exact panic message because `HashSet` is iterated in a random order.
-    #[should_panic]
+    #[should_panic(expected = "This handler accepts the following types:
+    dptree::handler::core::tests::type_check_panic::B
+    dptree::handler::core::tests::type_check_panic::C
+    dptree::handler::core::tests::type_check_panic::A
+, but only the following types are provided:
+    dptree::handler::core::tests::type_check_panic::A
+    dptree::handler::core::tests::type_check_panic::B
+The missing types are:
+    dptree::handler::core::tests::type_check_panic::C from src/handler/core.rs:4:43")]
     fn type_check_panic() {
         #[derive(Clone)]
         struct A;
@@ -879,9 +896,9 @@ mod tests {
 
         type_check(
             &HandlerSignature::Other {
-                input_types: HashSet::from([Type::of::<A>(), Type::of::<B>(), Type::of::<C>()]),
+                input_types: hashset! { Type::of::<A>(), Type::of::<B>(), Type::of::<C>() },
                 output_types: hashset! {},
-                obligations: hashmap! { /* Must not be used. */ },
+                obligations: hashmap! { Type::of::<C>() => FIXED_LOCATION },
             },
             // `C` is required but not provided.
             &deps![A, B],
@@ -927,11 +944,11 @@ mod tests {
             );
 
         let input_types = hashset! {
-                Type::of::<A>(),
-                Type::of::<C>(),
-                Type::of::<E>(),
-                Type::of::<F>(),
-                Type::of::<G>(),
+            Type::of::<A>(),
+            Type::of::<C>(),
+            Type::of::<E>(),
+            Type::of::<F>(),
+            Type::of::<G>(),
         };
         let output_types = hashset! {Type::of::<B>(), Type::of::<D>()};
 
@@ -943,7 +960,7 @@ mod tests {
         {
             assert_eq!(actual_input_types, &input_types);
             assert_eq!(actual_output_types, &output_types);
-            assert_eq!(obligations.keys().cloned().collect::<HashSet<_, _>>(), input_types);
+            assert_eq!(obligations.keys().cloned().collect::<FxHashSet<_>>(), input_types);
         } else {
             panic!("Expected `HandlerSignature::Other`");
         }
@@ -990,7 +1007,7 @@ mod tests {
         {
             assert_eq!(actual_input_types, &input_types);
             assert_eq!(actual_output_types, &output_types);
-            assert_eq!(obligations.keys().cloned().collect::<HashSet<_, _>>(), input_types);
+            assert_eq!(obligations.keys().cloned().collect::<FxHashSet<_>>(), input_types);
         } else {
             panic!("Expected `HandlerSignature::Other`");
         }
