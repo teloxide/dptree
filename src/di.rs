@@ -73,7 +73,7 @@ use crate::Type;
 /// // note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 /// let string: Arc<String> = container.get();
 /// ```
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct DependencyMap {
     pub(crate) map: FxHashMap<TypeId, Dependency>,
 }
@@ -82,6 +82,12 @@ pub struct DependencyMap {
 pub(crate) struct Dependency {
     pub(crate) type_name: &'static str,
     inner: Arc<dyn Any + Send + Sync>,
+}
+
+impl Debug for Dependency {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Dependency").field("type_name", &self.type_name).finish_non_exhaustive()
+    }
 }
 
 impl PartialEq for DependencyMap {
@@ -157,12 +163,6 @@ impl DependencyMap {
         }
 
         list
-    }
-}
-
-impl Debug for DependencyMap {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        f.debug_struct("DependencyMap").finish()
     }
 }
 
