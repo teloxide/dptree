@@ -1,7 +1,7 @@
 // In order not to break the unit tests if this file is edited, we place this
 // constant right at the beginning.
 #[cfg(test)]
-const FIXED_LOCATION: &'static Location = Location::caller();
+const FIXED_LOCATION: &Location = Location::caller();
 
 use crate::{description, prelude::DependencyMap, HandlerDescription};
 
@@ -592,7 +592,7 @@ mod tests {
         let input = 123;
         let output = "ABC";
 
-        let input_types = vec![Type::of::<i32>()];
+        let input_types = [Type::of::<i32>()];
         let location = Location::caller();
 
         let result = help_inference(from_fn(
@@ -618,7 +618,7 @@ mod tests {
         let input = 123;
         type Output = &'static str;
 
-        let input_types = vec![Type::of::<i32>()];
+        let input_types = [Type::of::<i32>()];
         let location = Location::caller();
 
         let result = help_inference(from_fn(
@@ -654,7 +654,7 @@ mod tests {
         let input = 123;
         let output = "ABC";
 
-        let input_types = vec![Type::of::<i32>()];
+        let input_types = [Type::of::<i32>()];
         let location = Location::caller();
 
         let result = help_inference(from_fn(
@@ -884,7 +884,7 @@ mod tests {
     `dptree::handler::core::tests::type_check_panic::A`
     `dptree::handler::core::tests::type_check_panic::B`
 The missing types are:
-    `dptree::handler::core::tests::type_check_panic::C` from src/handler/core.rs:4:43")]
+    `dptree::handler::core::tests::type_check_panic::C` from src/handler/core.rs:4:35")]
     fn type_check_panic() {
         #[derive(Clone)]
         struct A;
@@ -945,13 +945,8 @@ The missing types are:
                 |_: B, _: D, /* Must propagate. */ _: G| async { H },
             );
 
-        let input_types = vec![
-            Type::of::<A>(),
-            Type::of::<C>(),
-            Type::of::<E>(),
-            Type::of::<F>(),
-            Type::of::<G>(),
-        ];
+        let input_types =
+            [Type::of::<A>(), Type::of::<C>(), Type::of::<E>(), Type::of::<F>(), Type::of::<G>()];
         let outcomes = btreeset! {Type::of::<B>(), Type::of::<D>()};
 
         if let HandlerSignature::Other {
