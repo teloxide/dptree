@@ -204,15 +204,11 @@ where
                     // types). The difference is needed because the first handler can pass values to
                     // the second one by calling it. The first handler's obligations take priority
                     // over those of the second one.
-                    obligations: self_obligations
+                    obligations: next_obligations
                         .clone()
                         .into_iter()
-                        .chain(
-                            next_obligations
-                                .clone()
-                                .into_iter()
-                                .filter(|(ty, _location)| !self_outcomes.contains(ty)),
-                        )
+                        .filter(|(ty, _location)| !self_outcomes.contains(ty))
+                        .chain(self_obligations.clone())
                         .collect(),
 
                     // Since the first handler can call the second one, take the union of their
@@ -312,10 +308,10 @@ where
                     // Take the union of the input types of both handlers, because either of them
                     // (or both) can end up being executed. The first handler's obligations take
                     // priority over those of the second one.
-                    obligations: self_obligations
+                    obligations: next_obligations
                         .clone()
                         .into_iter()
-                        .chain(next_obligations.clone())
+                        .chain(self_obligations.clone())
                         .collect(),
 
                     // Since any of the two handlers can end up being executed, take the
@@ -944,13 +940,13 @@ The missing types are:
                 |_: B, _: D, /* Must propagate. */ _: G| async { H },
             );
 
-        let input_types = hashset! {
-            Type::of::<A>(),
+        let input_types = vec![
             Type::of::<C>(),
-            Type::of::<E>(),
-            Type::of::<F>(),
             Type::of::<G>(),
-        };
+            Type::of::<A>(),
+            Type::of::<F>(),
+            Type::of::<E>(),
+        ];
         let outcomes = hashset! {Type::of::<B>(), Type::of::<D>()};
 
         if let HandlerSignature::Other {
@@ -1021,6 +1017,37 @@ The missing types are:
 
         // Must not panic during execution.
         assert_eq!(h.dispatch(deps).await, ControlFlow::Break(F));
+    }
+
+    #[tokio::test]
+    async fn obligations_priority() {
+        #[derive(Clone)]
+        struct A;
+        #[derive(Clone)]
+        struct B;
+        #[derive(Clone, Debug, Eq, PartialEq)]
+        struct C;
+
+        fn test<T: 'static>(h: Handler<C>, column: u32) {
+            if let HandlerSignature::Other { obligations, outcomes: _ } = h.sig() {
+                let (_ty, &location) = obligations
+                    .iter()
+                    .find(|(ty, _location)| ty.id == TypeId::of::<T>())
+                    .expect("Missing obligation");
+                assert_eq!(location.column(), column);
+            } else {
+                panic!("Expected `HandlerSignature::Other`");
+            }
+        }
+
+        #[rustfmt::skip]
+        let h: Handler<C> = entry().map(|_: A| ()).endpoint(|_: A, _: B| async { C });
+        test::<A>(h, 37);
+
+        #[rustfmt::skip]
+        let h: Handler<C> =
+            entry().branch(endpoint(|_: A| async { C })).branch(endpoint(|_: A, _: B| async { C }));
+        test::<A>(h, 28);
     }
 
     #[test]
