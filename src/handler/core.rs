@@ -551,8 +551,8 @@ pub fn type_check(sig: &HandlerSignature, container: &DependencyMap) {
                 panic!(
                     "This handler accepts the following types:\n    {}\n, but only the following \
                      types are provided:\n    {}\nThe missing types are:\n    {}",
-                    print_types(obligations.keys(), |ty| ty.name.to_owned()),
-                    print_types(&container_types, |ty| ty.name.to_owned()),
+                    print_types(obligations.keys(), |ty| format!("`{}`", ty.name)),
+                    print_types(&container_types, |ty| format!("`{}`", ty.name)),
                     print_types(
                         obligations.iter().filter_map(|(ty, _location)| {
                             if !container_types.contains(ty) {
@@ -561,7 +561,7 @@ pub fn type_check(sig: &HandlerSignature, container: &DependencyMap) {
                                 None
                             }
                         }),
-                        |ty| { format!("{} from {}", ty.name, obligations[ty]) },
+                        |ty| { format!("`{}` from {}", ty.name, obligations[ty]) },
                     )
                 );
             }
@@ -877,14 +877,14 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "This handler accepts the following types:
-    dptree::handler::core::tests::type_check_panic::A
-    dptree::handler::core::tests::type_check_panic::B
-    dptree::handler::core::tests::type_check_panic::C
+    `dptree::handler::core::tests::type_check_panic::A`
+    `dptree::handler::core::tests::type_check_panic::B`
+    `dptree::handler::core::tests::type_check_panic::C`
 , but only the following types are provided:
-    dptree::handler::core::tests::type_check_panic::A
-    dptree::handler::core::tests::type_check_panic::B
+    `dptree::handler::core::tests::type_check_panic::A`
+    `dptree::handler::core::tests::type_check_panic::B`
 The missing types are:
-    dptree::handler::core::tests::type_check_panic::C from src/handler/core.rs:4:43")]
+    `dptree::handler::core::tests::type_check_panic::C` from src/handler/core.rs:4:43")]
     fn type_check_panic() {
         #[derive(Clone)]
         struct A;

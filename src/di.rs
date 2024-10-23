@@ -66,10 +66,10 @@ use crate::Type;
 /// container.insert(true);
 /// container.insert("static str");
 ///
-/// // alloc::string::String was requested, but not provided. Available types:
-/// //     i32
-/// //     &str
-/// //     bool
+/// // `alloc::string::String` was requested, but not provided. Available types:
+/// //     `i32`
+/// //     `&str`
+/// //     `bool`
 /// let string: Arc<String> = container.get();
 /// ```
 #[derive(Default, Clone, Debug)]
@@ -143,7 +143,7 @@ impl DependencyMap {
             .get(&TypeId::of::<V>())
             .unwrap_or_else(|| {
                 panic!(
-                    "{} was requested, but not provided. Available types:\n{}",
+                    "`{}` was requested, but not provided. Available types:\n{}",
                     std::any::type_name::<V>(),
                     self.available_types()
                 )
@@ -158,7 +158,7 @@ impl DependencyMap {
         let mut list = String::new();
 
         for dep in self.map.values() {
-            writeln!(list, "    {}", dep.type_name).unwrap();
+            writeln!(list, "    `{}`", dep.type_name).unwrap();
         }
 
         list
