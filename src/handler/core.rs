@@ -226,7 +226,8 @@ where
                     input_types: self_input_types.union(&next_input_types).cloned().collect(),
 
                     // Since the first handler can call the second one, take the union of their
-                    // output types.
+                    // output types. If the second handler is not called, the dependency map will
+                    // not be touched, so there will be no type errors.
                     output_types: self_output_types.union(next_output_types).cloned().collect(),
 
                     // Take only the most "recent" obligations that occur in user code; the first
