@@ -57,7 +57,6 @@
 mod handler;
 
 pub mod di;
-pub mod error;
 pub mod prelude;
 
 pub use handler::*;
