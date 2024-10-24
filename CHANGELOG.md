@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
- - The `type_check` function that performs run-time type checking. Call this function to ensure that all types required by your handler are present in `di::DependencyMap`.
+ - The `type_check` function that performs run-time type checking. Call this function to ensure that all types required by your handler are present in `di::DependencyMap` ([PR #23](https://github.com/teloxide/dptree/pull/23)).
  - The `HandlerSignature` and `Type` types.
  - The `Handler::sig` function.
  - The `di::Injectable::input_types` associated function [**BC**].
