@@ -167,7 +167,7 @@ impl DependencyMap {
         let mut list = String::new();
 
         for dep in self.map.values() {
-            writeln!(list, "    {}", dep.type_name).unwrap();
+            writeln!(list, "    `{}`", dep.type_name).unwrap();
         }
 
         list
