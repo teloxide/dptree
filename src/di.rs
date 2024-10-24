@@ -112,7 +112,7 @@ impl DependencyMap {
                 TypeId::of::<T>(),
                 Dependency { type_name: std::any::type_name::<T>(), inner: Arc::new(item) },
             )
-            .map(|dep| dep.inner.downcast().expect("Values are stored by TypeId"))
+            .map(|dep| dep.inner.downcast().expect("Values are stored by `TypeId`"))
     }
 
     /// Inserts all dependencies from another container into itself.
@@ -127,7 +127,7 @@ impl DependencyMap {
     pub fn remove<T: Send + Sync + 'static>(&mut self) -> Option<Arc<T>> {
         self.map
             .remove(&TypeId::of::<T>())
-            .map(|dep| dep.inner.downcast().expect("Values are stored by TypeId"))
+            .map(|dep| dep.inner.downcast().expect("Values are stored by `TypeId`"))
     }
 
     /// Retrieves the value of type `V` from this container.
@@ -151,7 +151,15 @@ impl DependencyMap {
             .clone()
             .inner
             .downcast::<V>()
-            .expect("Checked by .unwrap_or_else()")
+            .expect("Checked by `unwrap_or_else`")
+    }
+
+    /// Tries to get a value from the container; does not panic.
+    pub fn try_get<V: Send + Sync + 'static>(&self) -> Option<Arc<V>> {
+        self.map
+            .get(&TypeId::of::<V>())
+            .cloned()
+            .map(|v| v.inner.downcast().expect("Values are stored by `TypeId`"))
     }
 
     fn available_types(&self) -> String {
@@ -308,5 +316,14 @@ mod tests {
         assert_eq!(map.get(), Arc::new(42i32));
         assert_eq!(map.get(), Arc::new("hello world"));
         assert_eq!(map.get(), Arc::new(true));
+    }
+
+    #[test]
+    fn try_get() {
+        let mut map = DependencyMap::new();
+        assert_eq!(map.try_get::<i32>(), None);
+        map.insert(42i32);
+        assert_eq!(map.try_get(), Some(Arc::new(42i32)));
+        assert_eq!(map.try_get::<f32>(), None);
     }
 }

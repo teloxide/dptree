@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - The `HandlerSignature` and `Type` types.
  - The `Handler::sig` function.
  - The `di::Injectable::input_types` associated function [**BC**].
+ - The `DependencyMap::try_get` method ([PR #29](https://github.com/teloxide/dptree/pull/29)).
 
 ### Changed
 
@@ -22,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - `from_fn`
    - `from_fn_with_description`
  - Always use `di::DependencyMap` instead of a generic `Input` type.
- - The handlers now can accept up to 12 parameters instead of 9.
+ - The handlers now can accept up to 12 parameters instead of 9 ([PR #28](([PR 28](https://github.com/teloxide/dptree/pull/28)))).
 
 ### Removed
 
