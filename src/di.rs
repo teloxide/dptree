@@ -156,9 +156,8 @@ impl DependencyMap {
 
     /// Tries to get a value from the container; does not panic.
     pub fn try_get<V: Send + Sync + 'static>(&self) -> Option<Arc<V>> {
-        let key = TypeId::of::<V>();
         self.map
-            .get(&key)
+            .get(&TypeId::of::<V>())
             .cloned()
             .map(|v| v.inner.downcast().expect("Values are stored by `TypeId`"))
     }
