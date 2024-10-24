@@ -1,9 +1,9 @@
-use std::{
-    collections::{hash_map::RandomState, HashSet},
-    hash::{BuildHasher, Hash},
-};
-
 use crate::HandlerDescription;
+
+use std::{
+    collections::HashSet,
+    hash::{BuildHasher, Hash, RandomState},
+};
 
 /// Description for a handler that describes what event kinds are interesting to
 /// the handler.
@@ -42,19 +42,19 @@ impl<K: EventKind<S>, S> InterestSet<K, S> {
     /// example:
     /// ```
     /// use dptree::{description::{InterestSet, EventKind}, filter_with_description};
-    /// use maplit::hashset;
+    /// use std::collections::HashSet;
     ///
-    /// # enum K {} impl EventKind for K { fn full_set() -> std::collections::HashSet<Self> { hashset!{} } fn empty_set() -> std::collections::HashSet<Self> { hashset!{} } }
-    /// # let _: dptree::Handler<(), (), InterestSet<K>> =
-    /// filter_with_description(InterestSet::new_filter(hashset! {}), || {
+    /// # enum K {} impl EventKind for K { fn full_set() -> HashSet<Self> { HashSet::default() } fn empty_set() -> HashSet<Self> { HashSet::default() } }
+    /// # let _: dptree::Handler<(), InterestSet<K>> =
+    /// filter_with_description(InterestSet::new_filter(HashSet::new()), || {
     ///     println!("Filter called!"); // <-- bad
     ///
     ///     false
     /// });
     ///
     /// # #[derive(Clone)] struct Db; impl Db { fn fetch_enabled(&self) -> bool { false } }
-    /// # let _: dptree::Handler<dptree::di::DependencyMap, (), InterestSet<K>> =
-    /// filter_with_description(InterestSet::new_filter(hashset! {}), |db: Db| {
+    /// # let _: dptree::Handler<(), InterestSet<K>> =
+    /// filter_with_description(InterestSet::new_filter(HashSet::new()), |db: Db| {
     ///     let pass = db.fetch_enabled(); // <-- fine
     ///
     ///     pass
@@ -110,7 +110,7 @@ where
             tmp
         };
 
-        // If we chain two filters together, we are only interested in events that can
+        // If we chain two filters together, we are only passing through events that can
         // pass both of them.
         let filtered = {
             let hasher = l_flt.hasher().clone();

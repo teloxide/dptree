@@ -2,23 +2,26 @@ use crate::{
     di::{Asyncify, Injectable},
     from_fn_with_description,
     handler::core::Handler,
-    HandlerDescription,
+    HandlerDescription, HandlerSignature,
 };
-use std::{ops::ControlFlow, sync::Arc};
+
+use std::{collections::BTreeSet, ops::ControlFlow, sync::Arc};
 
 /// Constructs a handler that filters input with the predicate `pred`.
 ///
 /// `pred` has an access to all values that are stored in the input container.
 /// If it returns `true`, a continuation of the handler will be called,
 /// otherwise the handler returns [`ControlFlow::Continue`].
+///
+/// # Run-time signature
+///
+/// - Obligations: `Pred::obligations()`
+/// - Outcomes: `BTreeSet::default()`
 #[must_use]
 #[track_caller]
-pub fn filter<'a, Pred, Input, Output, FnArgs, Descr>(
-    pred: Pred,
-) -> Handler<'a, Input, Output, Descr>
+pub fn filter<'a, Pred, Output, FnArgs, Descr>(pred: Pred) -> Handler<'a, Output, Descr>
 where
-    Asyncify<Pred>: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
-    Input: Send + 'a,
+    Asyncify<Pred>: Injectable<bool, FnArgs> + Send + Sync + 'a,
     Output: 'a,
     Descr: HandlerDescription,
 {
@@ -28,12 +31,9 @@ where
 /// The asynchronous version of [`filter`].
 #[must_use]
 #[track_caller]
-pub fn filter_async<'a, Pred, Input, Output, FnArgs, Descr>(
-    pred: Pred,
-) -> Handler<'a, Input, Output, Descr>
+pub fn filter_async<'a, Pred, Output, FnArgs, Descr>(pred: Pred) -> Handler<'a, Output, Descr>
 where
-    Pred: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
-    Input: Send + 'a,
+    Pred: Injectable<bool, FnArgs> + Send + Sync + 'a,
     Output: 'a,
     Descr: HandlerDescription,
 {
@@ -42,13 +42,13 @@ where
 
 /// [`filter`] with a custom description.
 #[must_use]
-pub fn filter_with_description<'a, Pred, Input, Output, FnArgs, Descr>(
+#[track_caller]
+pub fn filter_with_description<'a, Pred, Output, FnArgs, Descr>(
     description: Descr,
     pred: Pred,
-) -> Handler<'a, Input, Output, Descr>
+) -> Handler<'a, Output, Descr>
 where
-    Asyncify<Pred>: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
-    Input: Send + 'a,
+    Asyncify<Pred>: Injectable<bool, FnArgs> + Send + Sync + 'a,
     Output: 'a,
 {
     filter_async_with_description(description, Asyncify(pred))
@@ -56,32 +56,36 @@ where
 
 /// [`filter_async`] with a custom description.
 #[must_use]
-pub fn filter_async_with_description<'a, Pred, Input, Output, FnArgs, Descr>(
+#[track_caller]
+pub fn filter_async_with_description<'a, Pred, Output, FnArgs, Descr>(
     description: Descr,
     pred: Pred,
-) -> Handler<'a, Input, Output, Descr>
+) -> Handler<'a, Output, Descr>
 where
-    Pred: Injectable<Input, bool, FnArgs> + Send + Sync + 'a,
-    Input: Send + 'a,
+    Pred: Injectable<bool, FnArgs> + Send + Sync + 'a,
     Output: 'a,
 {
     let pred = Arc::new(pred);
 
-    from_fn_with_description(description, move |event, cont| {
-        let pred = Arc::clone(&pred);
+    from_fn_with_description(
+        description,
+        move |event, cont| {
+            let pred = Arc::clone(&pred);
 
-        async move {
-            let pred = pred.inject(&event);
-            let cond = pred().await;
-            drop(pred);
+            async move {
+                let pred = pred.inject(&event);
+                let cond = pred().await;
+                drop(pred);
 
-            if cond {
-                cont(event).await
-            } else {
-                ControlFlow::Continue(event)
+                if cond {
+                    cont(event).await
+                } else {
+                    ControlFlow::Continue(event)
+                }
             }
-        }
-    })
+        },
+        HandlerSignature::Other { obligations: Pred::obligations(), outcomes: BTreeSet::default() },
+    )
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
 use std::panic::Location;
 
-use dptree::{di::DependencyMap, Handler, HandlerDescription};
+use dptree::{Handler, HandlerDescription};
 
 struct CollectLocations {
     locations: Vec<(&'static str, &'static Location<'static>)>,
@@ -85,14 +85,14 @@ impl HandlerDescription for CollectLocations {
 }
 
 fn get_locations<'a, 'b>(
-    handler: &'a Handler<'b, impl Send + Sync + 'b, impl Send + Sync + 'b, CollectLocations>,
+    handler: &'a Handler<'b, impl Send + Sync + 'b, CollectLocations>,
 ) -> &'a [(&'static str, &'static Location<'static>)] {
     &handler.description().locations
 }
 
 fn main() {
     #[rustfmt::skip]
-    let some_tree: Handler<DependencyMap, _, _> = dptree::entry()
+    let some_tree: Handler< _, _> = dptree::entry()
         .branch(
             dptree::filter(|| true)
                 .endpoint(|| async {})

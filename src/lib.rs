@@ -4,7 +4,7 @@
 //! ```
 //! use dptree::prelude::*;
 //!
-//! type WebHandler = Endpoint<'static, DependencyMap, String>;
+//! type WebHandler = Endpoint<'static, String>;
 //!
 //! #[rustfmt::skip]
 //! #[tokio::main]
@@ -106,7 +106,7 @@ pub use handler::*;
 ///     Add(i32, i32),
 /// }
 ///
-/// let h: crate::Handler<_, _> = dptree::entry()
+/// let h: Handler<_> = dptree::entry()
 ///     .branch(dptree::case![Command::Meow].endpoint(|| async move { format!("Meow!") }))
 ///     .branch(
 ///         dptree::case![Command::Add(x, y)]
@@ -173,7 +173,7 @@ mod tests {
     #[tokio::test]
     async fn handler_empty_variant() {
         let input = State::A;
-        let h: crate::Handler<_, _> = case![State::A].endpoint(|| async move { 123 });
+        let h: crate::Handler<_> = case![State::A].endpoint(|| async move { 123 });
 
         assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
         assert!(matches!(h.dispatch(crate::deps![State::Other]).await, ControlFlow::Continue(_)));
@@ -182,7 +182,7 @@ mod tests {
     #[tokio::test]
     async fn handler_single_fn_variant() {
         let input = State::B(42);
-        let h: crate::Handler<_, _> = case![State::B(x)].endpoint(|x: i32| async move {
+        let h: crate::Handler<_> = case![State::B(x)].endpoint(|x: i32| async move {
             assert_eq!(x, 42);
             123
         });
@@ -194,7 +194,7 @@ mod tests {
     #[tokio::test]
     async fn handler_single_fn_variant_trailing_comma() {
         let input = State::B(42);
-        let h: crate::Handler<_, _> = case![State::B(x,)].endpoint(|(x,): (i32,)| async move {
+        let h: crate::Handler<_> = case![State::B(x,)].endpoint(|(x,): (i32,)| async move {
             assert_eq!(x, 42);
             123
         });
@@ -206,7 +206,7 @@ mod tests {
     #[tokio::test]
     async fn handler_fn_variant() {
         let input = State::C(42, "abc");
-        let h: crate::Handler<_, _> =
+        let h: crate::Handler<_> =
             case![State::C(x, y)].endpoint(|(x, str): (i32, &'static str)| async move {
                 assert_eq!(x, 42);
                 assert_eq!(str, "abc");
@@ -220,7 +220,7 @@ mod tests {
     #[tokio::test]
     async fn handler_single_struct_variant() {
         let input = State::D { foo: 42 };
-        let h: crate::Handler<_, _> = case![State::D { foo }].endpoint(|x: i32| async move {
+        let h: crate::Handler<_> = case![State::D { foo }].endpoint(|x: i32| async move {
             assert_eq!(x, 42);
             123
         });
@@ -233,7 +233,7 @@ mod tests {
     async fn handler_single_struct_variant_trailing_comma() {
         let input = State::D { foo: 42 };
         #[rustfmt::skip] // rustfmt removes the trailing comma from `State::D { foo, }`, but it plays a vital role in this test.
-        let h: crate::Handler<_, _> = case![State::D { foo, }].endpoint(|(x,): (i32,)| async move {
+        let h: crate::Handler<_> = case![State::D { foo, }].endpoint(|(x,): (i32,)| async move {
             assert_eq!(x, 42);
             123
         });
@@ -245,7 +245,7 @@ mod tests {
     #[tokio::test]
     async fn handler_struct_variant() {
         let input = State::E { foo: 42, bar: "abc" };
-        let h: crate::Handler<_, _> =
+        let h: crate::Handler<_> =
             case![State::E { foo, bar }].endpoint(|(x, str): (i32, &'static str)| async move {
                 assert_eq!(x, 42);
                 assert_eq!(str, "abc");

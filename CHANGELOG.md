@@ -8,8 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
- - The handlers now can accept up to 12 parameters instead of 9. ([PR 28](https://github.com/teloxide/dptree/pull/28))
- - `DependencyMap::try_get` method ([PR 29](https://github.com/teloxide/dptree/pull/29))
+ - The `type_check` function that performs run-time type checking. Call this function to ensure that all types required by your handler are present in `di::DependencyMap` ([PR #23](https://github.com/teloxide/dptree/pull/23)).
+ - The `HandlerSignature` and `Type` types.
+ - The `Handler::sig` function.
+ - The `di::Injectable::input_types` associated function [**BC**].
+ - The `DependencyMap::try_get` method ([PR #29](https://github.com/teloxide/dptree/pull/29)).
+
+### Changed
+
+ - The `Output` generic of `di::Injectable` is now required to be `'static` [**BC**].
+ - Function parameters in the implementation of `di::Injectable` for functions are now required to be `'static` [**BC**].
+ - `Handler::{chain, branch}` now panic if the second handler is `dptree::entry()` [**BC**].
+ - The following functions now accept the `sig: HandlerSignature` parameter [**BC**]:
+   - `from_fn`
+   - `from_fn_with_description`
+ - Always use `di::DependencyMap` instead of a generic `Input` type.
+ - The handlers now can accept up to 12 parameters instead of 9 ([PR #28](([PR 28](https://github.com/teloxide/dptree/pull/28)))).
+
+### Removed
+
+ - The `di::{Insert, DependencySupplier}` traits.
 
 ## 0.3.0 - 2022-07-19
 
