@@ -177,11 +177,11 @@ macro_rules! _extract_values {
     ($inner:ident::$variant:ident) => {
         $inner::$variant
     };
-    // Multiple fields in stuct/enum in braces
+    // Multiple fields in struct/enum in braces
     ($inner:ident$(::$variant:ident)? { $($rest:tt)* }) => {
         $crate::_extract_values!($($rest)*)
     };
-    // Multiple fields in stuct/enum in parentheses
+    // Multiple fields in struct/enum in parentheses
     ($value:ident$(::$variant:ident)? ($($rest:tt)*)) => {
         $crate::_extract_values!($($rest)*)
     };
