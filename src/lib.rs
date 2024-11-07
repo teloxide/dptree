@@ -126,32 +126,76 @@ pub use handler::*;
 /// [`examples/purchase.rs`]: https://github.com/teloxide/teloxide/blob/master/examples/purchase.rs
 #[macro_export]
 macro_rules! case {
-    ($($variant:ident)::+) => {
-        $crate::filter(|x| matches!(x, $($variant)::+))
-    };
-    ($($variant:ident)::+ ($param:ident)) => {
+    ($($entry:tt)*) => {
         $crate::filter_map(|x| match x {
-            $($variant)::+($param) => Some($param),
+            $($entry)*
+            => Some($crate::_extract_values!($($entry)*)),
             _ => None,
         })
     };
-    ($($variant:ident)::+ ($($param:ident),+ $(,)?)) => {
-        $crate::filter_map(|x| match x {
-            $($variant)::+($($param),+) => Some(($($param),+ ,)),
-            _ => None,
-        })
+}
+
+/// A helper macro for [`case!`] to extract values recursively from structs and enums
+///
+/// [`case!`]: crate::case
+//
+// This looks confusing, so here is how this works:
+//
+// The first rule is just a nicer panic
+//
+// The following four rules are escapes from the recursion. All branches end in either
+// nothing, a variable from a struct/enum, or in an enum without any values (for filtering reasons).
+//
+// The two rules after that basically take any enum or struct, and dump out the contents to the
+// next recursion depth.
+//
+// The next two rules take the comma separated tokens,
+// and wrap a recursion layer aroud every token. E.g.:
+// `field1, field2` will become `_extract_values(field1), _extract_values(field2)`
+//
+// The last rule just takes the value out of `key: value`
+#[macro_export]
+macro_rules! _extract_values {
+    (None) => {
+        { const _: () = panic!("Cannot infer the type of None, please add None::<T>"); }
     };
-    ($($variant:ident)::+ {$param:ident}) => {
-        $crate::filter_map(|x| match x {
-            $($variant)::+{$param} => Some($param),
-            _ => None,
-        })
+    // Empty value, for trailing comma support
+    () => {
+        // This is a workaround, rust expects an expression here, but just () can't be returned, so
+        // we trick the compiler to think that we are returning an expression, while not doing it
+        #[cfg(any())] { () }
     };
-    ($($variant:ident)::+ {$($param:ident),+ $(,)?}) => {
-        $crate::filter_map(|x| match x {
-            $($variant)::+ { $($param),+ } => Some(($($param),+ ,)),
-            _ => None,
-        })
+    // Singular value
+    ($value:ident) => {
+        $value
+    };
+    // Mostly for None support, but generalized
+    ($value:ident::<$($ty:ty),*>) => {
+        $value::<$($ty)*>
+    };
+    // Enum without any values
+    ($inner:ident::$variant:ident) => {
+        $inner::$variant
+    };
+    // Multiple fields in stuct/enum in braces
+    ($inner:ident$(::$variant:ident)? { $($rest:tt)* }) => {
+        $crate::_extract_values!($($rest)*)
+    };
+    // Multiple fields in stuct/enum in parentheses
+    ($value:ident$(::$variant:ident)? ($($rest:tt)*)) => {
+        $crate::_extract_values!($($rest)*)
+    };
+    // This takes a comma separated token list and wraps a recursion around every item
+    ($param:ident $(: $value:ident$(::$variant:ident)? $({$($inner:tt)*})? )?, $($outer:tt)*) => {
+        ($crate::_extract_values!($param $(: $value$(::$variant)? $({$($inner)*})? )?), $crate::_extract_values!($($outer)*))
+    };
+    // Same thing, it just works with parentheses instead of braces
+    ($param:ident $(: $value:ident$(::$variant:ident)? ($($inner:tt)*) )?, $($outer:tt)*) => {
+        ($crate::_extract_values!($param $(: $value$(::$variant)? ($($inner)*) )?), $crate::_extract_values!($($outer)*))
+    };
+    // Extracts `test: ...` to `...`
+    ($param:ident : $($value:tt)*) => {
+        $crate::_extract_values!($($value)*)
     };
 }
 
@@ -168,6 +212,25 @@ mod tests {
         E { foo: i32, bar: &'static str },
         Other,
     }
+
+    #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+    enum ComplexState {
+        A(State),
+        B(i32, State),
+        C { foo: TestStruct, bar: i32 },
+        D(Option<i32>),
+        E { foo: TestTupleStruct },
+        Other,
+    }
+
+    #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+    struct TestStruct {
+        a: u32,
+        b: State,
+    }
+
+    #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+    struct TestTupleStruct(i32, State);
 
     #[tokio::test]
     async fn handler_empty_variant() {
@@ -253,5 +316,175 @@ mod tests {
 
         assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
         assert!(matches!(h.dispatch(crate::deps![State::Other]).await, ControlFlow::Continue(_)));
+    }
+
+    #[tokio::test]
+    async fn handler_struct() {
+        let input = TestStruct { a: 5, b: State::A };
+        let h: crate::Handler<_> =
+            case![TestStruct { a, b: State::A }].endpoint(|(a, state): (u32, State)| async move {
+                assert_eq!(a, 5);
+                assert_eq!(state, State::A);
+                123
+            });
+
+        assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
+        assert!(matches!(
+            h.dispatch(crate::deps![TestStruct { a: 5, b: State::Other }]).await,
+            ControlFlow::Continue(_)
+        ));
+    }
+
+    #[tokio::test]
+    async fn handler_tuple_struct() {
+        let input = TestTupleStruct(6, State::A);
+        let h: crate::Handler<_> =
+            case![TestTupleStruct(x, State::A)].endpoint(|(x, state): (i32, State)| async move {
+                assert_eq!(x, 6);
+                assert_eq!(state, State::A);
+                123
+            });
+
+        assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
+        assert!(matches!(
+            h.dispatch(crate::deps![TestTupleStruct(6, State::Other)]).await,
+            ControlFlow::Continue(_)
+        ));
+    }
+
+    // ComplexState tests
+
+    #[tokio::test]
+    async fn handler_nested_fn_variant() {
+        let input = ComplexState::A(State::A);
+        let h: crate::Handler<_> =
+            case![ComplexState::A(State::A)].endpoint(|state: State| async move {
+                assert_eq!(state, State::A);
+                123
+            });
+
+        assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
+        assert!(matches!(
+            h.dispatch(crate::deps![ComplexState::Other]).await,
+            ControlFlow::Continue(_)
+        ));
+    }
+
+    #[tokio::test]
+    async fn handler_nested_multiple_fn_variant() {
+        let input = ComplexState::B(1, State::B(2));
+        let h: crate::Handler<_> =
+            case![ComplexState::B(x, State::B(y))].endpoint(|(x, y): (i32, i32)| async move {
+                assert_eq!(x, 1);
+                assert_eq!(y, 2);
+                123
+            });
+
+        assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
+        assert!(matches!(
+            h.dispatch(crate::deps![ComplexState::Other]).await,
+            ControlFlow::Continue(_)
+        ));
+    }
+
+    #[tokio::test]
+    async fn handler_nested_struct() {
+        let input = ComplexState::C { foo: TestStruct { a: 10, b: State::C(1, "abc") }, bar: 11 };
+        let h: crate::Handler<_> =
+            case![ComplexState::C { foo: TestStruct { a, b: State::C(c, d) }, bar }].endpoint(
+                |((a, (c, d)), bar): ((u32, (i32, &'static str)), i32)| async move {
+                    assert_eq!(a, 10);
+                    assert_eq!(c, 1);
+                    assert_eq!(d, "abc");
+                    assert_eq!(bar, 11);
+                    123
+                },
+            );
+
+        assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
+        assert!(matches!(
+            h.dispatch(crate::deps![ComplexState::Other]).await,
+            ControlFlow::Continue(_)
+        ));
+    }
+
+    #[tokio::test]
+    async fn handler_nested_option_some() {
+        let input = ComplexState::D(Some(2));
+        let h: crate::Handler<_> = case![ComplexState::D(Some(x))].endpoint(|x: i32| async move {
+            assert_eq!(x, 2);
+            123
+        });
+
+        assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
+        assert!(matches!(
+            h.dispatch(crate::deps![ComplexState::Other]).await,
+            ControlFlow::Continue(_)
+        ));
+    }
+
+    #[tokio::test]
+    async fn handler_option_none() {
+        let input = None::<i32>;
+        let h: crate::Handler<_> = case![None::<i32>].endpoint(|x: Option<i32>| async move {
+            assert_eq!(x, None);
+            123
+        });
+
+        assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
+        assert!(matches!(h.dispatch(crate::deps![Some(13)]).await, ControlFlow::Continue(_)));
+    }
+
+    #[tokio::test]
+    async fn handler_nested_option_none() {
+        let input = ComplexState::D(None);
+        let h: crate::Handler<_> =
+            case![ComplexState::D(None::<i32>)].endpoint(|x: Option<i32>| async move {
+                assert_eq!(x, None);
+                123
+            });
+
+        assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
+        assert!(matches!(
+            h.dispatch(crate::deps![ComplexState::Other]).await,
+            ControlFlow::Continue(_)
+        ));
+    }
+
+    #[tokio::test]
+    async fn handler_nested_tuple_struct() {
+        let input = ComplexState::E { foo: TestTupleStruct(100, State::B(9)) };
+        let h: crate::Handler<_> = case![ComplexState::E { foo: TestTupleStruct(x, y) }].endpoint(
+            |(x, state): (i32, State)| async move {
+                assert_eq!(x, 100);
+                assert_eq!(state, State::B(9));
+                123
+            },
+        );
+
+        assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
+        assert!(matches!(
+            h.dispatch(crate::deps![ComplexState::Other]).await,
+            ControlFlow::Continue(_)
+        ));
+    }
+
+    #[tokio::test]
+    async fn handler_nested_tuple_struct_trailing_comma() {
+        let input = ComplexState::E { foo: TestTupleStruct(100, State::A) };
+        // Here rustfmt again removes a crutial comma
+        #[rustfmt::skip]
+        let h: crate::Handler<_> = case![ComplexState::E { foo: TestTupleStruct(x, State::A), }]
+            .endpoint(|((x, state),): ((i32, State),)| async move {
+                assert_eq!(x, 100);
+                assert_eq!(state, State::A);
+                123
+            });
+
+        assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
+        assert!(matches!(
+            h.dispatch(crate::deps![ComplexState::Other]).await,
+            ControlFlow::Continue(_)
+        ));
     }
 }

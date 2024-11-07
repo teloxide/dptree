@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - The `Handler::sig` function.
  - The `di::Injectable::input_types` associated function [**BC**].
  - The `DependencyMap::try_get` method ([PR #29](https://github.com/teloxide/dptree/pull/29)).
+ - More functionality to `case!` macro. Now it can inject almost anything that rust pattern matching can interpret.
 
 ### Changed
 
