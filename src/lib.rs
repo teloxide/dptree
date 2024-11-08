@@ -143,8 +143,9 @@ macro_rules! case {
 //
 // The first rule is just a nicer panic
 //
-// The following four rules are escapes from the recursion. All branches end in either
-// nothing, a variable from a struct/enum, or in an enum without any values (for filtering reasons).
+// The following five rules are escapes from the recursion.
+// All branches end in either an expansion, nothing, a variable from a struct/enum,
+// or in an enum without any values (for filtering reasons).
 //
 // The two rules after that basically take any enum or struct, and dump out the contents to the
 // next recursion depth.
@@ -159,10 +160,14 @@ macro_rules! _extract_values {
     (None) => {
         { const _: () = panic!("Cannot infer the type of None, please add None::<T>"); }
     };
-    // Empty value, for trailing comma support
-    () => {
+    // Two dots mean expansion. This has to go at the end, otherwise it will mess up the commas.
+    (..) => {
         // This is a workaround, rust expects an expression here, but just () can't be returned, so
         // we trick the compiler to think that we are returning an expression, while not doing it
+        #[cfg(any())] { () }
+    };
+    // Empty value, for trailing comma support
+    () => {
         #[cfg(any())] { () }
     };
     // Singular value
@@ -324,6 +329,22 @@ mod tests {
         let h: crate::Handler<_> =
             case![TestStruct { a, b: State::A }].endpoint(|(a, state): (u32, State)| async move {
                 assert_eq!(a, 5);
+                assert_eq!(state, State::A);
+                123
+            });
+
+        assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
+        assert!(matches!(
+            h.dispatch(crate::deps![TestStruct { a: 5, b: State::Other }]).await,
+            ControlFlow::Continue(_)
+        ));
+    }
+
+    #[tokio::test]
+    async fn handler_dots_expand_struct() {
+        let input = TestStruct { a: 5, b: State::A };
+        let h: crate::Handler<_> =
+            case![TestStruct { b: State::A, .. }].endpoint(|(state,): (State,)| async move {
                 assert_eq!(state, State::A);
                 123
             });
