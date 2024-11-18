@@ -135,70 +135,123 @@ macro_rules! case {
     };
 }
 
-/// A helper macro for [`case!`] to extract values recursively from structs and enums
+/// A helper macro for [`case!`] to extract values recursively from structs and enums and returns a
+/// tuple with all of the matched values.
 ///
 /// [`case!`]: crate::case
 //
 // This looks confusing, so here is how this works:
 //
-// The first rule is just a nicer panic
+// It's just a recursive TT muncher that takes all of the "endpoint" values in rusts pattern
+// matching syntax.
 //
-// The following five rules are escapes from the recursion.
-// All branches end in either an expansion, nothing, a variable from a struct/enum,
-// or in an enum without any values (for filtering reasons).
+// The first three rules are just for `..` support and trailing comma support. ".." and ", .."
+// differ because ".." can be at the front, where a lack of a value is an error, but a
+// comma indicates that the value before is filled in, and we can return nothing.
 //
-// The two rules after that basically take any enum or struct, and dump out the contents to the
-// next recursion depth.
+// The fourth rule just removes the comma, all other cases don't care about it, so, to converge the
+// two possibilities, we just remove it.
 //
-// The next two rules take the comma separated tokens,
-// and wrap a recursion layer aroud every token. E.g.:
-// `field1, field2` will become `_extract_values(field1), _extract_values(field2)`
+// The sixth, seventh and eighth rules are escapes from the recursion.
+// All branches end in either a variable or an enum variant with no values (for filtering reasons).
 //
-// The last rule just takes the value out of `key: value`
+// Ninth and tenth rules just extract the inner comma separated values from structs and enums.
+//
+// Eleventh and twelfth rules take the comma separated values from ninth and tenth rules and TT
+// munch on every single one of the values.
+//
+// Thirteenth and forteenth rules do the same, but if the first field doesn't have a key, like in a
+// tuple struct.
+//
+// Fifteenth and sixteenth rules are for typed values, with and without a key.
+//
+// The last rule just extracts `key: value` to `value`, the `key` is not needed in the return tuple.
 #[macro_export]
 macro_rules! _extract_values {
-    (None) => {
-        { const _: () = panic!("Cannot infer the type of None, please add None::<T>"); }
-    };
-    // Two dots mean expansion. This has to go at the end, otherwise it will mess up the commas.
+    // 1. Two dots mean expansion. This has to go at the end, otherwise it will mess up the commas.
     (..) => {
+        ()
+    };
+    // 2. Same thing, but no need to return anything because of the comma
+    (, ..) => {
         // This is a workaround, rust expects an expression here, but just () can't be returned, so
         // we trick the compiler to think that we are returning an expression, while not doing it
         #[cfg(any())] { () }
     };
-    // Empty value, for trailing comma support
-    () => {
+    // 3. Trailing comma support
+    (,) => {
         #[cfg(any())] { () }
     };
-    // Singular value
+    // 4. Removing the comma, converging it to all the other cases
+    (, $($rest:tt)*) => {
+        $crate::_extract_values!($($rest)*)
+    };
+    // 5. Just a nice panic
+    (None) => {
+        { const _: () = panic!("Cannot infer the type of None, please add None::<T>"); }
+    };
+    // 6. Singular value
     ($value:ident) => {
         $value
     };
-    // Mostly for None support, but generalized
+    // 7. Singular value with a type. Mostly for None::<T> support, but generalized.
     ($value:ident::<$($ty:ty),*>) => {
         $value::<$($ty)*>
     };
-    // Enum without any values
+    // 8. Enum without any values
     ($inner:ident::$variant:ident) => {
         $inner::$variant
     };
-    // Multiple fields in struct/enum in braces
+    // 9. Multiple fields in struct/enum in braces
     ($inner:ident$(::$variant:ident)? { $($rest:tt)* }) => {
         $crate::_extract_values!($($rest)*)
     };
-    // Multiple fields in struct/enum in parentheses
+    // 10. Multiple fields in struct/enum in parentheses
     ($value:ident$(::$variant:ident)? ($($rest:tt)*)) => {
         $crate::_extract_values!($($rest)*)
     };
-    // This takes a comma separated token list and wraps a recursion around every item
+    // 11. This takes a comma separated token list and wraps a recursion around every item.
+    //
+    // This basically filters for all of:
+    // 1. Just an endpoint value: `foo` in `foo, ..`
+    // 2. A key to a value: `SomeVal` in `foo: SomeVal, ..`
+    // 3. A key to an enum variant: `State::A` in `foo: State::A, ..`
+    // 4. A key to a struct enum variant: `State::A { bar }` in `foo: State::A { bar }, ..`
+    // 5. A key to an struct: `Pos { x, y }` in `foo: Pos { x, y }, ..`
+    //
+    // And passes the rest to the TT muncher.
+    //
+    // A comma is added in the front of the second `_extract_values` for the 2nd and 3rd rules.
+    //
+    // It's impossible to just put everything before a comma under $($var:tt)* because of the
+    // ambiguity due to $outer.
     ($param:ident $(: $value:ident$(::$variant:ident)? $({$($inner:tt)*})? )?, $($outer:tt)*) => {
-        ($crate::_extract_values!($param $(: $value$(::$variant)? $({$($inner)*})? )?), $crate::_extract_values!($($outer)*))
+        ($crate::_extract_values!($param $(: $value$(::$variant)? $({$($inner)*})? )?), $crate::_extract_values!(, $($outer)*))
     };
-    // Same thing, it just works with parentheses instead of braces
+    // 12. Same thing, it just works with parentheses instead of braces.
+    //
+    // We don't need an extra optional group around the braced part to filter the enum variants,
+    // the previous rule does that already.
     ($param:ident $(: $value:ident$(::$variant:ident)? ($($inner:tt)*) )?, $($outer:tt)*) => {
-        ($crate::_extract_values!($param $(: $value$(::$variant)? ($($inner)*) )?), $crate::_extract_values!($($outer)*))
+        ($crate::_extract_values!($param $(: $value$(::$variant)? ($($inner)*) )?), $crate::_extract_values!(, $($outer)*))
     };
-    // Extracts `test: ...` to `...`
+    // 13. Same as 11, but times where the first value doesn't have a key, like in tuple structs
+    ($value:ident$(::$variant:ident)? $({$($inner:tt)*})?, $($outer:tt)*) => {
+        ($crate::_extract_values!($value$(::$variant)? $({$($inner)*})?), $crate::_extract_values!(, $($outer)*))
+    };
+    // 14. Same as 13, but with parantheses
+    ($value:ident$(::$variant:ident)? ($($inner:tt)*), $($outer:tt)*) => {
+        ($crate::_extract_values!($value$(::$variant)? ($($inner)*)), $crate::_extract_values!(, $($outer)*))
+    };
+    // 15. If the first key is a typed value
+    ($key:ident : $value:ident::<$($ty:ty),*>, $($outer:tt)*) => {
+        ($crate::_extract_values!($key: $value::<$($ty),*>), $crate::_extract_values!(, $($outer)*))
+    };
+    // 16. If the first value is a typed value
+    ($value:ident::<$($ty:ty),*>, $($outer:tt)*) => {
+        ($crate::_extract_values!($value::<$($ty),*>), $crate::_extract_values!(, $($outer)*))
+    };
+    // 17. Extracts `key: value` to `value`
     ($param:ident : $($value:tt)*) => {
         $crate::_extract_values!($($value)*)
     };
@@ -225,6 +278,7 @@ mod tests {
         C { foo: TestStruct, bar: i32 },
         D(Option<i32>),
         E { foo: TestTupleStruct },
+        F(Option<i32>, i32),
         Other,
     }
 
@@ -236,6 +290,9 @@ mod tests {
 
     #[derive(Debug, Copy, Clone, Eq, PartialEq)]
     struct TestTupleStruct(i32, State);
+
+    #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+    struct TestTupleStruct2(State, i32);
 
     #[tokio::test]
     async fn handler_empty_variant() {
@@ -341,6 +398,15 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn handler_expansion() {
+        let input = State::E { foo: 42, bar: "abc" };
+        let h: crate::Handler<_> = case![State::E { .. }].endpoint(|| async move { 123 });
+
+        assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
+        assert!(matches!(h.dispatch(crate::deps![State::Other]).await, ControlFlow::Continue(_)));
+    }
+
+    #[tokio::test]
     async fn handler_dots_expand_struct() {
         let input = TestStruct { a: 5, b: State::A };
         let h: crate::Handler<_> =
@@ -369,6 +435,24 @@ mod tests {
         assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
         assert!(matches!(
             h.dispatch(crate::deps![TestTupleStruct(6, State::Other)]).await,
+            ControlFlow::Continue(_)
+        ));
+    }
+
+    #[tokio::test]
+    async fn handler_tuple_struct2() {
+        // To test for the enum in the first field
+        let input = TestTupleStruct2(State::A, 6);
+        let h: crate::Handler<_> =
+            case![TestTupleStruct2(State::A, x)].endpoint(|(state, x): (State, i32)| async move {
+                assert_eq!(state, State::A);
+                assert_eq!(x, 6);
+                123
+            });
+
+        assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
+        assert!(matches!(
+            h.dispatch(crate::deps![TestTupleStruct2(State::Other, 6)]).await,
             ControlFlow::Continue(_)
         ));
     }
@@ -470,6 +554,22 @@ mod tests {
             h.dispatch(crate::deps![ComplexState::Other]).await,
             ControlFlow::Continue(_)
         ));
+    }
+
+    #[tokio::test]
+    async fn handler_tuple_struct_none() {
+        // To test for a typed variable in the first field
+        let input = ComplexState::F(None, 6);
+        let h: crate::Handler<_> = case![ComplexState::F(None::<i32>, x)].endpoint(
+            |(x, y): (Option<i32>, i32)| async move {
+                assert_eq!(x, None);
+                assert_eq!(y, 6);
+                123
+            },
+        );
+
+        assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
+        assert!(matches!(h.dispatch(crate::deps![Some(13)]).await, ControlFlow::Continue(_)));
     }
 
     #[tokio::test]
