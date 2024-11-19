@@ -702,4 +702,54 @@ mod tests {
             ControlFlow::Continue(_)
         ));
     }
+
+    #[tokio::test]
+    async fn handler_overkill2() {
+        let input = ComplexState::H(
+            1,
+            2,
+            3,
+            "deep",
+            255,
+            TestStruct { a: 42, b: State::B(100) },
+            Some(State::C(10, "inner")),
+        );
+        let h: crate::Handler<_> = case![ComplexState::H(
+            x,
+            y,
+            z,
+            w,
+            u,
+            TestStruct { a, b: State::B(v) },
+            Some(State::C(c, d))
+        )]
+        .endpoint(
+            |(x, y, z, w, u, (a, v), (c, d)): (
+                i32,
+                i32,
+                i32,
+                &'static str,
+                u8,
+                (u32, i32),
+                (i32, &'static str),
+            )| async move {
+                assert_eq!(x, 1);
+                assert_eq!(y, 2);
+                assert_eq!(z, 3);
+                assert_eq!(w, "deep");
+                assert_eq!(u, 255);
+                assert_eq!(a, 42);
+                assert_eq!(v, 100);
+                assert_eq!(c, 10);
+                assert_eq!(d, "inner");
+                123
+            },
+        );
+
+        assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
+        assert!(matches!(
+            h.dispatch(crate::deps![ComplexState::Other]).await,
+            ControlFlow::Continue(_)
+        ));
+    }
 }
