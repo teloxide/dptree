@@ -129,7 +129,11 @@ macro_rules! case {
     ($($entry:tt)*) => {
         $crate::filter_map(|x| match x {
             $($entry)*
-            => Some($crate::_extract_values!($($entry)*)),
+            => {
+                #[allow(unused_imports)]
+                use ::tuples::combin::CombinConcat;
+                Some($crate::_extract_values!($($entry)*))
+            },
             _ => None,
         })
     };
@@ -145,72 +149,46 @@ macro_rules! case {
 // It's just a recursive TT muncher that takes all of the "endpoint" values in rusts pattern
 // matching syntax.
 //
-// The first three rules are just for `..` support and trailing comma support. ".." and ", .."
+// The first rule is just for `..` support.
 // differ because ".." can be at the front, where a lack of a value is an error, but a
 // comma indicates that the value before is filled in, and we can return nothing.
 //
-// The fourth rule just removes the comma, all other cases don't care about it, so, to converge the
-// two possibilities, we just remove it.
-//
-// The sixth, seventh and eighth rules are escapes from the recursion.
+// 3-5 rules are escapes from the recursion.
 // All branches end in either a variable or an enum variant with no values (for filtering reasons).
 //
-// Ninth and tenth rules just extract the inner comma separated values from structs and enums.
+// 6-7 rules feed the inners of structs and enums back to the macro, so that rules 8-13 can munch
+// on them.
 //
-// Eleventh and twelfth rules take the comma separated values from ninth and tenth rules and TT
-// munch on every single one of the values.
+// Speaking of which, 8-13 rules just take comma separated arguments and make them into a tuple.
 //
-// Thirteenth and forteenth rules do the same, but if the first field doesn't have a key, like in a
-// tuple struct.
-//
-// Fifteenth and sixteenth rules are for typed values, with and without a key.
-//
-// The last rule just extracts `key: value` to `value`, the `key` is not needed in the return tuple.
+// 14-15 rules just expand `key: value` to `value`
 #[macro_export]
 macro_rules! _extract_values {
     // 1. Two dots mean expansion. This has to go at the end, otherwise it will mess up the commas.
-    (..) => {
+    ($(@intuple)? ..) => {
         ()
     };
-    // 2. Same thing, but no need to return anything because of the comma
-    (, ..) => {
-        // This is a workaround, rust expects an expression here, but just () can't be returned, so
-        // we trick the compiler to think that we are returning an expression, while not doing it
-        #[cfg(any())] { () }
-    };
-    // 3. Trailing comma support
-    (,) => {
-        #[cfg(any())] { () }
-    };
-    // 4. Removing the comma, converging it to all the other cases
-    (, $($rest:tt)*) => {
-        $crate::_extract_values!($($rest)*)
-    };
-    // 5. Just a nice panic
+    // 2. Just a nice panic
     (None) => {
         { const _: () = panic!("Cannot infer the type of None, please add None::<T>"); }
     };
-    // 6. Singular value
-    ($value:ident) => {
-        $value
-    };
-    // 7. Singular value with a type. Mostly for None::<T> support, but generalized.
-    ($value:ident::<$($ty:ty),*>) => {
-        $value::<$($ty)*>
-    };
-    // 8. Enum without any values
-    ($inner:ident::$variant:ident) => {
-        $inner::$variant
-    };
-    // 9. Multiple fields in struct/enum in braces
-    ($inner:ident$(::$variant:ident)? { $($rest:tt)* }) => {
-        $crate::_extract_values!($($rest)*)
-    };
-    // 10. Multiple fields in struct/enum in parentheses
-    ($value:ident$(::$variant:ident)? ($($rest:tt)*)) => {
-        $crate::_extract_values!($($rest)*)
-    };
-    // 11. This takes a comma separated token list and wraps a recursion around every item.
+    // 3. Singular value
+    ($value:ident) => { $value };
+    // 4. Singular value with a type. Mostly for None::<T> support, but generalized.
+    ($value:ident::<$($ty:ty),*>) => { $value::<$($ty)*> };
+    // 5. Enum without any values
+    ($inner:ident::$variant:ident) => { $inner::$variant };
+    // 6. Multiple fields in struct/enum in braces
+    ($inner:ident$(::$variant:ident)? { $($rest:tt)* }) => { $crate::_extract_values!($($rest)*) };
+    // 7. Multiple fields in struct/enum in parentheses
+    ($value:ident$(::$variant:ident)? ($($rest:tt)*)) => { $crate::_extract_values!($($rest)*) };
+    // Same 3-7, but forced to return a tuple
+    (@intuple $value:ident $(,)?) => { ($value,) };
+    (@intuple $value:ident::<$($ty:ty),*> $(,)?) => { ($value::<$($ty)*>,) };
+    (@intuple $inner:ident::$variant:ident $(,)?) => { ($inner::$variant,) };
+    (@intuple $inner:ident$(::$variant:ident)? { $($rest:tt)* } $(,)?) => { ($crate::_extract_values!($($rest)*),) };
+    (@intuple $value:ident$(::$variant:ident)? ($($rest:tt)*) $(,)?) => { ($crate::_extract_values!($($rest)*),) };
+    // 8. This takes a comma separated token list and wraps a recursion around every item.
     //
     // This basically filters for all of:
     // 1. Just an endpoint value: `foo` in `foo, ..`
@@ -221,39 +199,61 @@ macro_rules! _extract_values {
     //
     // And passes the rest to the TT muncher.
     //
-    // A comma is added in the front of the second `_extract_values` for the 2nd and 3rd rules.
+    // Weird `.concat()` syntax is needed because otherwise tuples will stack upon each other:
+    // (x, (y, z)) instead of (x, y, z).
+    //
+    // @intuple tells the macro to always return a tuple, so that `.concat()` can add the result.
     //
     // It's impossible to just put everything before a comma under $($var:tt)* because of the
     // ambiguity due to $outer.
-    ($param:ident $(: $value:ident$(::$variant:ident)? $({$($inner:tt)*})? )?, $($outer:tt)*) => {
-        ($crate::_extract_values!($param $(: $value$(::$variant)? $({$($inner)*})? )?), $crate::_extract_values!(, $($outer)*))
+    //
+    // `$($outer:tt)+` has to have a + instead of * because trailing commas exist.
+    ($param:ident $(: $value:ident$(::$variant:ident)? $({$($inner:tt)*})? )?, $($outer:tt)+) => {
+        ($crate::_extract_values!($param $(: $value$(::$variant)? $({$($inner)*})? )?),).concat($crate::_extract_values!(@intuple $($outer)+))
     };
-    // 12. Same thing, it just works with parentheses instead of braces.
+    // 9. Same thing, it just works with parentheses instead of braces.
     //
     // We don't need an extra optional group around the braced part to filter the enum variants,
     // the previous rule does that already.
-    ($param:ident $(: $value:ident$(::$variant:ident)? ($($inner:tt)*) )?, $($outer:tt)*) => {
-        ($crate::_extract_values!($param $(: $value$(::$variant)? ($($inner)*) )?), $crate::_extract_values!(, $($outer)*))
+    ($param:ident $(: $value:ident$(::$variant:ident)? ($($inner:tt)*) )?, $($outer:tt)+) => {
+        ($crate::_extract_values!($param $(: $value$(::$variant)? ($($inner)*) )?),).concat($crate::_extract_values!(@intuple $($outer)+))
     };
-    // 13. Same as 11, but times where the first value doesn't have a key, like in tuple structs
-    ($value:ident$(::$variant:ident)? $({$($inner:tt)*})?, $($outer:tt)*) => {
-        ($crate::_extract_values!($value$(::$variant)? $({$($inner)*})?), $crate::_extract_values!(, $($outer)*))
+    // 10. Same as 8, but times where the first value doesn't have a key, like in tuple structs
+    ($value:ident$(::$variant:ident)? $({$($inner:tt)*})?, $($outer:tt)+) => {
+        ($crate::_extract_values!($value$(::$variant)? $({$($inner)*})?),).concat($crate::_extract_values!(@intuple $($outer)+))
     };
-    // 14. Same as 13, but with parantheses
-    ($value:ident$(::$variant:ident)? ($($inner:tt)*), $($outer:tt)*) => {
-        ($crate::_extract_values!($value$(::$variant)? ($($inner)*)), $crate::_extract_values!(, $($outer)*))
+    // 11. Same as 10, but with parantheses
+    ($value:ident$(::$variant:ident)? ($($inner:tt)*), $($outer:tt)+) => {
+        ($crate::_extract_values!($value$(::$variant)? ($($inner)*)),).concat($crate::_extract_values!(@intuple $($outer)+))
     };
-    // 15. If the first key is a typed value
-    ($key:ident : $value:ident::<$($ty:ty),*>, $($outer:tt)*) => {
-        ($crate::_extract_values!($key: $value::<$($ty),*>), $crate::_extract_values!(, $($outer)*))
+    // 12. If the first key is a typed value
+    ($key:ident : $value:ident::<$($ty:ty),*>, $($outer:tt)+) => {
+        ($crate::_extract_values!($key: $value::<$($ty),*>),).concat($crate::_extract_values!(@intuple $($outer)+))
     };
-    // 16. If the first value is a typed value
-    ($value:ident::<$($ty:ty),*>, $($outer:tt)*) => {
-        ($crate::_extract_values!($value::<$($ty),*>), $crate::_extract_values!(, $($outer)*))
+    // 13. If the first value is a typed value
+    ($value:ident::<$($ty:ty),*>, $($outer:tt)+) => {
+        ($crate::_extract_values!($value::<$($ty),*>),).concat($crate::_extract_values!(@intuple $($outer)+))
     };
-    // 17. Extracts `key: value` to `value`
+    // 14. Extracts `key: value` to `value`
     ($param:ident : $($value:tt)*) => {
         $crate::_extract_values!($($value)*)
+    };
+    // 15. Same thing, but preserves the fact that this is inside a tuple.
+    (@intuple $param:ident : $($value:tt)*) => {
+        $crate::_extract_values!(@intuple $($value)*)
+    };
+    // 16. If it made it this far without getting into any of the previous rules, it means that
+    //      $rest is a sequence of arguments, and we can safely remove @intuple to let it walk
+    //      through rules 8-13, knowing that it will return a tuple to please `.concat()`
+    (@intuple $($rest:tt)*) => {
+        $crate::_extract_values!($($rest)*)
+    };
+    // 17. Finally, if a value made it through all of that, but didn't get parsed, it's probably a
+    //     value with a comma at the end. To not have to write another set of rules to account for
+    //     that, it's easier to add @intuple, because it forces the macro to return a tuple no
+    //     matter what.
+    ($($args:tt)*) => {
+        $crate::_extract_values!(@intuple $($args)*)
     };
 }
 
@@ -279,6 +279,8 @@ mod tests {
         D(Option<i32>),
         E { foo: TestTupleStruct },
         F(Option<i32>, i32),
+        G(i32, i32, i32),
+        H(i32, i32, i32, &'static str, u8, TestStruct, Option<State>),
         Other,
     }
 
@@ -569,7 +571,10 @@ mod tests {
         );
 
         assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
-        assert!(matches!(h.dispatch(crate::deps![Some(13)]).await, ControlFlow::Continue(_)));
+        assert!(matches!(
+            h.dispatch(crate::deps![ComplexState::F(Some(1), 2)]).await,
+            ControlFlow::Continue(_)
+        ));
     }
 
     #[tokio::test]
@@ -601,6 +606,75 @@ mod tests {
                 assert_eq!(state, State::A);
                 123
             });
+
+        assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
+        assert!(matches!(
+            h.dispatch(crate::deps![ComplexState::Other]).await,
+            ControlFlow::Continue(_)
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_many_fields() {
+        let input = ComplexState::G(1, 2, 3);
+        let h: crate::Handler<_> =
+            case![ComplexState::G(x, y, z)].endpoint(|(x, y, z): (i32, i32, i32)| async move {
+                assert_eq!(x, 1);
+                assert_eq!(y, 2);
+                assert_eq!(z, 3);
+                123
+            });
+
+        assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
+        assert!(matches!(
+            h.dispatch(crate::deps![ComplexState::Other]).await,
+            ControlFlow::Continue(_)
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_overkill() {
+        let input = ComplexState::H(
+            1,
+            2,
+            3,
+            "345",
+            4,
+            TestStruct { a: 5, b: State::E { foo: 6, bar: "123" } },
+            Some(State::A),
+        );
+        let h: crate::Handler<_> =
+            case![ComplexState::H(
+                a,
+                b,
+                c,
+                d,
+                e,
+                // a: f renames the already taken "a" to "f"
+                TestStruct { a: f, b: State::E { .. } },
+                Some(State::A),
+            )]
+            .endpoint(
+                |(a, b, c, d, e, (f, ()), g): (
+                    i32,
+                    i32,
+                    i32,
+                    &'static str,
+                    u8,
+                    (u32, ()),
+                    State,
+                )| async move {
+                    assert_eq!(a, 1);
+                    assert_eq!(b, 2);
+                    assert_eq!(c, 3);
+                    assert_eq!(d, "345");
+                    assert_eq!(e, 4);
+                    assert_eq!(f, 5);
+                    assert_eq!(f, 5);
+                    assert_eq!(g, State::A);
+                    123
+                },
+            );
 
         assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
         assert!(matches!(
