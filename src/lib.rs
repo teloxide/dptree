@@ -88,6 +88,23 @@ pub use handler::*;
 ///  - For `Enum::MyVariant(param1, ..., paramN)` and `Enum::MyVariant { param1,
 ///    ..., paramN }`, the payload is `(param1, ..., paramN)` (where `N`>1).
 ///
+/// You can also go with even more complexity and write a syntax similar to rusts pattern matching
+/// system:
+///
+///  - For `Enum::MyVariant(SecondEnum::MyVariant)` and
+///    `Enum::MyVariant { param: SecondEnum::MyVariant }`, the payload is `SecondEnum::MyVariant`
+///  - For `Enum::MyVariant { param1, param2: SomeStruct { param3 } }`, the payload is `(param1,
+///    param3)`
+///  - For `Enum::MyVariant { param1, .. }` and `Enum::MyVariant( param1, .. )`, the payload is
+///    `(param1,)`
+///  - For `Enum::MyVariant { param1: Some(param2) }` and `Enum::MyVariant( Some(param2) )`, the payload is
+///    `param2`
+///  - For `Enum::MyVariant { param1: None::<T> }` and `Enum::MyVariant( None::<T> )`, the payload is
+///    `Option<T>` that is equal to None::<T>
+///
+/// It's recursive, so on every parameter you can insert a new struct, tuple struct, enum variant or
+/// anything else.
+///
 /// ## Dependency requirements
 ///
 ///  - Your enumeration `Enum`.
@@ -126,6 +143,9 @@ pub use handler::*;
 /// [`examples/purchase.rs`]: https://github.com/teloxide/teloxide/blob/master/examples/purchase.rs
 #[macro_export]
 macro_rules! case {
+    ($($variant:ident)::+) => {
+        $crate::filter(|x| matches!(x, $($variant)::+))
+    };
     ($($entry:tt)*) => {
         $crate::filter_map(|x| match x {
             $($entry)*
@@ -402,7 +422,7 @@ mod tests {
     #[tokio::test]
     async fn handler_expansion() {
         let input = State::E { foo: 42, bar: "abc" };
-        let h: crate::Handler<_> = case![State::E { .. }].endpoint(|| async move { 123 });
+        let h: crate::Handler<_> = case![State::E { .. }].endpoint(|(): ()| async move { 123 });
 
         assert_eq!(h.dispatch(crate::deps![input]).await, ControlFlow::Break(123));
         assert!(matches!(h.dispatch(crate::deps![State::Other]).await, ControlFlow::Continue(_)));
