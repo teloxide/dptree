@@ -190,12 +190,12 @@ macro_rules! _extract_values {
     };
     // 2. Just a nice panic
     (None) => {
-        { const _: () = panic!("Cannot infer the type of None, please add None::<T>"); }
+        { compile_error!("Cannot infer the type of None, please add None::<T>"); }
     };
     // 3. Singular value
     ($value:ident) => { $value };
     // 4. Singular value with a type. Mostly for None::<T> support, but generalized.
-    ($value:ident::<$($ty:ty),*>) => { $value::<$($ty)*> };
+    ($value:ident::<$($ty:ty),*>) => { $value::<$($ty),*> };
     // 5. Enum without any values
     ($inner:ident::$variant:ident) => { $inner::$variant };
     // 6. Multiple fields in struct/enum in braces
