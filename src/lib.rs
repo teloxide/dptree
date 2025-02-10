@@ -88,22 +88,22 @@ pub use handler::*;
 ///  - For `Enum::MyVariant(param1, ..., paramN)` and `Enum::MyVariant { param1,
 ///    ..., paramN }`, the payload is `(param1, ..., paramN)` (where `N`>1).
 ///
-/// You can also go with even more complexity and write a syntax similar to rusts pattern matching
-/// system:
+/// You can also go with even more complexity and write a syntax similar to
+/// rusts pattern matching system:
 ///
-///  - For `Enum::MyVariant(SecondEnum::MyVariant)` and
-///    `Enum::MyVariant { param: SecondEnum::MyVariant }`, the payload is `SecondEnum::MyVariant`
-///  - For `Enum::MyVariant { param1, param2: SomeStruct { param3 } }`, the payload is `(param1,
-///    param3)`
-///  - For `Enum::MyVariant { param1, .. }` and `Enum::MyVariant( param1, .. )`, the payload is
-///    `(param1,)`
-///  - For `Enum::MyVariant { param1: Some(param2) }` and `Enum::MyVariant( Some(param2) )`, the payload is
-///    `param2`
-///  - For `Enum::MyVariant { param1: None::<T> }` and `Enum::MyVariant( None::<T> )`, the payload is
-///    `Option<T>` that is equal to None::<T>
+///  - For `Enum::MyVariant(SecondEnum::MyVariant)` and `Enum::MyVariant {
+///    param: SecondEnum::MyVariant }`, the payload is `SecondEnum::MyVariant`
+///  - For `Enum::MyVariant { param1, param2: SomeStruct { param3 } }`, the
+///    payload is `(param1, param3)`
+///  - For `Enum::MyVariant { param1, .. }` and `Enum::MyVariant( param1, .. )`,
+///    the payload is `(param1,)`
+///  - For `Enum::MyVariant { param1: Some(param2) }` and `Enum::MyVariant(
+///    Some(param2) )`, the payload is `param2`
+///  - For `Enum::MyVariant { param1: None::<T> }` and `Enum::MyVariant(
+///    None::<T> )`, the payload is `Option<T>` that is equal to `None::<T>`
 ///
-/// It's recursive, so on every parameter you can insert a new struct, tuple struct, enum variant or
-/// anything else.
+/// It's recursive, so on every parameter you can insert a new struct, tuple
+/// struct, enum variant or anything else.
 ///
 /// ## Dependency requirements
 ///
@@ -159,8 +159,8 @@ macro_rules! case {
     };
 }
 
-/// A helper macro for [`case!`] to extract values recursively from structs and enums and returns a
-/// tuple with all of the matched values.
+/// A helper macro for [`case!`] to extract values recursively from structs and
+/// enums and returns a tuple with all of the matched values.
 ///
 /// [`case!`]: crate::case
 //
@@ -183,6 +183,7 @@ macro_rules! case {
 //
 // 14-15 rules just expand `key: value` to `value`
 #[macro_export]
+#[doc(hidden)]
 macro_rules! _extract_values {
     // 1. Two dots mean expansion. This has to go at the end, otherwise it will mess up the commas.
     ($(@intuple)? ..) => {
