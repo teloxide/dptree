@@ -96,7 +96,9 @@ Using dptree, you can specify arbitrary complex dispatching schemes using the sa
 
 ### Functional
 
-We decided to use a [continuation-passing style (CPS)] internally and expose neat handler patterns to library users. This is contrary to what you might have seen in typical object-oriented models of the chain of responsibility pattern. In fact, we have first tried to make a typical OO design, but then resorted to FP because of its simplicity. With this design, each handler accepts a continuation representing the rest of the handlers in the chain; the handler can either call this continuation or not. Using this simple model, we can express pretty much any handler pattern like `filter` and `filter_map`, using only functions and nothing else. You do not need complex programming machinery such as abstract factories, builders, etc.
+We decided to use a [continuation-passing style] internally and expose neat handler patterns to library users. This is contrary to what you might have seen in typical object-oriented models of the chain of responsibility pattern. In fact, we have first tried to make a typical OO design, but then resorted to FP because of its simplicity. With this design, each handler accepts a continuation representing the rest of the handlers in the chain; the handler can either call this continuation or not. Using this simple model, we can express pretty much any handler pattern like `filter` and `filter_map`, using only functions and nothing else. You do not need complex programming machinery such as abstract factories, builders, etc.
+
+[continuation-passing style]: https://en.wikipedia.org/wiki/Continuation-passing_style
 
 ### DI
 
