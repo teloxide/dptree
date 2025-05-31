@@ -84,7 +84,11 @@ where
                 }
             }
         },
-        HandlerSignature::Other { obligations: Pred::obligations(), outcomes: BTreeSet::default() },
+        HandlerSignature::Other {
+            obligations: Pred::obligations(),
+            guaranteed_outcomes: BTreeSet::default(),
+            conditional_outcomes: BTreeSet::default(),
+        },
     )
 }
 

@@ -36,7 +36,11 @@ where
                 f().map(ControlFlow::Break).await
             }
         },
-        HandlerSignature::Other { obligations: F::obligations(), outcomes: BTreeSet::default() },
+        HandlerSignature::Other {
+            obligations: F::obligations(),
+            guaranteed_outcomes: BTreeSet::default(),
+            conditional_outcomes: BTreeSet::default(),
+        },
     )
 }
 

@@ -84,8 +84,15 @@ pub enum HandlerSignature {
         /// are required in source code.
         obligations: BTreeMap<Type, &'static Location<'static>>,
 
-        /// The set of types that this handler passes down the chain.
-        outcomes: BTreeSet<Type>,
+        /// The set of types that this handler guarantees to provide when it
+        /// continues. These types are always available for subsequent handlers
+        /// in a chain or branch.
+        guaranteed_outcomes: BTreeSet<Type>,
+
+        /// The set of types that this handler may provide, but only
+        /// conditionally. These types cannot be relied upon by subsequent
+        /// handlers.
+        conditional_outcomes: BTreeSet<Type>,
     },
 }
 
@@ -213,8 +220,16 @@ where
                 other_sig.clone()
             }
             (
-                HandlerSignature::Other { obligations: self_obligations, outcomes: self_outcomes },
-                HandlerSignature::Other { obligations: next_obligations, outcomes: next_outcomes },
+                HandlerSignature::Other {
+                    obligations: self_obligations,
+                    guaranteed_outcomes: self_guaranteed_outcomes,
+                    conditional_outcomes: self_conditional_outcomes,
+                },
+                HandlerSignature::Other {
+                    obligations: next_obligations,
+                    guaranteed_outcomes: next_guaranteed_outcomes,
+                    conditional_outcomes: next_conditional_outcomes,
+                },
             ) => {
                 HandlerSignature::Other {
                     // Take the union of (the first handler's input types) and (the difference
@@ -225,14 +240,29 @@ where
                     obligations: next_obligations
                         .clone()
                         .into_iter()
-                        .filter(|(ty, _location)| !self_outcomes.contains(ty))
+                        .filter(|(ty, _location)| {
+                            !self_guaranteed_outcomes.contains(ty)
+                                && !self_conditional_outcomes.contains(ty)
+                        })
                         .chain(self_obligations.clone())
                         .collect(),
 
-                    // Since the first handler can call the second one, take the union of their
-                    // output types. If the second handler is not called, the dependency map will
-                    // not be touched, so there will be no type errors.
-                    outcomes: self_outcomes.union(next_outcomes).cloned().collect(),
+                    // Since the first handler can call the second one, guaranteed outcomes are the
+                    // union of first handler's guaranteed outcomes and next handler's guaranteed
+                    // outcomes. If the first handler decides not to call the second one, in this
+                    // situation the guaranteed types can be ignored.
+                    guaranteed_outcomes: self_guaranteed_outcomes
+                        .union(next_guaranteed_outcomes)
+                        .cloned()
+                        .collect(),
+
+                    // Conditional outcomes are the union of both handlers' conditional outcomes,
+                    // plus any guaranteed outcomes from the next handler that depend on conditional
+                    // outcomes from the first handler.
+                    conditional_outcomes: self_conditional_outcomes
+                        .union(next_conditional_outcomes)
+                        .cloned()
+                        .collect(),
                 }
             }
         };
@@ -319,22 +349,36 @@ where
                 other_sig.clone()
             }
             (
-                HandlerSignature::Other { obligations: self_obligations, outcomes: self_outcomes },
-                HandlerSignature::Other { obligations: next_obligations, outcomes: next_outcomes },
+                HandlerSignature::Other {
+                    obligations: self_obligations,
+                    guaranteed_outcomes: self_guaranteed_outcomes,
+                    conditional_outcomes: self_conditional_outcomes,
+                },
+                HandlerSignature::Other {
+                    obligations: next_obligations,
+                    guaranteed_outcomes: _next_guaranteed_outcomes,
+                    conditional_outcomes: next_conditional_outcomes,
+                },
             ) => {
                 HandlerSignature::Other {
-                    // Take the union of the input types of both handlers, because either of them
-                    // (or both) can end up being executed. The first handler's obligations take
+                    // Take the union of the input types of both handlers, but exclude types that
+                    // the first handler guarantees to provide. The first handler's obligations take
                     // priority over those of the second one.
                     obligations: next_obligations
                         .clone()
                         .into_iter()
+                        .filter(|(ty, _location)| !self_guaranteed_outcomes.contains(ty))
                         .chain(self_obligations.clone())
                         .collect(),
 
-                    // Since any of the two handlers can end up being executed, take the
-                    // intersection of the output types of both handlers.
-                    outcomes: next_outcomes.intersection(self_outcomes).cloned().collect(),
+                    // When the branched handler continues, the first handler's guaranteed outcomes
+                    // are still available. When it breaks, there are no subsequent handlers.
+                    guaranteed_outcomes: self_guaranteed_outcomes.clone(),
+
+                    conditional_outcomes: self_conditional_outcomes
+                        .union(next_conditional_outcomes)
+                        .cloned()
+                        .collect(),
                 }
             }
         };
@@ -542,7 +586,11 @@ where
 pub fn type_check(sig: &HandlerSignature, container: &DependencyMap, assumptions: &[Type]) {
     match sig {
         HandlerSignature::Entry => {}
-        HandlerSignature::Other { obligations, outcomes: _ } => {
+        HandlerSignature::Other {
+            obligations,
+            guaranteed_outcomes: _,
+            conditional_outcomes: _,
+        } => {
             let container_types = container
                 .map
                 .iter()
@@ -625,7 +673,8 @@ mod tests {
                 obligations: BTreeMap::from_iter(
                     input_types.iter().cloned().map(|ty| (ty, location)),
                 ),
-                outcomes: btreeset! {},
+                guaranteed_outcomes: btreeset! {},
+                conditional_outcomes: btreeset! {},
             },
         ))
         .dispatch(deps![input])
@@ -651,7 +700,8 @@ mod tests {
                 obligations: BTreeMap::from_iter(
                     input_types.iter().cloned().map(|ty| (ty, location)),
                 ),
-                outcomes: btreeset! {Type::of::<i32>()},
+                guaranteed_outcomes: btreeset! {Type::of::<i32>()},
+                conditional_outcomes: btreeset! {},
             },
         ))
         .dispatch(deps![input])
@@ -687,7 +737,8 @@ mod tests {
                 obligations: BTreeMap::from_iter(
                     input_types.iter().cloned().map(|ty| (ty, location)),
                 ),
-                outcomes: btreeset! {Type::of::<i32>()},
+                guaranteed_outcomes: btreeset! {Type::of::<i32>()},
+                conditional_outcomes: btreeset! {},
             },
         ))
         .execute(deps![input], |event| async move {
@@ -876,7 +927,8 @@ mod tests {
                         obligations: btreemap! {
                             $(Type::of::<$key>() => Location::caller(),)*
                         },
-                        outcomes: btreeset! {},
+                        guaranteed_outcomes: btreeset! {},
+                        conditional_outcomes: btreeset! {},
                     },
                     &deps![A, B, C],
                     &[],
@@ -922,7 +974,8 @@ The missing types are:
                     Type::of::<B>() => Location::caller(),
                     Type::of::<C>() => FIXED_LOCATION,
                 },
-                outcomes: btreeset! {},
+                guaranteed_outcomes: btreeset! {},
+                conditional_outcomes: btreeset! {},
             },
             // `C` is required but not provided.
             &deps![A, B],
@@ -974,14 +1027,19 @@ The missing types are:
 
         if let HandlerSignature::Other {
             obligations: actual_obligations,
-            outcomes: actual_outcomes,
+            guaranteed_outcomes: actual_guaranteed_outcomes,
+            conditional_outcomes: actual_conditional_outcomes,
         } = h.sig()
         {
             assert_eq!(
                 actual_obligations.keys().collect::<Vec<_>>(),
                 input_types.iter().collect::<Vec<_>>()
             );
-            assert_eq!(actual_outcomes, &outcomes);
+            let all_outcomes = actual_guaranteed_outcomes
+                .union(actual_conditional_outcomes)
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            assert_eq!(all_outcomes, outcomes);
         } else {
             panic!("Expected `HandlerSignature::Other`");
         }
@@ -1017,19 +1075,24 @@ The missing types are:
 
         // The union of the input types of both branches.
         let input_types = btreeset! {Type::of::<A>(), Type::of::<E>()};
-        // The intersection of the output types of both branches.
-        let output_types = btreeset! {Type::of::<B>(), Type::of::<D>()};
+        // Both branches provide different guaranteed outcomes.
+        let output_types = btreeset! {Type::of::<B>(), Type::of::<C>(), Type::of::<D>()};
 
         if let HandlerSignature::Other {
             obligations: actual_obligations,
-            outcomes: actual_outcomes,
+            guaranteed_outcomes: actual_guaranteed_outcomes,
+            conditional_outcomes: actual_conditional_outcomes,
         } = h.sig()
         {
             assert_eq!(
                 actual_obligations.keys().collect::<Vec<_>>(),
                 input_types.iter().collect::<Vec<_>>()
             );
-            assert_eq!(actual_outcomes, &output_types);
+            let all_outcomes = actual_guaranteed_outcomes
+                .union(actual_conditional_outcomes)
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            assert_eq!(all_outcomes, output_types);
         } else {
             panic!("Expected `HandlerSignature::Other`");
         }
@@ -1052,7 +1115,12 @@ The missing types are:
         struct C;
 
         fn test<T: 'static>(h: Handler<C>, column: u32) {
-            if let HandlerSignature::Other { obligations, outcomes: _ } = h.sig() {
+            if let HandlerSignature::Other {
+                obligations,
+                guaranteed_outcomes: _,
+                conditional_outcomes: _,
+            } = h.sig()
+            {
                 let (_ty, &location) = obligations
                     .iter()
                     .find(|(ty, _location)| ty.id == TypeId::of::<T>())
@@ -1083,5 +1151,167 @@ The missing types are:
     #[should_panic(expected = "Ill-typed handler branch: the second handler cannot be an entry")]
     fn branch_entry() {
         let _: Handler<()> = entry().branch(entry());
+    }
+
+    #[tokio::test]
+    async fn chain_branch_type_check() {
+        #[derive(Clone)]
+        struct A;
+
+        let handler: Handler<()> =
+            entry().chain(crate::map(|| A)).branch(endpoint(|_: A| async {}));
+
+        let _no_panic_here: ControlFlow<(), _> = handler.dispatch(deps![]).await;
+
+        type_check(handler.sig(), &deps![], &[]);
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "This handler accepts the following types:")]
+    async fn branch_branch_error() {
+        #[derive(Clone)]
+        struct A;
+
+        let handler: Handler<()> = entry().branch(
+            crate::filter_map(|| if false { Some(A) } else { None })
+                .endpoint(|| async { panic!("Never executed!") })
+                .branch(endpoint(|_: A| async {})),
+        );
+
+        // let _no_error: ControlFlow<(), _> = handler.dispatch(deps![]).await;
+
+        type_check(handler.sig(), &deps![], &[]);
+    }
+
+    #[tokio::test]
+    async fn guaranteed_outcomes_chain_success() {
+        #[derive(Clone)]
+        struct A;
+        #[derive(Clone)]
+        struct B;
+
+        let handler: Handler<()> = entry().map(|| A).map(|_: A| B).endpoint(|_: B| async {});
+
+        let result = handler.dispatch(deps![]).await;
+        assert_eq!(result, ControlFlow::Break(()));
+
+        type_check(handler.sig(), &deps![], &[]);
+    }
+
+    #[tokio::test]
+    async fn conditional_outcomes_chain_success() {
+        #[derive(Clone)]
+        struct A;
+
+        let handler: Handler<()> = entry().filter_map(|| Some(A)).endpoint(|_: A| async {});
+
+        let result = handler.dispatch(deps![]).await;
+        assert_eq!(result, ControlFlow::Break(()));
+
+        type_check(handler.sig(), &deps![], &[]);
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "This handler accepts the following types:")]
+    async fn conditional_outcomes_branch_failure() {
+        #[derive(Clone)]
+        struct A;
+
+        let producer = entry().filter_map(|| None::<A>);
+
+        let handler: Handler<()> = producer.branch(endpoint(|_: A| async {}));
+
+        type_check(handler.sig(), &deps![], &[]);
+    }
+
+    #[tokio::test]
+    async fn guaranteed_outcomes_branch_success() {
+        #[derive(Clone)]
+        struct A;
+
+        let producer = entry().map(|| A);
+
+        // In branch context, guaranteed outcomes can satisfy obligations.
+        let handler: Handler<()> = producer.branch(endpoint(|_: A| async {}));
+
+        let result = handler.dispatch(deps![]).await;
+        assert_eq!(result, ControlFlow::Break(()));
+
+        type_check(handler.sig(), &deps![], &[]);
+    }
+
+    #[tokio::test]
+    async fn mixed_outcomes_chain() {
+        #[derive(Clone)]
+        struct A;
+        #[derive(Clone)]
+        struct B;
+        #[derive(Clone)]
+        struct C;
+
+        let handler: Handler<()> = entry()
+            .map(|| A) // guaranteed
+            .filter_map(|_: A| Some(B)) // conditional, but `A` is guaranteed
+            .map(|_: B| C) // guaranteed, but `B` is conditional
+            .endpoint(|_: C| async {}); // consumes `C`
+
+        let result = handler.dispatch(deps![]).await;
+        assert_eq!(result, ControlFlow::Break(()));
+
+        type_check(handler.sig(), &deps![], &[]);
+    }
+
+    #[tokio::test]
+    async fn branch_with_guaranteed_continuation() {
+        #[derive(Clone)]
+        struct A;
+
+        // The first branch produces `A` and continues (`map` always continues).
+        let first_branch = entry().map(|| A).inspect(|_: A| ()); // `inspect` continues, keeping `A` available
+
+        // The second branch can use `A`, because the first branch guarantees it and
+        // continues the execution.
+        let handler: Handler<()> = first_branch.branch(endpoint(|_: A| async {}));
+
+        let result = handler.dispatch(deps![]).await;
+        assert_eq!(result, ControlFlow::Break(()));
+
+        type_check(handler.sig(), &deps![], &[]);
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "This handler accepts the following types:")]
+    async fn branch_with_breaking_producer() {
+        #[derive(Clone)]
+        struct A;
+
+        // The first branch might produce `A`, but always breaks (due to the endpoint).
+        let first_branch = entry().branch(crate::filter_map(|| Some(A)).endpoint(|| async {}));
+
+        // The second branch cannot rely on `A`, because the first branch breaks when it
+        // produces `A`.
+        let handler: Handler<()> = first_branch.branch(endpoint(|_: A| async {}));
+
+        type_check(handler.sig(), &deps![], &[]);
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "This handler accepts the following types:")]
+    async fn deeply_nested_conditional_failure() {
+        #[derive(Clone)]
+        struct A;
+        #[derive(Clone)]
+        struct B;
+
+        // Deep nesting where conditional outcome propagation should fail.
+        let handler: Handler<()> = entry()
+            .branch(
+                entry()
+                    .branch(crate::filter_map(|| Some(A)).endpoint(|| async {}))
+                    .branch(crate::filter_map(|_: A| Some(B)).endpoint(|| async {})),
+            )
+            .branch(endpoint(|_: B| async {})); // `B` is not guaranteed to be available
+
+        type_check(handler.sig(), &deps![], &[]);
     }
 }
