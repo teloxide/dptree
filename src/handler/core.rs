@@ -550,14 +550,30 @@ pub fn type_check(sig: &HandlerSignature, container: &DependencyMap, assumptions
                 .chain(assumptions.iter().cloned())
                 .collect::<BTreeSet<_>>();
 
+            let handler_accepts_msg = "This handler accepts the following types:".to_owned();
+            let provided_types_msg = "But only the following types are provided:".to_owned();
+            let missing_types_msg = "The missing types are:".to_owned();
+
             if obligations.iter().any(|(ty, _location)| !container_types.contains(ty)) {
                 panic!(
                     "{}\n    {}\n{}\n    {}\n{}\n    {}",
-                    "This handler accepts the following types:".red().bold(),
+                    if cfg!(test) {
+                        handler_accepts_msg
+                    } else {
+                        handler_accepts_msg.red().bold().to_string()
+                    },
                     print_types(obligations.keys(), |ty| format!("`{}`", ty.name)),
-                    "But only the following types are provided:".red().bold(),
+                    if cfg!(test) {
+                        provided_types_msg
+                    } else {
+                        provided_types_msg.red().bold().to_string()
+                    },
                     print_types(&container_types, |ty| format!("`{}`", ty.name)),
-                    "The missing types are:".red().bold(),
+                    if cfg!(test) {
+                        missing_types_msg
+                    } else {
+                        missing_types_msg.red().bold().to_string()
+                    },
                     print_types(
                         obligations.iter().filter_map(|(ty, _location)| {
                             if !container_types.contains(ty) {
@@ -882,14 +898,14 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "\u{1b}[1;31mThis handler accepts the following types:\u{1b}[0m
+    #[should_panic(expected = "This handler accepts the following types:
     `dptree::handler::core::tests::type_check_panic::A`
     `dptree::handler::core::tests::type_check_panic::B`
     `dptree::handler::core::tests::type_check_panic::C`
-\u{1b}[1;31mBut only the following types are provided:\u{1b}[0m
+But only the following types are provided:
     `dptree::handler::core::tests::type_check_panic::A`
     `dptree::handler::core::tests::type_check_panic::B`
-\u{1b}[1;31mThe missing types are:\u{1b}[0m
+The missing types are:
     `dptree::handler::core::tests::type_check_panic::C` from src/handler/core.rs:4:35")]
     fn type_check_panic() {
         #[derive(Clone)]
