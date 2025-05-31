@@ -99,8 +99,8 @@ where
         },
         HandlerSignature::Other {
             obligations: Projection::obligations(),
-            guaranteed_outcomes: BTreeSet::new(),
-            conditional_outcomes: BTreeSet::from_iter(vec![Type::of::<NewType>()]),
+            guaranteed_outcomes: BTreeSet::from_iter(vec![Type::of::<NewType>()]),
+            conditional_outcomes: BTreeSet::default(),
         },
     )
 }

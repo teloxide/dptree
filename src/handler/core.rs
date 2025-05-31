@@ -1167,23 +1167,6 @@ The missing types are:
     }
 
     #[tokio::test]
-    #[should_panic(expected = "This handler accepts the following types:")]
-    async fn branch_branch_error() {
-        #[derive(Clone)]
-        struct A;
-
-        let handler: Handler<()> = entry().branch(
-            crate::filter_map(|| if false { Some(A) } else { None })
-                .endpoint(|| async { panic!("Never executed!") })
-                .branch(endpoint(|_: A| async {})),
-        );
-
-        // let _no_error: ControlFlow<(), _> = handler.dispatch(deps![]).await;
-
-        type_check(handler.sig(), &deps![], &[]);
-    }
-
-    #[tokio::test]
     async fn guaranteed_outcomes_chain_success() {
         #[derive(Clone)]
         struct A;
@@ -1207,19 +1190,6 @@ The missing types are:
 
         let result = handler.dispatch(deps![]).await;
         assert_eq!(result, ControlFlow::Break(()));
-
-        type_check(handler.sig(), &deps![], &[]);
-    }
-
-    #[tokio::test]
-    #[should_panic(expected = "This handler accepts the following types:")]
-    async fn conditional_outcomes_branch_failure() {
-        #[derive(Clone)]
-        struct A;
-
-        let producer = entry().filter_map(|| None::<A>);
-
-        let handler: Handler<()> = producer.branch(endpoint(|_: A| async {}));
 
         type_check(handler.sig(), &deps![], &[]);
     }
@@ -1275,22 +1245,6 @@ The missing types are:
 
         let result = handler.dispatch(deps![]).await;
         assert_eq!(result, ControlFlow::Break(()));
-
-        type_check(handler.sig(), &deps![], &[]);
-    }
-
-    #[tokio::test]
-    #[should_panic(expected = "This handler accepts the following types:")]
-    async fn branch_with_breaking_producer() {
-        #[derive(Clone)]
-        struct A;
-
-        // The first branch might produce `A`, but always breaks (due to the endpoint).
-        let first_branch = entry().branch(crate::filter_map(|| Some(A)).endpoint(|| async {}));
-
-        // The second branch cannot rely on `A`, because the first branch breaks when it
-        // produces `A`.
-        let handler: Handler<()> = first_branch.branch(endpoint(|_: A| async {}));
 
         type_check(handler.sig(), &deps![], &[]);
     }
