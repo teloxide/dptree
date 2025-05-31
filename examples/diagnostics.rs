@@ -14,14 +14,14 @@ async fn main() {
     let h: Handler<D> = dptree::entry().map(|_: A| B).inspect(|_: C| ()).endpoint(|| async { D });
 
     // Missing `A` and `C` in the dependency map (see the panic message below).
-    dptree::type_check(h.sig(), &dptree::deps![B, D]);
+    dptree::type_check(h.sig(), &dptree::deps![B, D], &[]);
 }
 
 // thread 'main' panicked at src/handler/core.rs:551:17:
 // This handler accepts the following types:
 //     `diagnostics::A`
 //     `diagnostics::C`
-// , but only the following types are provided:
+// But only the following types are provided:
 //     `diagnostics::B`
 //     `diagnostics::D`
 // The missing types are:

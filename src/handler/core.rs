@@ -17,6 +17,7 @@ use std::{
     sync::Arc,
 };
 
+use colored::Colorize;
 use futures::future::BoxFuture;
 
 /// An instance that receives an input and decides whether to break a chain or
@@ -533,10 +534,10 @@ where
 /// let handler: Handler<()> = dptree::entry().filter(|_: A| true).endpoint(|_: B| async { () });
 ///
 /// // Ok.
-/// dptree::type_check(handler.sig(), &dptree::deps![A, B]);
+/// dptree::type_check(handler.sig(), &dptree::deps![A, B], &[]);
 ///
 /// // Panics with a proper message.
-/// dptree::type_check(handler.sig(), &dptree::deps![A /* Missing `B` */]);
+/// dptree::type_check(handler.sig(), &dptree::deps![A /* Missing `B` */], &[]);
 /// ```
 pub fn type_check(sig: &HandlerSignature, container: &DependencyMap, assumptions: &[Type]) {
     match sig {
@@ -551,10 +552,12 @@ pub fn type_check(sig: &HandlerSignature, container: &DependencyMap, assumptions
 
             if obligations.iter().any(|(ty, _location)| !container_types.contains(ty)) {
                 panic!(
-                    "This handler accepts the following types:\n    {}\n, but only the following \
-                     types are provided:\n    {}\nThe missing types are:\n    {}",
+                    "{}\n    {}\n{}\n    {}\n{}\n    {}",
+                    "This handler accepts the following types:".red().bold(),
                     print_types(obligations.keys(), |ty| format!("`{}`", ty.name)),
+                    "But only the following types are provided:".red().bold(),
                     print_types(&container_types, |ty| format!("`{}`", ty.name)),
+                    "The missing types are:".red().bold(),
                     print_types(
                         obligations.iter().filter_map(|(ty, _location)| {
                             if !container_types.contains(ty) {
@@ -879,14 +882,14 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "This handler accepts the following types:
+    #[should_panic(expected = "\u{1b}[1;31mThis handler accepts the following types:\u{1b}[0m
     `dptree::handler::core::tests::type_check_panic::A`
     `dptree::handler::core::tests::type_check_panic::B`
     `dptree::handler::core::tests::type_check_panic::C`
-, but only the following types are provided:
+\u{1b}[1;31mBut only the following types are provided:\u{1b}[0m
     `dptree::handler::core::tests::type_check_panic::A`
     `dptree::handler::core::tests::type_check_panic::B`
-The missing types are:
+\u{1b}[1;31mThe missing types are:\u{1b}[0m
     `dptree::handler::core::tests::type_check_panic::C` from src/handler/core.rs:4:35")]
     fn type_check_panic() {
         #[derive(Clone)]
