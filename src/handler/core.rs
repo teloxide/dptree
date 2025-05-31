@@ -510,7 +510,8 @@ where
 /// you do _not_ call this function before execution, type checking will be
 /// delayed until the actual execution, which can make things harder to debug.
 ///
-/// `sig` can be obtained from [`Handler::sig`].
+/// `sig` can be obtained from [`Handler::sig`]. `assumptions` are added to the
+/// types of values from `container`.
 ///
 /// # Panics
 ///
@@ -537,7 +538,7 @@ where
 /// // Panics with a proper message.
 /// dptree::type_check(handler.sig(), &dptree::deps![A /* Missing `B` */]);
 /// ```
-pub fn type_check(sig: &HandlerSignature, container: &DependencyMap) {
+pub fn type_check(sig: &HandlerSignature, container: &DependencyMap, assumptions: &[Type]) {
     match sig {
         HandlerSignature::Entry => {}
         HandlerSignature::Other { obligations, outcomes: _ } => {
@@ -545,6 +546,7 @@ pub fn type_check(sig: &HandlerSignature, container: &DependencyMap) {
                 .map
                 .iter()
                 .map(|(type_id, dep)| Type { id: *type_id, name: dep.type_name })
+                .chain(assumptions.iter().cloned())
                 .collect::<BTreeSet<_>>();
 
             if obligations.iter().any(|(ty, _location)| !container_types.contains(ty)) {
@@ -858,12 +860,13 @@ mod tests {
                         outcomes: btreeset! {},
                     },
                     &deps![A, B, C],
+                    &[],
                 );
             };
         }
 
         // Type-checking an entry must succeed.
-        type_check(&HandlerSignature::Entry, &deps![]);
+        type_check(&HandlerSignature::Entry, &deps![], &[]);
 
         // Type-checking subsets of provided types must succeed.
         test!(A, B, C);
@@ -904,6 +907,7 @@ The missing types are:
             },
             // `C` is required but not provided.
             &deps![A, B],
+            &[],
         );
     }
 
@@ -965,7 +969,7 @@ The missing types are:
 
         let deps = deps![A, C, E, F, G];
 
-        type_check(h.sig(), &deps);
+        type_check(h.sig(), &deps, &[]);
 
         // Must not panic during execution.
         assert_eq!(h.dispatch(deps).await, ControlFlow::Break(H));
@@ -1013,7 +1017,7 @@ The missing types are:
 
         let deps = deps![A, E];
 
-        type_check(h.sig(), &deps);
+        type_check(h.sig(), &deps, &[]);
 
         // Must not panic during execution.
         assert_eq!(h.dispatch(deps).await, ControlFlow::Break(F));
