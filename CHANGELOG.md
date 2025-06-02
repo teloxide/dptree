@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## unreleased
 
+## 0.4.0 - 2025-06-02
+
 ### Added
 
  - The `type_check` function that performs run-time type checking. Call this function to ensure that all types required by your handler are present in `di::DependencyMap` ([PR #23](https://github.com/teloxide/dptree/pull/23)).
