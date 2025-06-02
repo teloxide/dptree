@@ -11,11 +11,6 @@ use std::{collections::BTreeSet, iter::FromIterator, ops::ControlFlow, sync::Arc
 /// container and passed further in a handler chain. If the function returns
 /// `None`, then the handler will return [`ControlFlow::Continue`] with the old
 /// container.
-///
-/// # Run-time signature
-///
-/// - Obligations: `Projection::obligations()`
-/// - Outcomes: `BTreeSet::from_iter(vec![Type::of::<NewType>()])`
 #[must_use]
 #[track_caller]
 pub fn filter_map<'a, Projection, Output, NewType, Args, Descr>(

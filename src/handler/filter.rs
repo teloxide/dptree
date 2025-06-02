@@ -12,11 +12,6 @@ use std::{collections::BTreeSet, ops::ControlFlow, sync::Arc};
 /// `pred` has an access to all values that are stored in the input container.
 /// If it returns `true`, a continuation of the handler will be called,
 /// otherwise the handler returns [`ControlFlow::Continue`].
-///
-/// # Run-time signature
-///
-/// - Obligations: `Pred::obligations()`
-/// - Outcomes: `BTreeSet::default()`
 #[must_use]
 #[track_caller]
 pub fn filter<'a, Pred, Output, FnArgs, Descr>(pred: Pred) -> Handler<'a, Output, Descr>

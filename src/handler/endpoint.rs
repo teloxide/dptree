@@ -12,11 +12,6 @@ use futures::FutureExt;
 /// An endpoint is a handler that _always_ breaks handler execution after its
 /// completion. So, you can use it when your chain of responsibility must end
 /// up, and handle an incoming event.
-///
-/// # Run-time signature
-///
-/// - Obligations: `F::obligations()`
-/// - Outcomes: `BTreeSet::default()`
 #[must_use]
 #[track_caller]
 pub fn endpoint<'a, F, Output, FnArgs, Descr>(f: F) -> Endpoint<'a, Output, Descr>

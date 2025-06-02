@@ -11,11 +11,6 @@ use std::{collections::BTreeSet, iter::FromIterator, ops::ControlFlow, sync::Arc
 /// further in a handler chain.
 ///
 /// See also: [`crate::filter_map`].
-///
-/// # Run-time signature
-///
-/// - Obligations: `Projection::obligations()`
-/// - Outcomes: `BTreeSet::from_iter(vec![Type::of::<NewType>()])`
 #[must_use]
 #[track_caller]
 pub fn map<'a, Projection, Output, NewType, Args, Descr>(

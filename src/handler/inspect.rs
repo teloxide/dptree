@@ -8,11 +8,6 @@ use std::{collections::BTreeSet, sync::Arc};
 /// Constructs a handler that inspects current state. Like [`map`] but does not
 /// add return value of `f` to the container.
 ///
-/// # Run-time signature
-///
-/// - Obligations: `F::obligations()`
-/// - Outcomes: `BTreeSet::default()`
-///
 /// [`map`]: crate::map
 #[must_use]
 #[track_caller]
