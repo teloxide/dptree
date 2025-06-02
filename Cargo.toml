@@ -24,4 +24,4 @@ maplit = "1"
 all-features = true
 rustdoc-args = ["--cfg", "docsrs", "-Znormalize-docs"]
 rustc-args = ["--cfg", "dep_docsrs"]
-cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples=examples"]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]

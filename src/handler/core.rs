@@ -168,24 +168,10 @@ where
     /// chaining and
     /// branching"](#the-difference-between-chaining-and-branching).
     ///
-    /// # Type inference algorithm
-    ///
     /// This method makes use of [`HandlerSignature`] (stored in every handler)
     /// to perform run-time type inference of the resulting handler
     /// signature; this information is used by [`crate::type_check`] to make
     /// sure that all required types are provided _before_ execution.
-    ///
-    /// The algorithm is as follows:
-    ///  1. If the second handler's signature is [`HandlerSignature::Entry`],
-    ///     then **panic**.
-    ///  2. If the first handler's signature is [`HandlerSignature::Entry`] and
-    ///     that of the second one is [`HandlerSignature::Other`], then the
-    ///     signature of the resulting handler is taken from the second one.
-    ///  3. If the first handler's signature is [`HandlerSignature::Other`] and
-    ///     that the second one is also [`HandlerSignature::Other`], then the
-    ///     signature of the resulting handler is `HandlerSignature::Other {
-    ///     obligations: self_obligations UNION (next_obligations DIFFERENCE
-    ///     self_outcomes), outcomes: self_outcomes UNION next_outcomes }`.
     ///
     /// # Examples
     ///
@@ -285,24 +271,10 @@ where
     /// chaining and
     /// branching"](#the-difference-between-chaining-and-branching).
     ///
-    /// # Type inference algorithm
-    ///
     /// This method makes use of [`HandlerSignature`] (stored in every handler)
     /// to perform run-time type inference of the resulting handler
     /// signature; this information is used by [`crate::type_check`] to make
     /// sure that all required types are provided _before_ execution.
-    ///
-    /// The algorithm is as follows:
-    ///  1. If the second handler's signature is [`HandlerSignature::Entry`],
-    ///     then **panic**.
-    ///  2. If the first handler's signature is [`HandlerSignature::Entry`] and
-    ///     that of the second one is [`HandlerSignature::Other`], then the
-    ///     signature of the resulting handler is taken from the second one.
-    ///  3. If the first handler's signature is [`HandlerSignature::Other`] and
-    ///     that the second one is also [`HandlerSignature::Other`], then the
-    ///     signature of the resulting handler is `HandlerSignature::Other {
-    ///     obligations: self_obligations UNION next_obligations, outcomes:
-    ///     next_outcomes INTERSECTION self_outcomes }`.
     ///
     /// # Examples
     ///
