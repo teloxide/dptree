@@ -1,4 +1,4 @@
-# dptree
+# `dptree`
 [![Rust](https://github.com/teloxide/dptree/actions/workflows/rust.yml/badge.svg)](https://github.com/teloxide/dptree/actions/workflows/rust.yml)
 [![Crates.io](https://img.shields.io/crates/v/dptree.svg)](https://crates.io/crates/dptree)
 [![Docs.rs](https://docs.rs/dptree/badge.svg)](https://docs.rs/dptree)
@@ -100,7 +100,7 @@ We decided to use a [continuation-passing style] internally and expose neat hand
 
 [continuation-passing style]: https://en.wikipedia.org/wiki/Continuation-passing_style
 
-### DI
+### Dependency injection
 
 In Rust, it is possible to express type-safe DI that checks all types statically. However, this would require complex type-level manipulations, such as those in the [`frunk`] library. We decided not to trade comprehensible error messages for compile-time safety, since we had a plenty of experience that the uninitiated users simply cannot understand what is wrong with their code, owing to the utterly inadequate diagnostic messages from rustc.
 
