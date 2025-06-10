@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## unreleased
 
+## 0.4.3 - 2025-06-10
+
 ### Changed
 
  - Make the type checker's error message more user-friendly.
