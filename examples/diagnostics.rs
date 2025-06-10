@@ -18,12 +18,15 @@ async fn main() {
 }
 
 // thread 'main' panicked at src/handler/core.rs:551:17:
-// This handler accepts the following types:
+// Your handler accepts the following types:
 //     `diagnostics::A`
 //     `diagnostics::C`
-// But only the following types are provided:
+// But only the following values were given to it:
 //     `diagnostics::B`
 //     `diagnostics::D`
-// The missing types are:
+// The missing values are:
 //     `diagnostics::A` from examples/diagnostics.rs:14:41
 //     `diagnostics::C` from examples/diagnostics.rs:14:55
+//
+// Make sure all the required values are provided to the handler. For more information, visit <https://docs.rs/dptree/latest/dptree>.
+//

@@ -570,13 +570,14 @@ pub fn type_check(sig: &HandlerSignature, container: &DependencyMap, assumptions
                 .chain(assumptions.iter().cloned())
                 .collect::<BTreeSet<_>>();
 
-            let handler_accepts_msg = "This handler accepts the following types:".to_owned();
-            let provided_types_msg = "But only the following types are provided:".to_owned();
-            let missing_types_msg = "The missing types are:".to_owned();
+            let handler_accepts_msg = "Your handler accepts the following types:".to_owned();
+            let provided_types_msg = "But only the following values were given to it:".to_owned();
+            let missing_types_msg = "The missing values are:".to_owned();
+            let note_msg = "Make sure all the required values are provided to the handler. For more information, visit <https://docs.rs/dptree/latest/dptree>.".to_owned();
 
             if obligations.iter().any(|(ty, _location)| !container_types.contains(ty)) {
                 panic!(
-                    "{}\n    {}\n{}\n    {}\n{}\n    {}",
+                    "{}\n    {}\n{}\n    {}\n{}\n    {}\n\n{}\n",
                     if cfg!(test) {
                         handler_accepts_msg
                     } else {
@@ -603,7 +604,8 @@ pub fn type_check(sig: &HandlerSignature, container: &DependencyMap, assumptions
                             }
                         }),
                         |ty| { format!("`{}` from {}", ty.name, obligations[ty]) },
-                    )
+                    ),
+                    note_msg,
                 );
             }
         }
@@ -922,15 +924,18 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "This handler accepts the following types:
+    #[should_panic(expected = "Your handler accepts the following types:
     `dptree::handler::core::tests::type_check_panic::A`
     `dptree::handler::core::tests::type_check_panic::B`
     `dptree::handler::core::tests::type_check_panic::C`
-But only the following types are provided:
+But only the following values were given to it:
     `dptree::handler::core::tests::type_check_panic::A`
     `dptree::handler::core::tests::type_check_panic::B`
-The missing types are:
-    `dptree::handler::core::tests::type_check_panic::C` from src/handler/core.rs:4:35")]
+The missing values are:
+    `dptree::handler::core::tests::type_check_panic::C` from src/handler/core.rs:4:35
+
+Make sure all the required values are provided to the handler. For more information, visit <https://docs.rs/dptree/latest/dptree>.
+")]
     fn type_check_panic() {
         #[derive(Clone)]
         struct A;
@@ -1222,7 +1227,7 @@ The missing types are:
     }
 
     #[tokio::test]
-    #[should_panic(expected = "This handler accepts the following types:")]
+    #[should_panic(expected = "Your handler accepts the following types:")]
     async fn deeply_nested_conditional_failure() {
         #[derive(Clone)]
         struct A;
