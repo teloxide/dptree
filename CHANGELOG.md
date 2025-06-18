@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## unreleased
 
+### Added
+
+ - The `HandlerSignature::Endpoint` variant that allows us to detect some instances of dead code [**BC**].
+
+### Changed
+
+ - Panic in the `chain` and `branch` methods if two endpoints are sequenced together [**BC**].
+
 ## 0.4.3 - 2025-06-10
 
 ### Changed

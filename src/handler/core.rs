@@ -78,6 +78,8 @@ struct HandlerData<Descr, F: ?Sized> {
 pub enum HandlerSignature {
     /// The signature corresponding to [`crate::entry`].
     Entry,
+    /// The signature corresponding to [`crate::endpoint`].
+    Endpoint { obligations: BTreeMap<Type, &'static Location<'static>> },
     /// The handler signature with exact input and output types.
     Other {
         /// The map from types that this handler accepts to locations where they
@@ -202,8 +204,34 @@ where
             (_, HandlerSignature::Entry) => {
                 panic!("Ill-typed handler chain: the second handler cannot be an entry")
             }
-            (HandlerSignature::Entry, other_sig @ HandlerSignature::Other { .. }) => {
+            (HandlerSignature::Entry, other_sig @ HandlerSignature::Other { .. })
+            | (HandlerSignature::Entry, other_sig @ HandlerSignature::Endpoint { .. }) => {
                 other_sig.clone()
+            }
+            (HandlerSignature::Endpoint { .. }, _) => {
+                panic!(
+                    "Dead code detected: an endpoint always breaks the chain, so the code after \
+                     it will never be executed"
+                );
+            }
+            (
+                HandlerSignature::Other {
+                    obligations: self_obligations,
+                    guaranteed_outcomes: self_guaranteed_outcomes,
+                    conditional_outcomes: self_conditional_outcomes,
+                },
+                HandlerSignature::Endpoint { obligations: next_obligations },
+            ) => {
+                let next_guaranteed_outcomes = BTreeSet::default();
+                let next_conditional_outcomes = BTreeSet::default();
+                Self::infer_chain(
+                    self_obligations,
+                    self_guaranteed_outcomes,
+                    self_conditional_outcomes,
+                    next_obligations,
+                    &next_guaranteed_outcomes,
+                    &next_conditional_outcomes,
+                )
             }
             (
                 HandlerSignature::Other {
@@ -216,41 +244,14 @@ where
                     guaranteed_outcomes: next_guaranteed_outcomes,
                     conditional_outcomes: next_conditional_outcomes,
                 },
-            ) => {
-                HandlerSignature::Other {
-                    // Take the union of (the first handler's input types) and (the difference
-                    // between the second handler's input types and the first handler's output
-                    // types). The difference is needed because the first handler can pass values to
-                    // the second one by calling it. The first handler's obligations take priority
-                    // over those of the second one.
-                    obligations: next_obligations
-                        .clone()
-                        .into_iter()
-                        .filter(|(ty, _location)| {
-                            !self_guaranteed_outcomes.contains(ty)
-                                && !self_conditional_outcomes.contains(ty)
-                        })
-                        .chain(self_obligations.clone())
-                        .collect(),
-
-                    // Since the first handler can call the second one, guaranteed outcomes are the
-                    // union of first handler's guaranteed outcomes and next handler's guaranteed
-                    // outcomes. If the first handler decides not to call the second one, in this
-                    // situation the guaranteed types can be ignored.
-                    guaranteed_outcomes: self_guaranteed_outcomes
-                        .union(next_guaranteed_outcomes)
-                        .cloned()
-                        .collect(),
-
-                    // Conditional outcomes are the union of both handlers' conditional outcomes,
-                    // plus any guaranteed outcomes from the next handler that depend on conditional
-                    // outcomes from the first handler.
-                    conditional_outcomes: self_conditional_outcomes
-                        .union(next_conditional_outcomes)
-                        .cloned()
-                        .collect(),
-                }
-            }
+            ) => Self::infer_chain(
+                self_obligations,
+                self_guaranteed_outcomes,
+                self_conditional_outcomes,
+                next_obligations,
+                next_guaranteed_outcomes,
+                next_conditional_outcomes,
+            ),
         };
 
         from_fn_with_description(
@@ -263,6 +264,49 @@ where
             },
             new_sig,
         )
+    }
+
+    fn infer_chain(
+        self_obligations: &BTreeMap<Type, &'static Location<'static>>,
+        self_guaranteed_outcomes: &BTreeSet<Type>,
+        self_conditional_outcomes: &BTreeSet<Type>,
+        next_obligations: &BTreeMap<Type, &'static Location<'static>>,
+        next_guaranteed_outcomes: &BTreeSet<Type>,
+        next_conditional_outcomes: &BTreeSet<Type>,
+    ) -> HandlerSignature {
+        HandlerSignature::Other {
+            // Take the union of (the first handler's input types) and (the difference
+            // between the second handler's input types and the first handler's output
+            // types). The difference is needed because the first handler can pass values to
+            // the second one by calling it. The first handler's obligations take priority
+            // over those of the second one.
+            obligations: next_obligations
+                .clone()
+                .into_iter()
+                .filter(|(ty, _location)| {
+                    !self_guaranteed_outcomes.contains(ty)
+                        && !self_conditional_outcomes.contains(ty)
+                })
+                .chain(self_obligations.clone())
+                .collect(),
+
+            // Since the first handler can call the second one, guaranteed outcomes are the
+            // union of first handler's guaranteed outcomes and next handler's guaranteed
+            // outcomes. If the first handler decides not to call the second one, in this
+            // situation the guaranteed types can be ignored.
+            guaranteed_outcomes: self_guaranteed_outcomes
+                .union(next_guaranteed_outcomes)
+                .cloned()
+                .collect(),
+
+            // Conditional outcomes are the union of both handlers' conditional outcomes,
+            // plus any guaranteed outcomes from the next handler that depend on conditional
+            // outcomes from the first handler.
+            conditional_outcomes: self_conditional_outcomes
+                .union(next_conditional_outcomes)
+                .cloned()
+                .collect(),
+        }
     }
 
     /// Chain two handlers to make a tree of responsibility.
@@ -317,8 +361,32 @@ where
             (_, HandlerSignature::Entry) => {
                 panic!("Ill-typed handler branch: the second handler cannot be an entry")
             }
-            (HandlerSignature::Entry, other_sig @ HandlerSignature::Other { .. }) => {
+            (HandlerSignature::Entry, other_sig @ HandlerSignature::Other { .. })
+            | (HandlerSignature::Entry, other_sig @ HandlerSignature::Endpoint { .. }) => {
                 other_sig.clone()
+            }
+            (HandlerSignature::Endpoint { .. }, _) => {
+                panic!(
+                    "Dead code detected: an endpoint always breaks execution, so the other \
+                     branches are not possible"
+                );
+            }
+            (
+                HandlerSignature::Other {
+                    obligations: self_obligations,
+                    guaranteed_outcomes: self_guaranteed_outcomes,
+                    conditional_outcomes: self_conditional_outcomes,
+                },
+                HandlerSignature::Endpoint { obligations: next_obligations },
+            ) => {
+                let next_conditional_outcomes = BTreeSet::default();
+                Self::infer_branch(
+                    self_obligations,
+                    self_guaranteed_outcomes,
+                    self_conditional_outcomes,
+                    next_obligations,
+                    &next_conditional_outcomes,
+                )
             }
             (
                 HandlerSignature::Other {
@@ -331,28 +399,13 @@ where
                     guaranteed_outcomes: _next_guaranteed_outcomes,
                     conditional_outcomes: next_conditional_outcomes,
                 },
-            ) => {
-                HandlerSignature::Other {
-                    // Take the union of the input types of both handlers, but exclude types that
-                    // the first handler guarantees to provide. The first handler's obligations take
-                    // priority over those of the second one.
-                    obligations: next_obligations
-                        .clone()
-                        .into_iter()
-                        .filter(|(ty, _location)| !self_guaranteed_outcomes.contains(ty))
-                        .chain(self_obligations.clone())
-                        .collect(),
-
-                    // When the branched handler continues, the first handler's guaranteed outcomes
-                    // are still available. When it breaks, there are no subsequent handlers.
-                    guaranteed_outcomes: self_guaranteed_outcomes.clone(),
-
-                    conditional_outcomes: self_conditional_outcomes
-                        .union(next_conditional_outcomes)
-                        .cloned()
-                        .collect(),
-                }
-            }
+            ) => Self::infer_branch(
+                self_obligations,
+                self_guaranteed_outcomes,
+                self_conditional_outcomes,
+                next_obligations,
+                next_conditional_outcomes,
+            ),
         };
 
         from_fn_with_description(
@@ -370,6 +423,35 @@ where
             },
             new_sig,
         )
+    }
+
+    fn infer_branch(
+        self_obligations: &BTreeMap<Type, &'static Location<'static>>,
+        self_guaranteed_outcomes: &BTreeSet<Type>,
+        self_conditional_outcomes: &BTreeSet<Type>,
+        next_obligations: &BTreeMap<Type, &'static Location<'static>>,
+        next_conditional_outcomes: &BTreeSet<Type>,
+    ) -> HandlerSignature {
+        HandlerSignature::Other {
+            // Take the union of the input types of both handlers, but exclude types that
+            // the first handler guarantees to provide. The first handler's obligations take
+            // priority over those of the second one.
+            obligations: next_obligations
+                .clone()
+                .into_iter()
+                .filter(|(ty, _location)| !self_guaranteed_outcomes.contains(ty))
+                .chain(self_obligations.clone())
+                .collect(),
+
+            // When the branched handler continues, the first handler's guaranteed outcomes
+            // are still available. When it breaks, there are no subsequent handlers.
+            guaranteed_outcomes: self_guaranteed_outcomes.clone(),
+
+            conditional_outcomes: self_conditional_outcomes
+                .union(next_conditional_outcomes)
+                .cloned()
+                .collect(),
+        }
     }
 
     /// Executes this handler with a continuation.
@@ -558,6 +640,15 @@ where
 pub fn type_check(sig: &HandlerSignature, container: &DependencyMap, assumptions: &[Type]) {
     match sig {
         HandlerSignature::Entry => {}
+        HandlerSignature::Endpoint { obligations } => type_check(
+            &HandlerSignature::Other {
+                obligations: obligations.clone(),
+                guaranteed_outcomes: BTreeSet::default(),
+                conditional_outcomes: BTreeSet::default(),
+            },
+            container,
+            assumptions,
+        ),
         HandlerSignature::Other {
             obligations,
             guaranteed_outcomes: _,
@@ -1114,7 +1205,7 @@ Make sure all the required values are provided to the handler. For more informat
 
         #[rustfmt::skip]
         let h: Handler<C> =
-            entry().branch(endpoint(|_: A| async { C })).branch(endpoint(|_: A, _: B| async { C }));
+            entry().branch(crate::map(|_: A|  { C })).branch(endpoint(|_: A, _: B| async { C }));
         test::<A>(h, 28);
     }
 
@@ -1244,5 +1335,68 @@ Make sure all the required values are provided to the handler. For more informat
             .branch(endpoint(|_: B| async {})); // `B` is not guaranteed to be available
 
         type_check(handler.sig(), &deps![], &[]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Dead code detected: an endpoint always breaks the chain, so the \
+                               code after it will never be executed")]
+    fn chain_endpoint_with_handler() {
+        let _: Handler<()> = endpoint(|| async {}).endpoint(|| async {});
+    }
+
+    #[test]
+    #[should_panic(expected = "Dead code detected: an endpoint always breaks the chain, so the \
+                               code after it will never be executed")]
+    fn chain_endpoint_with_filter() {
+        let _: Handler<()> = endpoint(|| async {}).filter(|_: i32| true);
+    }
+
+    #[test]
+    #[should_panic(expected = "Dead code detected: an endpoint always breaks the chain, so the \
+                               code after it will never be executed")]
+    fn chain_endpoint_with_map() {
+        let _: Handler<()> = endpoint(|| async {}).map(|| 42);
+    }
+
+    #[test]
+    #[should_panic(expected = "Dead code detected: an endpoint always breaks execution, so the \
+                               other branches are not possible")]
+    fn branch_endpoint_with_handler() {
+        let _: Handler<()> = endpoint(|| async {}).branch(endpoint(|| async {}));
+    }
+
+    #[test]
+    #[should_panic(expected = "Dead code detected: an endpoint always breaks execution, so the \
+                               other branches are not possible")]
+    fn branch_endpoint_with_filter() {
+        let _: Handler<()> = endpoint(|| async {}).branch(filter(|_: i32| true));
+    }
+
+    #[test]
+    #[should_panic(expected = "Dead code detected: an endpoint always breaks execution, so the \
+                               other branches are not possible")]
+    fn branch_endpoint_with_map() {
+        let _: Handler<()> = endpoint(|| async {}).branch(crate::map(|| 42));
+    }
+
+    // We do not yet support dead code detection when an endpoint is used in the
+    // middle of a chain.
+    #[test]
+    fn chain_complex_endpoint_dead_code() {
+        let _: Handler<()> = entry()
+            .chain(filter(|x: i32| x > 0))
+            .chain(endpoint(|| async {}))
+            .chain(crate::map(|| "Unreachable"));
+    }
+
+    // Likewise, we do not report an error if an endpoint is used in the middle of a
+    // branch.
+    #[test]
+    fn branch_complex_endpoint_dead_code() {
+        let _: Handler<()> = entry()
+            .branch(filter(|x: i32| x > 0).endpoint(|| async {}))
+            .branch(crate::map(|| "Still reachable"))
+            .chain(endpoint(|| async {}))
+            .branch(crate::map(|| "Unreachable"));
     }
 }
