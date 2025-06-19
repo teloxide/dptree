@@ -76,6 +76,7 @@ where
             obligations: F::obligations(),
             guaranteed_outcomes: BTreeSet::default(),
             conditional_outcomes: BTreeSet::default(),
+            continues: true,
         },
     )
 }

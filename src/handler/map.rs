@@ -93,6 +93,7 @@ where
             obligations: Projection::obligations(),
             guaranteed_outcomes: BTreeSet::from_iter(vec![Type::of::<NewType>()]),
             conditional_outcomes: BTreeSet::new(),
+            continues: true,
         },
     )
 }

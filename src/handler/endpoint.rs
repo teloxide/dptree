@@ -3,7 +3,7 @@ use crate::{
     HandlerSignature,
 };
 
-use std::{ops::ControlFlow, sync::Arc};
+use std::{collections::BTreeSet, ops::ControlFlow, sync::Arc};
 
 use futures::FutureExt;
 
@@ -31,7 +31,12 @@ where
                 f().map(ControlFlow::Break).await
             }
         },
-        HandlerSignature::Endpoint { obligations: F::obligations() },
+        HandlerSignature::Other {
+            obligations: F::obligations(),
+            guaranteed_outcomes: BTreeSet::default(),
+            conditional_outcomes: BTreeSet::default(),
+            continues: false,
+        },
     )
 }
 

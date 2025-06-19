@@ -8,11 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
- - The `HandlerSignature::Endpoint` variant that allows us to detect some instances of dead code [**BC**].
+ - The `continues` field in `HandlerSignature::Other { ... }` that allows us to detect some instances of dead code [**BC**].
 
 ### Changed
 
- - Panic in the `chain` and `branch` methods if two endpoints are sequenced together [**BC**].
+ - Panic in the `chain` method if the second handler is considered dead code [**BC**].
 
 ## 0.4.3 - 2025-06-10
 

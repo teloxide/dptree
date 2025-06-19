@@ -78,8 +78,6 @@ struct HandlerData<Descr, F: ?Sized> {
 pub enum HandlerSignature {
     /// The signature corresponding to [`crate::entry`].
     Entry,
-    /// The signature corresponding to [`crate::endpoint`].
-    Endpoint { obligations: BTreeMap<Type, &'static Location<'static>> },
     /// The handler signature with exact input and output types.
     Other {
         /// The map from types that this handler accepts to locations where they
@@ -95,6 +93,9 @@ pub enum HandlerSignature {
         /// conditionally. These types cannot be relied upon by subsequent
         /// handlers.
         conditional_outcomes: BTreeSet<Type>,
+
+        /// Whether this handler might continue execution.
+        continues: bool,
     },
 }
 
@@ -204,54 +205,40 @@ where
             (_, HandlerSignature::Entry) => {
                 panic!("Ill-typed handler chain: the second handler cannot be an entry")
             }
-            (HandlerSignature::Entry, other_sig @ HandlerSignature::Other { .. })
-            | (HandlerSignature::Entry, other_sig @ HandlerSignature::Endpoint { .. }) => {
+            (HandlerSignature::Entry, other_sig @ HandlerSignature::Other { .. }) => {
                 other_sig.clone()
             }
-            (HandlerSignature::Endpoint { .. }, _) => {
-                panic!(
-                    "Dead code detected: an endpoint always breaks the chain, so the code after \
-                     it will never be executed"
-                );
-            }
             (
                 HandlerSignature::Other {
                     obligations: self_obligations,
                     guaranteed_outcomes: self_guaranteed_outcomes,
                     conditional_outcomes: self_conditional_outcomes,
-                },
-                HandlerSignature::Endpoint { obligations: next_obligations },
-            ) => {
-                let next_guaranteed_outcomes = BTreeSet::default();
-                let next_conditional_outcomes = BTreeSet::default();
-                Self::infer_chain(
-                    self_obligations,
-                    self_guaranteed_outcomes,
-                    self_conditional_outcomes,
-                    next_obligations,
-                    &next_guaranteed_outcomes,
-                    &next_conditional_outcomes,
-                )
-            }
-            (
-                HandlerSignature::Other {
-                    obligations: self_obligations,
-                    guaranteed_outcomes: self_guaranteed_outcomes,
-                    conditional_outcomes: self_conditional_outcomes,
+                    continues: self_continues,
                 },
                 HandlerSignature::Other {
                     obligations: next_obligations,
                     guaranteed_outcomes: next_guaranteed_outcomes,
                     conditional_outcomes: next_conditional_outcomes,
+                    continues: next_continues,
                 },
-            ) => Self::infer_chain(
-                self_obligations,
-                self_guaranteed_outcomes,
-                self_conditional_outcomes,
-                next_obligations,
-                next_guaranteed_outcomes,
-                next_conditional_outcomes,
-            ),
+            ) => {
+                if !self_continues {
+                    panic!(
+                        "Dead code detected: since the first handler aborts execution, the second \
+                         handler will never be called."
+                    );
+                }
+
+                Self::infer_chain(
+                    self_obligations,
+                    self_guaranteed_outcomes,
+                    self_conditional_outcomes,
+                    next_obligations,
+                    next_guaranteed_outcomes,
+                    next_conditional_outcomes,
+                    *next_continues,
+                )
+            }
         };
 
         from_fn_with_description(
@@ -273,6 +260,7 @@ where
         next_obligations: &BTreeMap<Type, &'static Location<'static>>,
         next_guaranteed_outcomes: &BTreeSet<Type>,
         next_conditional_outcomes: &BTreeSet<Type>,
+        next_continues: bool,
     ) -> HandlerSignature {
         HandlerSignature::Other {
             // Take the union of (the first handler's input types) and (the difference
@@ -306,6 +294,8 @@ where
                 .union(next_conditional_outcomes)
                 .cloned()
                 .collect(),
+
+            continues: next_continues,
         }
     }
 
@@ -361,43 +351,21 @@ where
             (_, HandlerSignature::Entry) => {
                 panic!("Ill-typed handler branch: the second handler cannot be an entry")
             }
-            (HandlerSignature::Entry, other_sig @ HandlerSignature::Other { .. })
-            | (HandlerSignature::Entry, other_sig @ HandlerSignature::Endpoint { .. }) => {
+            (HandlerSignature::Entry, other_sig @ HandlerSignature::Other { .. }) => {
                 other_sig.clone()
             }
-            (HandlerSignature::Endpoint { .. }, _) => {
-                panic!(
-                    "Dead code detected: an endpoint always breaks execution, so the other \
-                     branches are not possible"
-                );
-            }
             (
                 HandlerSignature::Other {
                     obligations: self_obligations,
                     guaranteed_outcomes: self_guaranteed_outcomes,
                     conditional_outcomes: self_conditional_outcomes,
-                },
-                HandlerSignature::Endpoint { obligations: next_obligations },
-            ) => {
-                let next_conditional_outcomes = BTreeSet::default();
-                Self::infer_branch(
-                    self_obligations,
-                    self_guaranteed_outcomes,
-                    self_conditional_outcomes,
-                    next_obligations,
-                    &next_conditional_outcomes,
-                )
-            }
-            (
-                HandlerSignature::Other {
-                    obligations: self_obligations,
-                    guaranteed_outcomes: self_guaranteed_outcomes,
-                    conditional_outcomes: self_conditional_outcomes,
+                    continues: _self_continues,
                 },
                 HandlerSignature::Other {
                     obligations: next_obligations,
                     guaranteed_outcomes: _next_guaranteed_outcomes,
                     conditional_outcomes: next_conditional_outcomes,
+                    continues: _next_continues,
                 },
             ) => Self::infer_branch(
                 self_obligations,
@@ -451,6 +419,8 @@ where
                 .union(next_conditional_outcomes)
                 .cloned()
                 .collect(),
+
+            continues: true,
         }
     }
 
@@ -640,19 +610,11 @@ where
 pub fn type_check(sig: &HandlerSignature, container: &DependencyMap, assumptions: &[Type]) {
     match sig {
         HandlerSignature::Entry => {}
-        HandlerSignature::Endpoint { obligations } => type_check(
-            &HandlerSignature::Other {
-                obligations: obligations.clone(),
-                guaranteed_outcomes: BTreeSet::default(),
-                conditional_outcomes: BTreeSet::default(),
-            },
-            container,
-            assumptions,
-        ),
         HandlerSignature::Other {
             obligations,
             guaranteed_outcomes: _,
             conditional_outcomes: _,
+            continues: _,
         } => {
             let container_types = container
                 .map
@@ -740,6 +702,7 @@ mod tests {
                 ),
                 guaranteed_outcomes: btreeset! {},
                 conditional_outcomes: btreeset! {},
+                continues: false,
             },
         ))
         .dispatch(deps![input])
@@ -767,6 +730,7 @@ mod tests {
                 ),
                 guaranteed_outcomes: btreeset! {Type::of::<i32>()},
                 conditional_outcomes: btreeset! {},
+                continues: true,
             },
         ))
         .dispatch(deps![input])
@@ -804,6 +768,7 @@ mod tests {
                 ),
                 guaranteed_outcomes: btreeset! {Type::of::<i32>()},
                 conditional_outcomes: btreeset! {},
+                continues: true,
             },
         ))
         .execute(deps![input], |event| async move {
@@ -994,6 +959,7 @@ mod tests {
                         },
                         guaranteed_outcomes: btreeset! {},
                         conditional_outcomes: btreeset! {},
+                        continues: true,
                     },
                     &deps![A, B, C],
                     &[],
@@ -1044,6 +1010,7 @@ Make sure all the required values are provided to the handler. For more informat
                 },
                 guaranteed_outcomes: btreeset! {},
                 conditional_outcomes: btreeset! {},
+                continues: true,
             },
             // `C` is required but not provided.
             &deps![A, B],
@@ -1097,6 +1064,7 @@ Make sure all the required values are provided to the handler. For more informat
             obligations: actual_obligations,
             guaranteed_outcomes: actual_guaranteed_outcomes,
             conditional_outcomes: actual_conditional_outcomes,
+            continues: _continues,
         } = h.sig()
         {
             assert_eq!(
@@ -1150,6 +1118,7 @@ Make sure all the required values are provided to the handler. For more informat
             obligations: actual_obligations,
             guaranteed_outcomes: actual_guaranteed_outcomes,
             conditional_outcomes: actual_conditional_outcomes,
+            continues: _continues,
         } = h.sig()
         {
             assert_eq!(
@@ -1187,6 +1156,7 @@ Make sure all the required values are provided to the handler. For more informat
                 obligations,
                 guaranteed_outcomes: _,
                 conditional_outcomes: _,
+                continues: _,
             } = h.sig()
             {
                 let (_ty, &location) = obligations
@@ -1338,65 +1308,33 @@ Make sure all the required values are provided to the handler. For more informat
     }
 
     #[test]
-    #[should_panic(expected = "Dead code detected: an endpoint always breaks the chain, so the \
-                               code after it will never be executed")]
+    #[should_panic(expected = "Dead code detected: since the first handler aborts execution, the \
+                               second handler will never be called.")]
     fn chain_endpoint_with_handler() {
         let _: Handler<()> = endpoint(|| async {}).endpoint(|| async {});
     }
 
     #[test]
-    #[should_panic(expected = "Dead code detected: an endpoint always breaks the chain, so the \
-                               code after it will never be executed")]
+    #[should_panic(expected = "Dead code detected: since the first handler aborts execution, the \
+                               second handler will never be called.")]
     fn chain_endpoint_with_filter() {
         let _: Handler<()> = endpoint(|| async {}).filter(|_: i32| true);
     }
 
     #[test]
-    #[should_panic(expected = "Dead code detected: an endpoint always breaks the chain, so the \
-                               code after it will never be executed")]
+    #[should_panic(expected = "Dead code detected: since the first handler aborts execution, the \
+                               second handler will never be called.")]
     fn chain_endpoint_with_map() {
         let _: Handler<()> = endpoint(|| async {}).map(|| 42);
     }
 
     #[test]
-    #[should_panic(expected = "Dead code detected: an endpoint always breaks execution, so the \
-                               other branches are not possible")]
-    fn branch_endpoint_with_handler() {
-        let _: Handler<()> = endpoint(|| async {}).branch(endpoint(|| async {}));
-    }
-
-    #[test]
-    #[should_panic(expected = "Dead code detected: an endpoint always breaks execution, so the \
-                               other branches are not possible")]
-    fn branch_endpoint_with_filter() {
-        let _: Handler<()> = endpoint(|| async {}).branch(filter(|_: i32| true));
-    }
-
-    #[test]
-    #[should_panic(expected = "Dead code detected: an endpoint always breaks execution, so the \
-                               other branches are not possible")]
-    fn branch_endpoint_with_map() {
-        let _: Handler<()> = endpoint(|| async {}).branch(crate::map(|| 42));
-    }
-
-    // We do not yet support dead code detection when an endpoint is used in the
-    // middle of a chain.
-    #[test]
+    #[should_panic(expected = "Dead code detected: since the first handler aborts execution, the \
+                               second handler will never be called.")]
     fn chain_complex_endpoint_dead_code() {
         let _: Handler<()> = entry()
             .chain(filter(|x: i32| x > 0))
             .chain(endpoint(|| async {}))
             .chain(crate::map(|| "Unreachable"));
-    }
-
-    // Likewise, we do not report an error if an endpoint is used in the middle of a
-    // branch.
-    #[test]
-    fn branch_complex_endpoint_dead_code() {
-        let _: Handler<()> = entry()
-            .branch(filter(|x: i32| x > 0).endpoint(|| async {}))
-            .branch(crate::map(|| "Still reachable"))
-            .chain(endpoint(|| async {}))
-            .branch(crate::map(|| "Unreachable"));
     }
 }
