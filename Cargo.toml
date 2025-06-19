@@ -1,6 +1,6 @@
 [package]
 name = "dptree"
-version = "0.4.3"
+version = "0.5.0"
 authors = ["p0lunin <dmytro.polunin@gmail.com>", "hirrolot <hirrolot@gmail.com>"]
 edition = "2018"
 description = "An asynchronous event dispatch mechanism for Rust"

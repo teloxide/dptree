@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## unreleased
 
+## 0.5.0 - 2025-06-19
+
 ### Added
 
  - The `continues` field in `HandlerSignature::Other { ... }` that allows us to detect some instances of dead code [**BC**].
