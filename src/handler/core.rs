@@ -7,7 +7,6 @@ use crate::{description, prelude::DependencyMap, HandlerDescription};
 
 use std::{
     any::TypeId,
-    cmp::Ordering,
     collections::{BTreeMap, BTreeSet},
     fmt::Write,
     future::Future,
@@ -102,43 +101,22 @@ pub enum HandlerSignature {
 /// A run-time representation of a type. Used only for run-time type inference
 /// and checking of handler chains.
 ///
+/// Type name defined before type identifier so that types are sorted alphabetically
+/// using the derived Ord implementation.
 /// See [`crate::type_check`].
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Type {
-    /// The unique type identifier.
-    pub id: TypeId,
-
     /// The type name used for printing.
     pub name: &'static str,
+
+    /// The unique type identifier.
+    pub id: TypeId,
 }
 
 impl Hash for Type {
     /// Hashing is done by type identifiers (type names are ignored).
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.id.hash(state);
-    }
-}
-
-impl PartialEq for Type {
-    /// Equality is done by type identifiers (type names are ignored).
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-
-impl Eq for Type {}
-
-impl PartialOrd for Type {
-    /// The partial order is done by type names for better diagnostics.
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for Type {
-    /// The total order is done by type names for better diagnostics.
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.name.cmp(other.name)
     }
 }
 
