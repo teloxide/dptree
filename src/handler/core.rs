@@ -679,7 +679,7 @@ mod tests {
         handler::{endpoint, filter, filter_async},
     };
 
-    use std::{collections::HashSet, iter::FromIterator};
+    use std::{any::Any, collections::HashSet, iter::FromIterator};
 
     use maplit::{btreemap, btreeset, hashset};
 
@@ -1016,6 +1016,34 @@ Make sure all the required values are provided to the handler. For more informat
             &deps![A, B],
             &[],
         );
+    }
+
+    #[test]
+    fn type_eq_ord_consistent() {
+        #[derive(Clone)]
+        struct A;
+
+        let ta1 = Type { id: A.type_id(), name: "A1" };
+        let ta2 = Type { id: A.type_id(), name: "A2" };
+
+        assert!(!(ta1 == ta2));
+        assert!(ta1 < ta2);
+        assert!(!(ta1 > ta2));
+    }
+
+    #[test]
+    fn type_btreeset_not_contains_duplicate_name() {
+        #[derive(Clone)]
+        struct A;
+        #[derive(Clone)]
+        struct B;
+
+        let ta = Type { id: A.type_id(), name: "DuplicateName" };
+        let tb = Type { id: B.type_id(), name: "DuplicateName" };
+        let set = btreeset! {ta};
+
+        assert!(ta != tb);
+        assert!(!set.contains(&tb));
     }
 
     #[tokio::test]
