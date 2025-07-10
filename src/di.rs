@@ -93,7 +93,7 @@ impl PartialEq for DependencyMap {
     fn eq(&self, other: &Self) -> bool {
         let keys1 = self.map.keys();
         let keys2 = other.map.keys();
-        keys1.zip(keys2).map(|(k1, k2)| k1 == k2).all(|x| x)
+        keys1.len() == keys2.len() && keys1.zip(keys2).map(|(k1, k2)| k1 == k2).all(|x| x)
     }
 }
 
