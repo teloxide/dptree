@@ -326,4 +326,18 @@ mod tests {
         assert_eq!(map.try_get(), Some(Arc::new(42i32)));
         assert_eq!(map.try_get::<f32>(), None);
     }
+
+    #[test]
+    fn same_keys() {
+        let mut map_bool1 = DependencyMap::new();
+        let mut map_bool2 = DependencyMap::new();
+        let map_empty = DependencyMap::new();
+
+        map_bool1.insert(false);
+        map_bool2.insert(true);
+
+        assert_eq!(map_bool1, map_bool2);
+        assert_ne!(map_bool1, map_empty);
+        assert_ne!(map_bool2, map_empty);
+    }
 }
