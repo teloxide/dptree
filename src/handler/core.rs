@@ -7,7 +7,6 @@ use crate::{description, prelude::DependencyMap, HandlerDescription};
 
 use std::{
     any::TypeId,
-    cmp::Ordering,
     collections::{BTreeMap, BTreeSet},
     fmt::Write,
     future::Future,
@@ -102,43 +101,22 @@ pub enum HandlerSignature {
 /// A run-time representation of a type. Used only for run-time type inference
 /// and checking of handler chains.
 ///
+/// Type name field placed before type identifier field so that the derived Ord
+/// implementation sorts types alphabetically.
 /// See [`crate::type_check`].
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Type {
-    /// The unique type identifier.
-    pub id: TypeId,
-
     /// The type name used for printing.
     pub name: &'static str,
+
+    /// The unique type identifier.
+    pub id: TypeId,
 }
 
 impl Hash for Type {
     /// Hashing is done by type identifiers (type names are ignored).
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.id.hash(state);
-    }
-}
-
-impl PartialEq for Type {
-    /// Equality is done by type identifiers (type names are ignored).
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-
-impl Eq for Type {}
-
-impl PartialOrd for Type {
-    /// The partial order is done by type names for better diagnostics.
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for Type {
-    /// The total order is done by type names for better diagnostics.
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.name.cmp(other.name)
     }
 }
 
@@ -679,7 +657,7 @@ mod tests {
         handler::{endpoint, filter, filter_async},
     };
 
-    use std::{collections::HashSet, iter::FromIterator};
+    use std::{any::Any, collections::HashSet, iter::FromIterator};
 
     use maplit::{btreemap, btreeset, hashset};
 
@@ -1016,6 +994,34 @@ Make sure all the required values are provided to the handler. For more informat
             &deps![A, B],
             &[],
         );
+    }
+
+    #[test]
+    fn type_eq_ord_consistent() {
+        #[derive(Clone)]
+        struct A;
+
+        let ta1 = Type { id: A.type_id(), name: "A1" };
+        let ta2 = Type { id: A.type_id(), name: "A2" };
+
+        assert!(!(ta1 == ta2));
+        assert!(ta1 < ta2);
+        assert!(!(ta1 > ta2));
+    }
+
+    #[test]
+    fn type_btreeset_not_contains_duplicate_name() {
+        #[derive(Clone)]
+        struct A;
+        #[derive(Clone)]
+        struct B;
+
+        let ta = Type { id: A.type_id(), name: "DuplicateName" };
+        let tb = Type { id: B.type_id(), name: "DuplicateName" };
+        let set = btreeset! {ta};
+
+        assert!(ta != tb);
+        assert!(!set.contains(&tb));
     }
 
     #[tokio::test]

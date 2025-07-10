@@ -93,7 +93,7 @@ impl PartialEq for DependencyMap {
     fn eq(&self, other: &Self) -> bool {
         let keys1 = self.map.keys();
         let keys2 = other.map.keys();
-        keys1.zip(keys2).map(|(k1, k2)| k1 == k2).all(|x| x)
+        keys1.len() == keys2.len() && keys1.zip(keys2).map(|(k1, k2)| k1 == k2).all(|x| x)
     }
 }
 
@@ -325,5 +325,19 @@ mod tests {
         map.insert(42i32);
         assert_eq!(map.try_get(), Some(Arc::new(42i32)));
         assert_eq!(map.try_get::<f32>(), None);
+    }
+
+    #[test]
+    fn same_keys() {
+        let mut map_bool1 = DependencyMap::new();
+        let mut map_bool2 = DependencyMap::new();
+        let map_empty = DependencyMap::new();
+
+        map_bool1.insert(false);
+        map_bool2.insert(true);
+
+        assert_eq!(map_bool1, map_bool2);
+        assert_ne!(map_bool1, map_empty);
+        assert_ne!(map_bool2, map_empty);
     }
 }
