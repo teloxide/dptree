@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## unreleased
 
+### Fixed
+
+ - Fix `PartialEq` and `Ord` implementations. ([PR #36](https://github.com/teloxide/dptree/pull/36))
+   - For `Type` they were inconsistent and are replaced by the standard derived implementations.
+   - Adding a length check when checking equality of `DependencyMap`.
+
 ## 0.5.0 - 2025-06-19
 
 ### Added
