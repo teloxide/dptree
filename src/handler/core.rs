@@ -101,8 +101,8 @@ pub enum HandlerSignature {
 /// A run-time representation of a type. Used only for run-time type inference
 /// and checking of handler chains.
 ///
-/// Type name defined before type identifier so that types are sorted alphabetically
-/// using the derived Ord implementation.
+/// Type name field placed before type identifier field so that the derived Ord
+/// implementation sorts types alphabetically.
 /// See [`crate::type_check`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Type {
