@@ -170,4 +170,70 @@ pub trait HandlerDescription: Sized + MaybeSend + MaybeSync + 'static {
     fn endpoint() -> Self {
         Self::user_defined()
     }
+
+    /// Description for [`try_filter`](crate::try_filter).
+    ///
+    /// ## Default implementation
+    ///
+    /// By default this returns the value from
+    /// [`user_defined`](HandlerDescription::user_defined).
+    #[track_caller]
+    fn try_filter() -> Self {
+        Self::user_defined()
+    }
+
+    /// Description for [`try_filter_async`](crate::try_filter_async).
+    ///
+    /// ## Default implementation
+    ///
+    /// By default this returns the value from
+    /// [`user_defined`](HandlerDescription::user_defined).
+    #[track_caller]
+    fn try_filter_async() -> Self {
+        Self::user_defined()
+    }
+
+    /// Description for [`try_filter_map`](crate::try_filter_map).
+    ///
+    /// ## Default implementation
+    ///
+    /// By default this returns the value from
+    /// [`user_defined`](HandlerDescription::user_defined).
+    #[track_caller]
+    fn try_filter_map() -> Self {
+        Self::user_defined()
+    }
+
+    /// Description for [`try_filter_map_async`](crate::try_filter_map_async).
+    ///
+    /// ## Default implementation
+    ///
+    /// By default this returns the value from
+    /// [`user_defined`](HandlerDescription::user_defined).
+    #[track_caller]
+    fn try_filter_map_async() -> Self {
+        Self::user_defined()
+    }
+
+    /// Description for [`try_map`](crate::try_map).
+    ///
+    /// ## Default implementation
+    ///
+    /// By default this returns the value from
+    /// [`user_defined`](HandlerDescription::user_defined).
+    #[track_caller]
+    fn try_map() -> Self {
+        Self::user_defined()
+    }
+
+    /// Description for [`try_map_async`](crate::try_map_async).
+    ///
+    /// ## Default implementation
+    ///
+    /// By default this returns the value from
+    /// [`user_defined`](HandlerDescription::user_defined).
+    #[track_caller]
+    fn try_map_async() -> Self {
+        Self::user_defined()
+    }
 }

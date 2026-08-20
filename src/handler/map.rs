@@ -81,7 +81,7 @@ where
             async move {
                 let proj = proj.inject(&container);
                 let res = proj().await;
-                std::mem::drop(proj);
+                drop(proj);
 
                 let mut intermediate = container.clone();
                 intermediate.insert(res);

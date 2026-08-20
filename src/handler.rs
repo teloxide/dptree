@@ -1,16 +1,24 @@
 mod core;
 pub mod description;
 mod endpoint;
+mod fallible;
 mod filter;
 mod filter_map;
 mod inspect;
 mod map;
 mod methods;
+mod try_filter;
+mod try_filter_map;
+mod try_map;
 
 pub use self::core::*;
 pub use description::HandlerDescription;
 pub use endpoint::*;
+pub use fallible::Fallible;
 pub use filter::*;
 pub use filter_map::*;
 pub use inspect::*;
 pub use map::*;
+pub use try_filter::*;
+pub use try_filter_map::*;
+pub use try_map::*;

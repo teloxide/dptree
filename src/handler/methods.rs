@@ -1,7 +1,7 @@
 use crate::{
     di::{Asyncify, Injectable},
     send::{MaybeSend, MaybeSync},
-    Handler, HandlerDescription,
+    Fallible, Handler, HandlerDescription,
 };
 
 impl<'a, Output, Descr> Handler<'a, Output, Descr>
@@ -103,6 +103,110 @@ where
     {
         self.chain(crate::endpoint(f))
     }
+
+    /// Chain this handler with the fallible filter predicate `pred`.
+    ///
+    /// `pred` returns [`Result<bool, E>`] (where `E` is the error type of this
+    /// handler's `Output`). On `Ok(true)` execution continues; on `Ok(false)`
+    /// the handler returns [`ControlFlow::Continue`](std::ops::ControlFlow::Continue)
+    /// (try the next branch); on `Err(e)` the handler short-circuits with
+    /// [`ControlFlow::Break`](std::ops::ControlFlow::Break) carrying
+    /// the error, without falling through to sibling branches.
+    #[must_use]
+    #[track_caller]
+    pub fn try_filter<Pred, FnArgs>(self, pred: Pred) -> Handler<'a, Output, Descr>
+    where
+        Asyncify<Pred>:
+            Injectable<Result<bool, Output::Error>, FnArgs> + MaybeSend + MaybeSync + 'a,
+        Output: Fallible,
+        Output::Error: MaybeSend,
+    {
+        self.chain(crate::try_filter(pred))
+    }
+
+    /// Chain this handler with the async fallible filter predicate `pred`.
+    ///
+    /// See [`try_filter`](Handler::try_filter).
+    #[must_use]
+    #[track_caller]
+    pub fn try_filter_async<Pred, FnArgs>(self, pred: Pred) -> Handler<'a, Output, Descr>
+    where
+        Pred: Injectable<Result<bool, Output::Error>, FnArgs> + MaybeSend + MaybeSync + 'a,
+        Output: Fallible,
+        Output::Error: MaybeSend,
+    {
+        self.chain(crate::try_filter_async(pred))
+    }
+
+    /// Chain this handler with the fallible filter projection `proj`.
+    ///
+    /// `proj` returns [`Result<Option<NewType>, E>`]. On `Ok(Some(v))` `v` is
+    /// inserted into the container and execution continues; on `Ok(None)` the
+    /// handler returns [`ControlFlow::Continue`](std::ops::ControlFlow::Continue)
+    /// (try the next branch); on `Err(e)` the handler short-circuits with
+    /// [`ControlFlow::Break`](std::ops::ControlFlow::Break) carrying
+    /// the error.
+    #[must_use]
+    #[track_caller]
+    pub fn try_filter_map<Proj, NewType, Args>(self, proj: Proj) -> Handler<'a, Output, Descr>
+    where
+        Asyncify<Proj>:
+            Injectable<Result<Option<NewType>, Output::Error>, Args> + MaybeSend + MaybeSync + 'a,
+        Output: Fallible,
+        Output::Error: MaybeSend,
+        NewType: Send + Sync + 'static,
+    {
+        self.chain(crate::try_filter_map(proj))
+    }
+
+    /// Chain this handler with the async fallible filter projection `proj`.
+    ///
+    /// See [`try_filter_map`](Handler::try_filter_map).
+    #[must_use]
+    #[track_caller]
+    pub fn try_filter_map_async<Proj, NewType, Args>(self, proj: Proj) -> Handler<'a, Output, Descr>
+    where
+        Proj: Injectable<Result<Option<NewType>, Output::Error>, Args> + MaybeSend + MaybeSync + 'a,
+        Output: Fallible,
+        Output::Error: MaybeSend,
+        NewType: Send + Sync + 'static,
+    {
+        self.chain(crate::try_filter_map_async(proj))
+    }
+
+    /// Chain this handler with the fallible map projection `proj`.
+    ///
+    /// `proj` returns [`Result<NewType, E>`]. On `Ok(v)` `v` is inserted into
+    /// the container and execution continues; on `Err(e)` the handler
+    /// short-circuits with [`ControlFlow::Break`](std::ops::ControlFlow::Break)
+    /// carrying the error, without calling the continuation.
+    #[must_use]
+    #[track_caller]
+    pub fn try_map<Proj, NewType, Args>(self, proj: Proj) -> Handler<'a, Output, Descr>
+    where
+        Asyncify<Proj>:
+            Injectable<Result<NewType, Output::Error>, Args> + MaybeSend + MaybeSync + 'a,
+        Output: Fallible,
+        Output::Error: MaybeSend,
+        NewType: Send + Sync + 'static,
+    {
+        self.chain(crate::try_map(proj))
+    }
+
+    /// Chain this handler with the async fallible map projection `proj`.
+    ///
+    /// See [`try_map`](Handler::try_map).
+    #[must_use]
+    #[track_caller]
+    pub fn try_map_async<Proj, NewType, Args>(self, proj: Proj) -> Handler<'a, Output, Descr>
+    where
+        Proj: Injectable<Result<NewType, Output::Error>, Args> + MaybeSend + MaybeSync + 'a,
+        Output: Fallible,
+        Output::Error: MaybeSend,
+        NewType: Send + Sync + 'static,
+    {
+        self.chain(crate::try_map_async(proj))
+    }
 }
 
 #[cfg(test)]
@@ -148,6 +252,37 @@ mod tests {
 
             let _: ControlFlow<(), _> =
                 help_inference(crate::entry()).endpoint(|| async {}).dispatch(deps![value]).await;
+
+            // Fallible handlers require a fallible (`Result` in here) output.
+            let _: ControlFlow<Result<(), &str>, _> = help_inference(crate::entry())
+                .try_filter(|| Ok::<bool, &str>(true))
+                .dispatch(deps![value])
+                .await;
+
+            let _: ControlFlow<Result<(), &str>, _> = help_inference(crate::entry())
+                .try_filter_async(|| async { Ok::<bool, &str>(true) })
+                .dispatch(deps![value])
+                .await;
+
+            let _: ControlFlow<Result<(), &str>, _> = help_inference(crate::entry())
+                .try_filter_map(|| Ok::<Option<()>, &str>(Some(())))
+                .dispatch(deps![value])
+                .await;
+
+            let _: ControlFlow<Result<(), &str>, _> = help_inference(crate::entry())
+                .try_filter_map_async(|| async { Ok::<Option<()>, &str>(Some(())) })
+                .dispatch(deps![value])
+                .await;
+
+            let _: ControlFlow<Result<(), &str>, _> = help_inference(crate::entry())
+                .try_map(|| Ok::<(), &str>(()))
+                .dispatch(deps![value])
+                .await;
+
+            let _: ControlFlow<Result<(), &str>, _> = help_inference(crate::entry())
+                .try_map_async(|| async { Ok::<(), &str>(()) })
+                .dispatch(deps![value])
+                .await;
         }
     }
 }

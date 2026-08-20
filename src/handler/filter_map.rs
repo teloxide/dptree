@@ -79,7 +79,7 @@ where
             async move {
                 let proj = proj.inject(&container);
                 let res = proj().await;
-                std::mem::drop(proj);
+                drop(proj);
 
                 match res {
                     Some(new_type) => {
