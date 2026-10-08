@@ -1,8 +1,5 @@
 //! Conditional `Send`/`Sync` helpers for wasm32 target.
 
-use std::future::Future;
-use std::pin::Pin;
-
 /// `Send` on native targets; no bound on `wasm32`.
 #[cfg(not(target_arch = "wasm32"))]
 pub trait MaybeSend: Send {}
@@ -30,6 +27,6 @@ impl<T: ?Sized> MaybeSync for T {}
 /// A boxed future that is `Send` on native targets and not required to be `Send`
 /// on `wasm32`.
 #[cfg(not(target_arch = "wasm32"))]
-pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+pub type MaybeSendBoxFuture<'a, T> = futures::future::BoxFuture<'a, T>;
 #[cfg(target_arch = "wasm32")]
-pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
+pub type MaybeSendBoxFuture<'a, T> = futures::future::LocalBoxFuture<'a, T>;

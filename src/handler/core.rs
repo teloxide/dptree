@@ -6,7 +6,7 @@ const FIXED_LOCATION: &Location = Location::caller();
 use crate::{
     description,
     prelude::DependencyMap,
-    send::{BoxFuture, MaybeSend, MaybeSync},
+    send::{MaybeSend, MaybeSendBoxFuture, MaybeSync},
     HandlerDescription,
 };
 
@@ -139,7 +139,7 @@ type ContInner<'a, Output> =
 type ContInner<'a, Output> = Box<dyn FnOnce(DependencyMap) -> HandlerResult<'a, Output> + 'a>;
 
 /// An output type produced by a handler.
-pub type HandlerResult<'a, Output> = BoxFuture<'a, ControlFlow<Output, DependencyMap>>;
+pub type HandlerResult<'a, Output> = MaybeSendBoxFuture<'a, ControlFlow<Output, DependencyMap>>;
 
 // `#[derive(Clone)]` obligates all type parameters to satisfy `Clone` as well,
 // but we do not need it here because of `Arc`.
