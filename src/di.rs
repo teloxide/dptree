@@ -15,7 +15,7 @@
 
 use futures::future::ready;
 
-use crate::send::{BoxFuture, MaybeSend, MaybeSync};
+use crate::send::{MaybeSend, MaybeSendBoxFuture, MaybeSync};
 
 use std::{
     any::{Any, TypeId},
@@ -204,9 +204,10 @@ where
 
 /// A function with all dependencies satisfied.
 #[cfg(not(target_arch = "wasm32"))]
-pub type CompiledFn<'a, Output> = Arc<dyn Fn() -> BoxFuture<'a, Output> + Send + Sync + 'a>;
+pub type CompiledFn<'a, Output> =
+    Arc<dyn Fn() -> MaybeSendBoxFuture<'a, Output> + Send + Sync + 'a>;
 #[cfg(target_arch = "wasm32")]
-pub type CompiledFn<'a, Output> = Arc<dyn Fn() -> BoxFuture<'a, Output> + 'a>;
+pub type CompiledFn<'a, Output> = Arc<dyn Fn() -> MaybeSendBoxFuture<'a, Output> + 'a>;
 
 /// Turns a synchronous function into a type that implements [`Injectable`].
 pub struct Asyncify<F>(pub F);

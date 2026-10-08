@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - Support for the `wasm32-unknown-unknown` target via `MaybeSend`/`MaybeSync` traits and a conditional `BoxFuture` alias ([PR #38](https://github.com/teloxide/dptree/issues/38)).
  - Fallible handlers `try_filter`, `try_map`, `try_filter_map` (and their `_async` variants), which let a function return `Result` and short-circuit the whole handler chain with `ControlFlow::Break` on `Err`. Requires the handler `Output` to implement the new `Fallible` trait.
  - The `Fallible` trait (with a blanket implementation for `Result<T, E>`), used by the fallible handlers to build the `Err` half of the output.
+ - Rename `BoxFuture` to `MaybeSendBoxFuture` to not have the same name as `futures::future::BoxFuture`.
 
 ## 0.5.1 - 2025-07-10
 
